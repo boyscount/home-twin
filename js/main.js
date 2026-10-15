@@ -171,18 +171,22 @@ bus.on('alert', () => {
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 
-// ---------- ปุ่มซูม ----------
+// ---------- ปุ่มซูม / หมุน ----------
+document.getElementById('btnAutoRot').classList.toggle('active', farm.controls.autoRotate);
 document.getElementById('zoomCtl').addEventListener('click', e => {
   const b = e.target.closest('[data-zoom]'); if (!b) return;
   if (b.dataset.zoom === 'in') farm.zoomBy(0.55);
   else if (b.dataset.zoom === 'out') farm.zoomBy(1.8);
+  else if (b.dataset.zoom === 'left') farm.rotateBy(-30);
+  else if (b.dataset.zoom === 'right') farm.rotateBy(30);
+  else if (b.dataset.zoom === 'auto') { farm.setAutoRotate(!farm.controls.autoRotate); b.classList.toggle('active', farm.controls.autoRotate); }
   else { document.querySelectorAll('#camChips .chip').forEach(c => c.classList.toggle('active', c.dataset.cam === 'overview')); farm.flyTo('overview'); }
 });
 // บอกวิธีซูมครั้งแรกบนมือถือ
 try {
-  if (farm.touchDevice && !localStorage.getItem('zoomHintSeen')) {
+  if (farm.touchDevice && !localStorage.getItem('gestureHint2')) {
     const hint = document.getElementById('zoomHint'); hint.hidden = false;
-    setTimeout(() => { hint.hidden = true; localStorage.setItem('zoomHintSeen', '1'); }, 6000);
+    setTimeout(() => { hint.hidden = true; localStorage.setItem('gestureHint2', '1'); }, 8000);
   }
 } catch {}
 

@@ -133,6 +133,7 @@ export class Tour {
     this.active = true; this.f.flying = null;
     this.i = -1; this.next();
     this.view.classList.add('tour-on');
+    this.autoRotWas = this.f.controls.autoRotate; this.f.controls.autoRotate = false;
     this.f.setLabels(false); // ป้ายโซนรกภาพตอนเล่าเรื่อง
     this.capEl.hidden = false;
     bus.emit('tour', true);
@@ -143,6 +144,7 @@ export class Tour {
     if (!this.active) return;
     this.active = false; this.idle = 0;
     this.view.classList.remove('tour-on');
+    if (this.autoRotWas !== undefined) { this.f.controls.autoRotate = this.autoRotWas; this.autoRotWas = undefined; }
     this.f.setLabels(document.getElementById('labelToggle')?.checked ?? true);
     this.capEl.hidden = true;
     bus.emit('tour', false);

@@ -504,6 +504,9 @@ export class Farm3D {
     this.controls.rotateSpeed = this.touchDevice ? 0.7 : 1;
     this.controls.panSpeed = this.touchDevice ? 1.4 : 1;
     this.setupDoubleTap();
+    this.setupTwist();
+    this.controls.autoRotateSpeed = 0.7; // หมุนรอบช้า ๆ ราว 85 วินาทีต่อรอบ
+    try { this.controls.autoRotate = localStorage.getItem('autoRotate') === '1'; } catch {}
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
     // ไฟฉายติดกล้อง (ใช้ตอนกล้องเล่าเรื่องเข้าสวนยางตอนกลางคืน หรือกดเปิดเอง)
     s.add(this.camera);
@@ -1575,6 +1578,42 @@ export class Farm3D {
     const d = clamp(off.length() * 0.4, 8, this.controls.maxDistance);
     this.tour?.stop();
     this.animateCam(hit.clone().add(off.setLength(d)), hit, 650);
+  }
+
+  // หมุนกล้องรอบจุดที่มองอยู่ (องศา, + = ตามเข็มนาฬิกาเมื่อมองจากด้านบน)
+  orbitBy(rad) {
+    const t = this.controls.target, off = this.camera.position.clone().sub(t);
+    off.applyAxisAngle(new THREE.Vector3(0, 1, 0), rad);
+    this.camera.position.copy(t).add(off);
+  }
+
+  rotateBy(deg) {
+    this.tour?.stop();
+    const t = this.controls.target.clone(), off = this.camera.position.clone().sub(t);
+    off.applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(deg));
+    this.animateCam(t.clone().add(off), t, 550);
+  }
+
+  setAutoRotate(on) {
+    this.controls.autoRotate = on;
+    try { localStorage.setItem('autoRotate', on ? '1' : '0'); } catch {}
+  }
+
+  // บิดสองนิ้ว = หมุนฉาก (เหมือนแอปแผนที่) — ทำงานพร้อมกับบีบซูมของ OrbitControls
+  setupTwist() {
+    const el = this.renderer.domElement, pts = new Map();
+    let lastAng = null;
+    const ang = () => { const [a, b] = [...pts.values()]; return Math.atan2(b.y - a.y, b.x - a.x); };
+    el.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); lastAng = pts.size === 2 ? ang() : null; } });
+    el.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size !== 2 || lastAng === null) return;
+      const a = ang(); let d = a - lastAng; d = Math.atan2(Math.sin(d), Math.cos(d)); lastAng = a;
+      if (Math.abs(d) > 0.002) this.orbitBy(-d);
+    });
+    const up = e => { pts.delete(e.pointerId); lastAng = pts.size === 2 ? ang() : null; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
 
   setupDoubleTap() {
