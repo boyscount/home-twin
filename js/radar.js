@@ -387,7 +387,7 @@ export class Radar {
       .slice(0, 24)
       .map(e => {
         const t = this.tracked.get(e.id);
-        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label})` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
+        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label}${this.farm.sleepers?.size && this.farm.isInside?.({ position: { x: e.x, y: 1, z: e.z } }) && !this.farm.entities.find(x => x.id === e.id)?.obj.visible ? ' 💤' : ''})` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
         const cls = e.type === 'human' ? (t?.status === 'threat' || t?.status === 'pending' ? 'target alert' : 'target human') : 'target';
         return `<div class="${cls}"><span>${e.id}</span><span>${e.type === 'human' ? '🧍 ' + st : e.type === 'vehicle' ? '🚗 ' + e.label : e.label}</span><span>${dist(e).toFixed(0)}m ${bearing(e).toFixed(0).padStart(3, '0')}°</span></div>`;
       });

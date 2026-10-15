@@ -230,6 +230,12 @@ function animateIdle(h, dt) {
     return;
   }
   h.head.rotation.x *= 0.9;
+  if (h.tapping) { // กรีดยาง: มือขวาลากมีดกรีดเป็นเกลียว
+    h.armR.rotation.x = -1.2 + Math.sin(h.phase * 7) * 0.25; h.armR.rotation.z = Math.sin(h.phase * 3.5) * 0.3;
+    h.armL.rotation.x = -0.9; h.head.rotation.x = 0.25;
+    h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85; h.group.position.y = h.baseY || 0;
+    return;
+  }
   h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85;
   if (!h.holding) { h.armL.rotation.x *= 0.85; h.armR.rotation.x *= 0.85; }
   h.group.position.y = h.baseY || 0;
@@ -1002,6 +1008,13 @@ export class Farm3D {
     this.bucketFeed = cyl(0.15, 0.15, 0.04, M.feed, 0, -0.04, 0, bucket, 10);
     bucket.position.set(0, -0.68, 0.05); bucket.visible = false; dad.armR.add(bucket);
     this.dad = { h: dad, w: new Walker(dad, 1.25), bucket };
+    // ไฟฉายคาดหัวสำหรับกรีดยางตอนกลางคืน (อยู่ในฉากตลอด แค่ปรับความสว่าง)
+    const lampM = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff8d0', emissiveIntensity: 0 });
+    const lampBox = box(0.08, 0.05, 0.05, lampM, 0, 0.06, 0.14, dad.head); lampBox.castShadow = false;
+    const lamp = new THREE.SpotLight('#fff3c8', 0, 22, 0.45, 0.6, 1.4); lamp.position.set(0, 0.06, 0.15);
+    const lampTarget = new THREE.Object3D(); lampTarget.position.set(0, -0.6, 4); dad.head.add(lamp, lampTarget); lamp.target = lampTarget;
+    this.headlamp = { light: lamp, mat: lampM };
+    this.dadAct = 'free'; this.dadActId = 0; this.tapState = { col: 9, row: 0, tapped: 0, latex: 0 }; this.familyAsleep = false; this.sleepers = new Set();
     this.entities.push({ id: 'H-DAD', type: 'human', label: 'พ่อ', resident: true, obj: dad.group, h: dad });
     // แม่ในบ้าน
     const mom = makeHuman({ shirt: '#c96f7a', pants: '#5b4a6b', longHair: true, skin: '#c4916a' });
@@ -1040,7 +1053,7 @@ export class Farm3D {
     });
     this.fishFeed = 0;
     // พ่อเริ่มกิจวัตรหลังโหลดสักครู่
-    setTimeout(() => this.feedPigs('auto'), 4000);
+    setTimeout(() => { if (this.dadAct === 'free') this.feedPigs('auto'); }, 4000);
   }
 
   sisLoop(gen = this.gen) {
@@ -1345,6 +1358,8 @@ export class Farm3D {
     this.sis.w.update(dt); this.kid.w.update(dt);
     this.updateBBQ(dt, t);
     this.updateSchool(dt, t);
+    this.schedTimer = (this.schedTimer || 0) - dt;
+    if (this.schedTimer < 0) { this.schedTimer = 0.5; this.updateSchedule(); }
     this.updateTraffic(dt);
     this.updateCats(dt, t);
     this.updateBubbles(dt);
@@ -1546,10 +1561,13 @@ export class Farm3D {
   startBBQ(source = 'manual') {
     const b = this.bbq; if (b.active) return;
     if (this.school.active) this.endClass();
-    b.active = true; b.group.visible = true; b.timeLeft = source === 'auto' ? 300 : 180;
+    b.active = true; b.group.visible = true; b.timeLeft = source === 'auto' ? 300 : 180; b.source = source;
+    this.sleepers.clear(); this.familyAsleep = false;
+    for (const who of [this.dad, this.mom, this.sis, this.kid]) who.h.group.visible = true;
     b.light.intensity = 3;
     this.gen++; // หยุดกิจวัตรเดิมของทุกคน
     const d = this.dad; d.busy = false; d.bucket.visible = false; d.h.holding = false; d.bucket.rotation.x = 0;
+    this.dadActId++; this.dadAct = 'bbq'; d.h.tapping = false; d.h.group.visible = true; this.setHeadlamp(false);
     this.fatherState = 'ไปกินหมูกะทะ'; this.sis.task = 'ไปกินหมูกะทะ'; this.kid.task = 'ไปกินหมูกะทะ';
     const people = [[this.dad, 2], [this.mom, 0], [this.sis, 1], [this.kid, 3]];
     for (const [who, seat] of people) {
@@ -1579,6 +1597,7 @@ export class Farm3D {
     this.gen++;
     for (const who of [this.dad, this.mom, this.sis, this.kid]) { who.h.sitting = false; who.h.eating = false; who.w.locked = false; }
     this.mom.w.go([[3.2, 0, 10], [3.2, 0.65, 7.6], [-0.75, 0.65, 7.2], [-0.75, 0.65, 3.5]], () => this.momLoop());
+    this.dadAct = 'free-after-bbq';
     this.dad.w.go([[4, 0, 10.5]], () => { this.fatherState = 'พักผ่อนหน้าบ้าน'; this.dad.h.group.rotation.y = 0.3; });
     this.fatherState = 'เก็บโต๊ะ เดินกลับหน้าบ้าน';
     this.sis.task = 'เก็บจานล้างจาน';
@@ -1596,7 +1615,8 @@ export class Farm3D {
     if (!b.active && this.hour >= 18 && this.hour < 20.5 && b.lastDay !== day) { b.lastDay = day; this.startBBQ('auto'); }
     if (!b.active) return;
     b.timeLeft -= dt;
-    if (b.timeLeft <= 0 || this.hour >= 21.5) { this.endBBQ(); return; }
+    const outOfWindow = b.source === 'auto' && (this.hour < 17.5 || this.hour >= 21.5); // เลื่อนเวลาออกนอกช่วงเย็น → เลิกวง
+    if (b.timeLeft <= 0 || outOfWindow) { this.endBBQ(); return; }
     b.light.intensity = 2.6 + Math.sin(t * 13) * 0.4 + Math.sin(t * 7.3) * 0.3;
     for (const m of b.meat) { // หมูสุกจากชมพู → น้ำตาล แล้วถูกคีบไปกิน ใส่ชิ้นใหม่
       m.t += dt * 0.06;
@@ -1683,6 +1703,117 @@ export class Farm3D {
     this.vehicles = this.vehicles.filter(v => !v.dead);
   }
 
+  // ---------------------------------------------------------------- กิจวัตรตามเวลา (ใช้เวลาในฉาก ซึ่งตรงกับเวลาจริงเมื่อเปิด "ใช้เวลาจริง")
+  // พ่อ: 02:00–06:00 กรีดยาง (ไฟฉายคาดหัว) · 06:30 ให้อาหารหมู · 07:00–09:00 เก็บน้ำยาง · 12:00–13:30 พักกลางวัน
+  //      16:30 ให้อาหารหมู · 21:45–01:45 นอน    ครอบครัว: 21:45–05:45 นอน
+  dadPlan(h) {
+    if (h >= 21.75 || h < 1.75) return 'sleep';
+    if (h < 6) return 'tap';
+    if (h >= 6.5 && h < 7) return 'feed-am';
+    if (h >= 7 && h < 9) return 'collect';
+    if (h >= 12 && h < 13.5) return 'rest';
+    if (h >= 16.5 && h < 17) return 'feed-pm';
+    return 'free';
+  }
+
+  updateSchedule() {
+    const h = this.hour;
+    if (this.bbq.active) return;
+    const famSleep = h >= 21.75 || h < 5.75;
+    if (famSleep && !this.familyAsleep && !this.school.active) this.sleepFamily();
+    if (!famSleep && this.familyAsleep) this.wakeFamily();
+    const plan = this.dadPlan(h);
+    if (plan !== this.dadAct && !(this.dadAct === 'free-after-bbq' && plan === 'free')) this.setDadActivity(plan);
+  }
+
+  setHeadlamp(on) { this.headlamp.light.intensity = on ? 9 : 0; this.headlamp.mat.emissiveIntensity = on ? 3 : 0; }
+
+  // เส้นทางออกจากในบ้าน (ทางประตูกระจกหน้า → ระเบียง → บันได)
+  pathOut() { return [[-0.75, 0.65, 3.5], [-0.75, 0.65, 7.2], [3.2, 0.65, 7.6], [3.2, 0, 10]]; }
+  pathIn(spot) { return [[3.2, 0, 10], [3.2, 0.65, 7.6], [-0.75, 0.65, 7.2], [-0.75, 0.65, 3.5], spot]; }
+  isInside(o) { return o.position.y > 0.3 && o.position.x > -10 && o.position.x < 4 && o.position.z > -5 && o.position.z < 5.2; }
+
+  setDadActivity(act) {
+    const d = this.dad, h = d.h, id = ++this.dadActId;
+    const alive = () => id === this.dadActId;
+    this.dadAct = act;
+    const wasAsleep = this.sleepers.has('dad');
+    h.group.visible = true; this.sleepers.delete('dad');
+    h.sitting = false; h.tapping = false; d.bucket.visible = false; h.holding = false; d.bucket.rotation.x = 0;
+    this.setHeadlamp(false);
+    d.w.locked = act !== 'free' && !act.startsWith('feed'); d.busy = false;
+    const out = wasAsleep || this.isInside(h.group) ? this.pathOut() : [];
+    if (act === 'free') {
+      this.fatherState = 'พักผ่อนหน้าบ้าน';
+      d.w.go([...out, [4, 0, 10.5]], () => { h.group.rotation.y = 0.3; });
+    } else if (act.startsWith('feed')) {
+      d.w.go([...out, [4, 0, 10.5]], () => { if (alive()) this.feedPigs('ตามเวลา'); });
+      if (!out.length) this.feedPigs('ตามเวลา');
+    } else if (act === 'sleep') {
+      this.fatherState = 'เข้านอน';
+      d.w.go(this.pathIn([-7.6, 0.65, -3.2]), () => { if (!alive()) return; h.group.visible = false; this.sleepers.add('dad'); this.fatherState = 'นอนหลับ 💤'; }, true);
+    } else if (act === 'rest') {
+      this.fatherState = 'พักกลางวันบนระเบียง';
+      d.w.go([...out, [3.2, 0, 10], [3.2, 0.65, 7.6], [-6.5, 0.65, 8.3]], () => {
+        if (!alive()) return; h.group.rotation.y = 0; h.baseY = 0.62; h.sitting = true; this.fatherState = 'นั่งพักกลางวัน ดื่มน้ำเย็นบนระเบียง';
+      }, true);
+    } else if (act === 'tap' || act === 'collect') {
+      const tapping = act === 'tap';
+      if (tapping) { this.tapState.tapped = 0; this.setHeadlamp(this.nightFactor > 0.25); }
+      else { this.tapState.latex = 0; d.bucket.visible = true; h.holding = true; h.armR.rotation.x = -0.15; }
+      this.fatherState = tapping ? 'ตื่นตีสอง เดินไปกรีดยาง' : 'ไปเก็บน้ำยาง';
+      bus.emit('farm-event', tapping ? 'พ่อคาดไฟฉายเดินไปกรีดยางที่สวน' : 'พ่อถือถังไปเก็บน้ำยางจากถ้วยรับน้ำยาง');
+      const ts = this.tapState;
+      const step = () => {
+        if (!alive()) return;
+        const x = -28.5 + 3 * ts.col + 1.5, z = -20 - 7 * ts.row;
+        d.w.go([[x, 0, z]], () => {
+          if (!alive()) return;
+          h.group.rotation.y = -Math.PI / 2;
+          if (tapping) h.tapping = true;
+          setTimeout(() => {
+            if (!alive()) return;
+            h.tapping = false;
+            if (tapping) { ts.tapped += 2; bus.emit('rubber-tapped', ts.tapped); this.fatherState = `กรีดยาง ${ts.tapped}/400 ต้น`; }
+            else { ts.latex += 0.35; bus.emit('rubber-latex', 0.35); this.fatherState = `เก็บน้ำยางได้ ${ts.latex.toFixed(1)} กก.`; }
+            ts.row++;
+            if (ts.row >= 20) { ts.row = 0; ts.col = (ts.col + 2) % 19; }
+            step();
+          }, tapping ? 1600 : 900);
+        }, true);
+      };
+      d.w.go([...out, [6.5, 0, 10.5], [7, 0, -7], [-28.5 + 3 * ts.col + 1.5, 0, -15]], step, true);
+    }
+  }
+
+  sleepFamily() {
+    this.familyAsleep = true;
+    this.gen++;
+    const spots = { mom: [-7.2, 0.65, -1.6], sis: [-5.6, 0.65, -3.4], kid: [-6.2, 0.65, -2.2] };
+    for (const [key, who] of [['mom', this.mom], ['sis', this.sis], ['kid', this.kid]]) {
+      const w = who.w, o = who.h.group;
+      w.locked = true; who.h.sitting = false; who.h.holding = false; who.h.teaching = false;
+      if (who.task !== undefined) who.task = 'เข้านอน';
+      const path = this.isInside(o) ? [spots[key]] : this.pathIn(spots[key]);
+      w.go(path, () => { o.visible = false; this.sleepers.add(key); if (who.task !== undefined) who.task = 'นอนหลับ 💤'; }, true);
+    }
+    bus.emit('farm-event', '🌙 ทุกคนเข้านอนแล้ว — เรดาร์เฝ้าบ้านต่อ');
+  }
+
+  wakeFamily() {
+    this.familyAsleep = false;
+    this.gen++;
+    for (const [key, who] of [['mom', this.mom], ['sis', this.sis], ['kid', this.kid]]) {
+      who.h.group.visible = true; this.sleepers.delete(key); who.w.locked = false;
+    }
+    this.momLoop();
+    this.sis.task = 'ตื่นนอน'; this.kid.task = 'ตื่นนอน';
+    const gen = this.sisToken ? this.sisToken() : this.gen;
+    this.sis.w.go([...this.pathOut(), [-3, 0, 11.5]], () => { this.sis.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 15000); });
+    this.kid.w.go([...this.pathOut(), [0, 0, 16]], () => this.kidLoop());
+    bus.emit('farm-event', '☀️ เช้าแล้ว ครอบครัวตื่นนอน');
+  }
+
   // ---------------------------------------------------------------- พี่สาวสอนหนังสือเด็ก ๆ ที่ศาลา
   buildSchool() {
     const c = new THREE.Vector3(-25, 0, 26);
@@ -1718,11 +1849,14 @@ export class Farm3D {
     }
     this.school = {
       group: g, center: c, seats, board: { cv, tex }, active: false, kids: [], timeLeft: 0, lastDay: null, phase: 0, lessonIdx: 0,
+      // ชั้นเรียนภาษาอังกฤษ — หัวข้อเปลี่ยนวนทุกครั้ง ใช้ของรอบตัวในบ้านสวน
       lessons: [
-        { name: 'ภาษาไทย', lines: ['ก  ข  ฃ  ค  ฅ  ฆ  ง', 'จ  ฉ  ช  ซ  ฌ  ญ', 'ก ไก่  ข ไข่ในเล้า'] },
-        { name: 'คณิตศาสตร์', lines: ['2 + 3 = 5', '7 − 4 = 3', '3 × 4 = 12'] },
-        { name: 'ภาษาอังกฤษ', lines: ['A  B  C  D  E', 'Apple  Ball  Cat', 'Pig  Fish  Chicken'] },
-        { name: 'วิทยาศาสตร์', lines: ['พืชต้องการอะไร?', 'น้ำ · แสงแดด · อากาศ', 'ผักไฮโดรโปนิกส์ไม่ใช้ดิน'] },
+        { name: 'ภาษาอังกฤษ', topic: 'ABC', lines: ['A  B  C  D  E  F  G', 'H  I  J  K  L  M  N', 'O  P  Q  R  S  T  U'] },
+        { name: 'ภาษาอังกฤษ', topic: 'Farm Animals', lines: ['pig = หมู   fish = ปลา', 'chicken = ไก่   cat = แมว', 'dog = หมา   egg = ไข่'] },
+        { name: 'ภาษาอังกฤษ', topic: 'Greetings', lines: ['Hello! / Good morning', 'How are you?', "I'm fine, thank you."] },
+        { name: 'ภาษาอังกฤษ', topic: 'Numbers', lines: ['one  two  three  four', 'five  six  seven  eight', 'We have 8 students!'] },
+        { name: 'ภาษาอังกฤษ', topic: 'Colors', lines: ['red  blue  green', 'yellow  white  black', 'The leaf is green.'] },
+        { name: 'ภาษาอังกฤษ', topic: 'My Farm', lines: ['This is my farm.', 'I have 400 rubber trees.', 'I like vegetables.'] },
       ],
     };
     this.school.lesson = this.school.lessons[0];
@@ -1732,7 +1866,7 @@ export class Farm3D {
   drawBoard(progress) {
     const { cv, tex } = this.school.board, ctx = cv.getContext('2d'), L = this.school.lesson;
     ctx.fillStyle = '#fbfbf7'; ctx.fillRect(0, 0, 512, 256);
-    ctx.fillStyle = '#c0392b'; ctx.font = 'bold 30px "IBM Plex Sans Thai", sans-serif'; ctx.fillText(`วันนี้เรียน: ${L.name}`, 20, 44);
+    ctx.fillStyle = '#c0392b'; ctx.font = 'bold 30px "IBM Plex Sans Thai", sans-serif'; ctx.fillText(`English Class: ${L.topic}`, 20, 44);
     ctx.fillStyle = '#1f4fa8'; ctx.font = '34px "IBM Plex Sans Thai", sans-serif';
     const n = Math.floor(progress * L.lines.length * 12);
     L.lines.forEach((line, i) => { const shown = Math.max(0, Math.min(line.length, n - i * 12)); ctx.fillText(line.slice(0, shown), 28, 104 + i * 54); });
@@ -1741,14 +1875,15 @@ export class Farm3D {
 
   startClass(source = 'manual') {
     const sc = this.school; if (sc.active || this.bbq.active) return;
-    sc.active = true; sc.timeLeft = source === 'auto' ? 300 : 200; sc.phase = 0; sc.writeT = 0; sc.started = false;
+    sc.active = true; sc.timeLeft = source === 'auto' ? 300 : 200; sc.phase = 0; sc.writeT = 0; sc.started = false; sc.source = source;
+    this.sleepers.delete('sis'); this.sis.h.group.visible = true;
     sc.lesson = sc.lessons[sc.lessonIdx++ % sc.lessons.length];
     this.drawBoard(0);
     // พี่สาวเดินไปที่ศาลา
     this.gen++;
-    const s = this.sis; s.w.locked = true; s.h.holding = false; s.task = 'ไปสอนหนังสือที่ศาลา';
+    const s = this.sis; s.w.locked = true; s.h.holding = false; s.task = 'ไปสอนภาษาอังกฤษที่ศาลา';
     s.w.go([[-18, 0, 27.5], [-25, 0, 30], [-25, 0.5, 28.4], [-25, 0.5, 23.9]], () => {
-      s.h.group.rotation.y = 0; s.h.teaching = true; s.task = `สอน${sc.lesson.name}`;
+      s.h.group.rotation.y = 0; s.h.teaching = true; s.task = `สอนภาษาอังกฤษ (${sc.lesson.topic})`;
     }, true);
     // ลูกศิษย์ 8 คนเดินมาจากถนน (ชุดนักเรียนไทย เสื้อขาว กางเกง/กระโปรงกรมท่า)
     const skins = ['#c68e62', '#d4a57c', '#b97a50', '#e0b48c'], bags = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#2ecc71', '#e67e22'];
@@ -1770,8 +1905,8 @@ export class Farm3D {
       kid.ent = ent; this.entities.push(ent);
       sc.kids.push(kid);
     }
-    bus.emit('farm-event', `📚 นักเรียน 8 คนกำลังเดินมาเรียน${sc.lesson.name}กับพี่สาวที่ศาลา`);
-    bus.emit('class', { on: true, lesson: sc.lesson.name, kids: 8 });
+    bus.emit('farm-event', `📚 นักเรียน 8 คนกำลังเดินมาเรียนภาษาอังกฤษ (${sc.lesson.topic}) กับพี่สาวที่ศาลา`);
+    bus.emit('class', { on: true, lesson: `ภาษาอังกฤษ หัวข้อ ${sc.lesson.topic}`, kids: 8 });
   }
 
   endClass() {
@@ -1790,7 +1925,7 @@ export class Farm3D {
         sc.kids = sc.kids.filter(x => x !== k);
       });
     }
-    bus.emit('farm-event', 'เลิกเรียนแล้ว เด็ก ๆ ไหว้ลาพี่สาวแล้วเดินกลับบ้าน');
+    bus.emit('farm-event', 'เลิกเรียนแล้ว เด็ก ๆ บอก “Goodbye, teacher!” แล้วเดินกลับบ้าน');
     bus.emit('class', { on: false });
   }
 
@@ -1802,7 +1937,7 @@ export class Farm3D {
     if (!sc.active && !this.bbq.active && this.hour >= 16 && this.hour < 17.5 && sc.lastDay !== day) { sc.lastDay = day; this.startClass('auto'); }
     if (!sc.active) return;
     const seated = sc.kids.filter(k => k.sitting).length;
-    if (!sc.started && seated >= sc.kids.length) { sc.started = true; bus.emit('farm-event', `นักเรียนมาครบ ${seated} คน เริ่มเรียน${sc.lesson.name}`); }
+    if (!sc.started && seated >= sc.kids.length) { sc.started = true; bus.emit('farm-event', `นักเรียนมาครบ ${seated} คน เริ่มเรียนภาษาอังกฤษ: ${sc.lesson.topic}`); }
     if (sc.started) {
       sc.timeLeft -= dt;
       // สลับ เขียนกระดาน 5 วิ ↔ หันมาอธิบาย 6 วิ
@@ -1812,7 +1947,8 @@ export class Farm3D {
       if (writing) { sc.writeT += dt; this.drawBoardThrottle = (this.drawBoardThrottle || 0) - dt; if (this.drawBoardThrottle < 0) { this.drawBoardThrottle = 0.25; this.drawBoard(Math.min(1, sc.writeT / 30)); } }
       if (!writing && Math.random() < dt * 0.6) { const k = sc.kids[Math.floor(Math.random() * sc.kids.length)]; if (k?.sitting) k.h.handUp = rand(1.5, 3); }
     }
-    if (sc.timeLeft <= 0 || this.hour >= 18) this.endClass();
+    const outOfWindow = sc.source === 'auto' && (this.hour < 15.5 || this.hour >= 18);
+    if (sc.timeLeft <= 0 || outOfWindow) this.endClass();
   }
 
   updateCats(dt, t) {
@@ -1881,7 +2017,7 @@ export class Farm3D {
       <div class="st"><span>คนในพื้นที่</span><b>${people.length} คน</b></div>
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
       ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
-      ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>${this.school.lesson.name} · ${this.school.kids.length} คน</b></div>` : ''}
+      ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>English · ${this.school.lesson.topic} · ${this.school.kids.length} คน</b></div>` : ''}
       <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
       <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>

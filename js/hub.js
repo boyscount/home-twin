@@ -23,6 +23,7 @@ const METRICS = {
   'chicken/temp': ['อุณหภูมิเล้า', '°C', 28, 22, 36, 0.3, [22, 32]],
   'rubber/latex': ['น้ำยางวันนี้', 'กก.', 46, 0, 120, 0],
   'rubber/soil': ['ความชื้นดิน', '%', 41, 10, 80, 0.4, [25, 70]],
+  'rubber/tapped': ['กรีดแล้ววันนี้', 'ต้น', 0, 0, 400, 0],
   'energy/solar': ['โซลาร์เซลล์', 'W', 1800, 0, 5000, 120],
   'energy/battery': ['แบตเตอรี่', '%', 76, 0, 100, 0.3, [20, 100]],
 };
@@ -33,7 +34,7 @@ const CARDS = [
   { ico: '🐟', title: 'บ่อปลา', node: 'ESP32-POND', metrics: ['pond/do', 'pond/water_temp', 'pond/level'], spark: 'pond/do', toggle: ['aerator', 'เครื่องเติมอากาศ', false] },
   { ico: '🐖', title: 'คอกหมู', node: 'ESP32-PIG', metrics: ['pig/temp', 'pig/nh3'], bar: 'pig/feed', spark: 'pig/nh3', action: ['pig-feeder', 'feed', '🍚 สั่งให้อาหารหมู (พ่อเดินไปให้ในฉาก 3D)'] },
   { ico: '🐔', title: 'เล้าไก่', node: 'ESP32-COOP', metrics: ['chicken/eggs', 'chicken/temp'], spark: 'chicken/temp', toggle: ['chicken-door', 'ประตูเล้าอัตโนมัติ', true] },
-  { ico: '🌳', title: 'สวนยางพารา 400 ต้น', node: 'LoRa-RUBBER', metrics: ['rubber/latex', 'rubber/soil'], spark: 'rubber/soil', extra: 'tap' },
+  { ico: '🌳', title: 'สวนยางพารา 400 ต้น', node: 'LoRa-RUBBER', metrics: ['rubber/latex', 'rubber/tapped', 'rubber/soil'], spark: 'rubber/soil', extra: 'tap' },
   { ico: '⚡', title: 'พลังงาน', node: 'INV-SOLAR', metrics: ['energy/solar'], bar: 'energy/battery', spark: 'energy/solar' },
   { ico: '🛡️', title: 'ความปลอดภัย', node: 'RPi-RADAR', extra: 'security', toggle: ['lights', 'ไฟสปอตไลท์รอบบ้าน', false], toggle2: ['gate', 'ประตูรั้ว (เปิด)', true] },
 ];
@@ -58,6 +59,8 @@ export class Hub {
     bus.on('alert', () => { this.security.alerts++; this.renderSecurity(); });
     bus.on('radar-known', () => { this.security.known++; this.renderSecurity(); });
     bus.on('vehicle-pass', v => { this.security.cars = v.total; this.renderSecurity(); });
+    bus.on('rubber-tapped', n => { this.vals['rubber/tapped'] = Math.min(400, n); this.render(); });
+    bus.on('rubber-latex', kg => { this.vals['rubber/latex'] = Math.min(METRICS['rubber/latex'][4], this.vals['rubber/latex'] + kg); this.render(); });
     bus.on('class', c => this.log(c.on ? `📚 พี่สาวเริ่มสอน${c.lesson} นักเรียน ${c.kids} คน` : 'เลิกเรียนที่ศาลา'));
     bus.on('bbq', on => this.log(on ? '🍖 ครอบครัวตั้งวงหมูกะทะหน้าบ้าน (เปิดไฟระย้า)' : 'เก็บวงหมูกะทะแล้ว'));
     bus.on('eggs-collected', n => { this.vals['chicken/eggs'] = Math.min(METRICS['chicken/eggs'][4], this.vals['chicken/eggs'] + n); this.render(); });

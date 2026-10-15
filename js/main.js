@@ -130,7 +130,7 @@ document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd
 document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
 const btnClass = document.getElementById('btnClass');
 btnClass.addEventListener('click', () => (farm.school.active ? farm.endClass() : farm.startClass()));
-bus.on('class', c => { btnClass.textContent = c.on ? '📚 เลิกเรียน' : '📚 พี่สาวสอนหนังสือ'; btnClass.classList.toggle('active', c.on); });
+bus.on('class', c => { btnClass.textContent = c.on ? '📚 เลิกเรียน' : '📚 สอนภาษาอังกฤษ'; btnClass.classList.toggle('active', c.on); });
 const btnBBQ = document.getElementById('btnBBQ');
 btnBBQ.addEventListener('click', () => (farm.bbq.active ? farm.endBBQ() : farm.startBBQ()));
 bus.on('bbq', on => { btnBBQ.textContent = on ? '🍖 เก็บวงหมูกะทะ' : '🍖 กินหมูกะทะ'; btnBBQ.classList.toggle('active', on); });
