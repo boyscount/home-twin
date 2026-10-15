@@ -6,6 +6,7 @@ import { Hub } from './hub.js';
 import { RealWeather, WeatherSound } from './weather.js';
 import { PRESETS } from './weatherfx.js';
 import { Tour } from './tour.js';
+import { Ambient } from './ambient.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
@@ -122,6 +123,8 @@ document.getElementById('btnLocate').addEventListener('click', async () => {
   catch (err) { wxStatus.textContent = 'ระบุตำแหน่งไม่ได้: ' + err.message; }
 });
 document.getElementById('soundToggle').addEventListener('change', e => sound.enable(e.target.checked));
+const ambient = new Ambient(sound, farm);
+setInterval(() => ambient.update(0.25), 250);
 setWxMode('real');
 if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
 document.getElementById('fogToggle').addEventListener('change', e => farm.setFog(e.target.checked));
@@ -157,4 +160,4 @@ bus.on('alert', () => {
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 
-window.app = { farm, radar, hub, bus };
+window.app = { farm, radar, hub, bus, sound, ambient, tour };
