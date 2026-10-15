@@ -1238,6 +1238,7 @@ export class Farm3D {
 
   flyTo(name) {
     const c = CAMS[name]; if (!c) return;
+    this.tour?.stop();
     const p0 = this.camera.position.clone(), t0 = this.controls.target.clone();
     const p1 = new THREE.Vector3(...c.pos), t1 = new THREE.Vector3(...c.target);
     const start = performance.now(), dur = 1600;
@@ -1317,6 +1318,7 @@ export class Farm3D {
 
     this.statusTimer -= dt;
     if (this.statusTimer < 0) { this.statusTimer = 0.5; this.renderStatus(); }
+    this.tour?.update(dt);
 
     if (!this.visible) return;
     if (this.flying) this.flying(performance.now());

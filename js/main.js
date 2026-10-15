@@ -5,8 +5,10 @@ import { Radar } from './radar.js';
 import { Hub } from './hub.js';
 import { RealWeather, WeatherSound } from './weather.js';
 import { PRESETS } from './weatherfx.js';
+import { Tour } from './tour.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
+const tour = farm.tour = new Tour(farm);
 const radar = new Radar(document.getElementById('radarCanvas'), farm);
 const hub = new Hub();
 
@@ -126,6 +128,18 @@ document.getElementById('fogToggle').addEventListener('change', e => farm.setFog
 document.getElementById('labelToggle').addEventListener('change', e => farm.setLabels(e.target.checked));
 document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));
 document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
+
+// ---------- กล้องเล่าเรื่อง ----------
+const btnTour = document.getElementById('btnTour');
+const autoTourBox = document.getElementById('autoTour');
+autoTourBox.checked = tour.auto;
+autoTourBox.addEventListener('change', () => tour.setAuto(autoTourBox.checked));
+btnTour.addEventListener('click', () => {
+  tour.toggle();
+  if (tour.active && matchMedia('(max-width: 760px)').matches && farmPanel.classList.contains('open')) panelToggle.click();
+});
+document.getElementById('tourStop').addEventListener('click', () => tour.stop());
+bus.on('tour', on => { btnTour.classList.toggle('active', on); btnTour.textContent = on ? '⏹ หยุดเล่าเรื่อง' : '🎬 เล่าเรื่องอัตโนมัติ'; });
 
 // badge บนแท็บเรดาร์เมื่อมีคนแปลกหน้าแต่ผู้ใช้อยู่แท็บอื่น
 let unseen = 0;

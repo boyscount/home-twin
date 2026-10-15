@@ -45,6 +45,8 @@
 
       <button class="panel-toggle" id="panelToggle" aria-expanded="false">☰ ควบคุม</button>
       <aside class="panel farm-panel" id="farmPanel">
+        <button class="tour-btn" id="btnTour" type="button">🎬 เล่าเรื่องอัตโนมัติ</button>
+        <label class="check"><input type="checkbox" id="autoTour" checked> เริ่มเองเมื่อปล่อยไว้ 20 วินาที</label>
         <h3>มุมกล้อง</h3>
         <div class="chips" id="camChips">
           <button data-cam="overview" class="chip active">ภาพรวม</button>
@@ -83,6 +85,14 @@
       </aside>
 
       <div class="panel farm-status" id="farmStatus"></div>
+      <div class="letterbox top"></div><div class="letterbox bottom"></div>
+      <div class="tour-cap" id="tourCap" hidden>
+        <div class="tc-kicker">🎬 กล้องเล่าเรื่อง</div>
+        <div class="tc-title"></div>
+        <div class="tc-sub"></div>
+        <div class="tc-bar"><i></i></div>
+      </div>
+      <button class="tour-stop" id="tourStop" type="button">✋ แตะเพื่อควบคุมเอง</button>
     </section>
 
     <!-- ============ TAB 2 : RADAR ============ -->

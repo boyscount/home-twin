@@ -246,3 +246,33 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
 .tg-chats { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .tg-chats .hud-btn { text-align: left; }
 .hud-link { background: none; border: 0; color: #2fbf57; font-size: 11px; margin-top: 6px; padding: 0; text-decoration: underline; font-family: "IBM Plex Sans Thai"; }
+
+/* ---------- กล้องเล่าเรื่อง ---------- */
+.tour-btn { width: 100%; border: 1px solid var(--accent); background: rgba(123,216,143,.12); color: var(--accent); padding: 9px; border-radius: 10px; font-weight: 600; }
+.tour-btn.active { background: var(--accent); color: #0b1410; }
+.letterbox { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 4; transition: height .8s ease; pointer-events: none; }
+.letterbox.top { top: 0; } .letterbox.bottom { bottom: 0; }
+.tour-on .letterbox { height: 7%; }
+.tour-on .farm-panel, .tour-on .panel-toggle, .tour-on .farm-status { opacity: 0; pointer-events: none; }
+.farm-panel, .panel-toggle, .farm-status { transition: opacity .6s; }
+.tour-cap {
+  position: absolute; left: 32px; bottom: calc(7% + 24px); z-index: 5; max-width: min(520px, calc(100% - 64px));
+  color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.8); pointer-events: none;
+}
+.tour-cap.show { animation: capIn .9s ease-out; }
+@keyframes capIn { from { opacity: 0; transform: translateY(14px); } }
+.tc-kicker { font-size: 12px; letter-spacing: .12em; color: var(--accent); }
+.tc-title { font-size: 30px; font-weight: 700; line-height: 1.25; margin: 2px 0 4px; }
+.tc-sub { font-size: 15px; color: #e6f0ea; line-height: 1.5; }
+.tc-bar { height: 3px; background: rgba(255,255,255,.2); border-radius: 3px; margin-top: 10px; width: 180px; overflow: hidden; }
+.tc-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.tour-stop {
+  position: absolute; top: calc(7% + 12px); right: 16px; z-index: 5; display: none;
+  background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 7px 14px; font-size: 13px;
+}
+.tour-on .tour-stop { display: block; }
+@media (max-width: 760px) {
+  .tour-cap { left: 16px; right: 16px; max-width: none; bottom: calc(7% + 14px); }
+  .tc-title { font-size: 22px; }
+  .tc-sub { font-size: 13px; }
+}
