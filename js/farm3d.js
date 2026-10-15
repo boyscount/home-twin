@@ -38,16 +38,20 @@ function noise(ctx, w, h, base, amp, n = 6000, size = 2) {
 const TEX = {};
 function makeTextures() {
   TEX.grass = canvasTex(256, 256, (c, w, h) => {
-    noise(c, w, h, '#4f8a35', 0.25, 9000, 2);
+    noise(c, w, h, '#5d7440', 0.22, 9000, 2);
+    for (let i = 0; i < 160; i++) { // หย่อมหญ้าแห้งสีฟาง / ดินโผล่
+      c.fillStyle = `rgba(${rand(120, 160)},${rand(115, 140)},${rand(60, 80)},${rand(0.08, 0.2)})`;
+      c.beginPath(); c.ellipse(rand(0, w), rand(0, h), rand(4, 14), rand(3, 9), rand(0, 3), 0, 7); c.fill();
+    }
     for (let i = 0; i < 900; i++) {
-      c.strokeStyle = `rgba(${rand(40, 110)},${rand(120, 170)},${rand(30, 60)},0.6)`;
+      c.strokeStyle = `rgba(${rand(70, 120)},${rand(105, 140)},${rand(45, 70)},0.55)`;
       const x = rand(0, w), y = rand(0, h); c.beginPath(); c.moveTo(x, y); c.lineTo(x + rand(-2, 2), y - rand(3, 7)); c.stroke();
     }
   }, [40, 40]);
   TEX.rice = canvasTex(256, 256, (c, w, h) => {
-    noise(c, w, h, '#86b84c', 0.18, 7000, 2);
+    noise(c, w, h, '#8a9e58', 0.18, 7000, 2);
     for (let y = 0; y < h; y += 8) { c.fillStyle = 'rgba(40,80,20,0.18)'; c.fillRect(0, y, w, 2); }
-    for (let i = 0; i < 1500; i++) { c.fillStyle = `rgba(190,220,110,${rand(0.1, 0.4)})`; c.fillRect(rand(0, w), rand(0, h), 1, 3); }
+    for (let i = 0; i < 1500; i++) { c.fillStyle = `rgba(195,200,120,${rand(0.1, 0.35)})`; c.fillRect(rand(0, w), rand(0, h), 1, 3); }
   }, [60, 60]);
   TEX.litter = canvasTex(256, 256, (c, w, h) => {
     noise(c, w, h, '#4a4a2a', 0.3, 9000, 3);
@@ -108,6 +112,17 @@ function makeMaterials() {
   M.grass = std({ map: TEX.grass, roughness: 1 });
   M.rice = std({ map: TEX.rice, roughness: 1 });
   M.litter = std({ map: TEX.litter, roughness: 1 });
+  // ด่างเข้ม-อ่อนเป็นหย่อมใหญ่ ๆ ตามตำแหน่งจริง → สนามไม่เขียวเรียบเท่ากันทั้งผืน (เหมือนแดดเผา/ร่มไม้/ดินชื้น)
+  const patchy = (mat, dry, lush, scale) => {
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'varying vec3 vWP;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+        float pp = sin(vWP.x * ${scale[0]} + 1.3) * sin(vWP.z * ${scale[1]} + 0.4) + sin(vWP.x * ${scale[2]} + vWP.z * ${scale[3]}) * 0.5 + sin(vWP.x * ${scale[4]} - vWP.z * ${scale[5]}) * 0.25;
+        diffuseColor.rgb *= mix(vec3(${dry}), vec3(${lush}), smoothstep(-0.7, 0.8, pp));`);
+    };
+  };
+  patchy(M.grass, '1.12, 1.04, 0.80', '0.86, 0.94, 0.86', [0.09, 0.075, 0.23, 0.17, 0.55, 0.41]);
+  patchy(M.rice, '1.10, 1.02, 0.78', '0.88, 0.96, 0.9', [0.012, 0.017, 0.031, 0.027, 0.07, 0.06]);
   M.concrete = std({ map: TEX.concrete, roughness: 0.9 });
   M.asphalt = std({ map: TEX.asphalt, roughness: 0.95 });
   M.wood = std({ map: TEX.wood, roughness: 0.7 });
@@ -120,9 +135,11 @@ function makeMaterials() {
   M.warm = std({ color: '#ffd9a0', emissive: '#ffb45c', emissiveIntensity: 1.5 });
   M.white = std({ color: '#f2f2ee', roughness: 0.6 });
   M.pipe = std({ color: '#f4f4f0', roughness: 0.35 });
-  M.leaf = std({ color: '#2f6b2a', roughness: 0.9 });
-  M.leafDark = std({ color: '#244f22', roughness: 0.9 });
-  M.leafLight = std({ color: '#5c9a3a', roughness: 0.9, side: THREE.DoubleSide });
+  M.leaf = std({ color: '#3d5a2c', roughness: 0.9 });
+  M.leafDark = std({ color: '#2b4024', roughness: 0.9 });
+  M.leafLight = std({ color: '#6c8442', roughness: 0.9, side: THREE.DoubleSide });
+  // ต้นไม้แต่ละต้นสีไม่เท่ากัน: เขียวเข้ม, เขียวมะกอก, เขียวอมเหลือง, เขียวอมฟ้า
+  M.foliage = ['#38542b', '#4a5f2f', '#56693a', '#2f4a30', '#5b6e3c', '#425a35'].map(c => std({ color: c, roughness: 0.92 }));
   M.trunk = std({ color: '#5a4636', roughness: 1 });
   M.bark = std({ map: TEX.bark, roughness: 1 });
   M.brick = std({ map: TEX.brick, roughness: 0.95 });
@@ -403,7 +420,7 @@ export const QUALITY = {
 
 // เกรดสี + ขอบมืด (vignette) หลัง tone mapping
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, saturation: { value: 1.1 }, contrast: { value: 1.06 }, vignette: { value: 0.32 }, warmth: { value: 0.0 } },
+  uniforms: { tDiffuse: { value: null }, saturation: { value: 0.97 }, contrast: { value: 1.05 }, vignette: { value: 0.32 }, warmth: { value: 0.0 } },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `uniform sampler2D tDiffuse; uniform float saturation, contrast, vignette, warmth; varying vec2 vUv;
     void main() {
@@ -598,7 +615,7 @@ export class Farm3D {
     // หญ้าต้นข้าว (instanced) รอบ ๆ ให้ดูมีมิติ
     const blade = new THREE.ConeGeometry(0.08, 0.7, 4); blade.translate(0, 0.35, 0);
     const count = 9000;
-    const im = new THREE.InstancedMesh(blade, new THREE.MeshStandardMaterial({ color: '#8fc256', roughness: 1 }), count);
+    const im = new THREE.InstancedMesh(blade, new THREE.MeshStandardMaterial({ color: '#a3ad66', roughness: 1 }), count);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
     let n = 0;
     while (n < count) {
@@ -608,7 +625,7 @@ export class Farm3D {
       e.set(rand(-0.25, 0.25), rand(0, 6), rand(-0.25, 0.25)); q.setFromEuler(e);
       const sc = rand(0.7, 1.4);
       m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc, sc, sc));
-      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.22, 0.27), 0.5, rand(0.35, 0.5))); n++;
+      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.17, 0.25), rand(0.3, 0.42), rand(0.36, 0.5))); n++;
     }
     im.receiveShadow = true; s.add(im);
     this.riceBlades = im;
@@ -780,7 +797,7 @@ export class Farm3D {
       pivot.rotation.y = side * 1.3; this.gates.push({ pivot, side });
     }
     // แนวรั้วต้นไม้
-    const hedgeM = new THREE.MeshStandardMaterial({ color: '#3e7a2c', roughness: 1 });
+    const hedgeM = new THREE.MeshStandardMaterial({ color: '#4b6334', roughness: 1 });
     const hedge = new THREE.InstancedMesh(new THREE.SphereGeometry(0.7, 8, 6), hedgeM, 120);
     const m4 = new THREE.Matrix4(); let n = 0;
     for (let x = -45; x <= 47 && n < 120; x += 1.1) {
@@ -795,7 +812,7 @@ export class Farm3D {
     for (let i = 0; i < 40; i++) {
       const x = rand(-12, 2), z = rand(12, 33);
       if (x > -4.5 && x < 3.5) continue;
-      const b = sph(rand(0.3, 0.7), Math.random() > 0.5 ? M.leaf : M.leafLight, x, 0.3, z, s, 8); b.scale.y = 0.8;
+      const b = sph(rand(0.3, 0.7), M.foliage[Math.floor(Math.random() * M.foliage.length)], x, 0.3, z, s, 8); b.scale.y = 0.8;
     }
     // เสาไฟ
     for (const [x, z] of [[-4.5, 37.5], [4.5, 37.5], [-2, 26]]) {
@@ -809,7 +826,8 @@ export class Farm3D {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(sc); this.scene.add(g);
     cyl(0.18, 0.3, 3.5, M.trunk, 0, 1.75, 0, g, 8);
     for (let i = 0; i < 6; i++) {
-      const b = sph(rand(1.4, 2.2), i % 2 ? M.leaf : M.leafDark, rand(-1.6, 1.6), rand(3.6, 5.5), rand(-1.6, 1.6), g, 9);
+      const fm = g.userData.fm || (g.userData.fm = M.foliage[Math.floor(Math.random() * M.foliage.length)]);
+      const b = sph(rand(1.4, 2.2), i % 3 === 0 ? M.leafDark : fm, rand(-1.6, 1.6), rand(3.6, 5.5), rand(-1.6, 1.6), g, 9);
       b.scale.y = 0.8;
     }
     return g;
@@ -829,7 +847,7 @@ export class Farm3D {
       p.setZ(i, -Math.pow(y / 4, 2) * 1.8);
     }
     frondGeo.translate(0, 2, 0); frondGeo.computeVertexNormals();
-    const frondM = new THREE.MeshStandardMaterial({ color: '#3f7d2e', side: THREE.DoubleSide, roughness: 0.8 });
+    const frondM = new THREE.MeshStandardMaterial({ color: ['#55703a', '#4d6935', '#60773f'][Math.floor(Math.random() * 3)], side: THREE.DoubleSide, roughness: 0.8 });
     for (let i = 0; i < 11; i++) {
       const f = new THREE.Mesh(frondGeo, frondM); f.castShadow = true;
       const holder = new THREE.Group(); holder.rotation.y = (i / 11) * Math.PI * 2 + rand(-0.2, 0.2); top.add(holder);
@@ -841,7 +859,7 @@ export class Farm3D {
 
   makeBanana(x, z) {
     const g = new THREE.Group(); g.position.set(x, 0, z); this.scene.add(g);
-    cyl(0.12, 0.16, 2, new THREE.MeshStandardMaterial({ color: '#6d8a3a' }), 0, 1, 0, g, 7);
+    cyl(0.12, 0.16, 2, new THREE.MeshStandardMaterial({ color: '#7a8a4a' }), 0, 1, 0, g, 7);
     const leafGeo = new THREE.PlaneGeometry(0.7, 2.2, 1, 4); leafGeo.translate(0, 1.1, 0);
     const lp = leafGeo.attributes.position;
     for (let i = 0; i < lp.count; i++) lp.setZ(i, -Math.pow(lp.getY(i) / 2.2, 2) * 0.9);
@@ -1030,7 +1048,7 @@ export class Farm3D {
       for (let c = 0; c < 3; c++) {
         const cs = rand(0.8, 1.25);
         m4.compose(new THREE.Vector3(x + rand(-0.9, 0.9), 7 * sc + rand(-0.6, 1.4), z + rand(-1.6, 1.6)), q, new THREE.Vector3(cs, cs * 0.8, cs * 1.3));
-        canopy.setMatrixAt(ci, m4); canopy.setColorAt(ci, col.setHSL(rand(0.24, 0.3), 0.45, rand(0.2, 0.3))); ci++;
+        canopy.setMatrixAt(ci, m4); canopy.setColorAt(ci, col.setHSL(rand(0.22, 0.3), rand(0.22, 0.34), rand(0.2, 0.29))); ci++;
       }
       i++;
     }
@@ -1125,7 +1143,7 @@ export class Farm3D {
       e.set(rand(-0.35, 0.35), rand(0, Math.PI), rand(-0.35, 0.35)); q.setFromEuler(e);
       const k = rand(0.55, 1.05) * (1 - d / (c.r * 1.6)); sc.set(k, k * rand(0.7, 1.15), k); // กลางกอสูงกว่าขอบ
       m4.compose(v.set(x, 0.02, z), q, sc);
-      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.24, 0.28), rand(0.35, 0.5), rand(0.26, 0.38))); // โทนเดียวกับพื้นหญ้า
+      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.2, 0.27), rand(0.25, 0.38), rand(0.27, 0.38))); // โทนเดียวกับพื้นหญ้า
       n++;
     }
     im.receiveShadow = true; im.frustumCulled = false;
