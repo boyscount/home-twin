@@ -87,7 +87,7 @@ slider.addEventListener('input', () => { if (realTimeBox.checked) { realTimeBox.
 const real = new RealWeather();
 const sound = new WeatherSound();
 const wxStatus = document.getElementById('wxStatus');
-let wxMode = 'real';
+let wxMode = 'clear';
 const fmtLoc = l => `${l.name} · ${l.lat.toFixed(2)}, ${l.lon.toFixed(2)}`;
 function applyWx(w) {
   farm.wx.set({ clouds: w.clouds, rain: w.rain, storm: w.storm, wind: w.wind, windDir: w.windDir ?? 80, fog: w.fog || 0 });
@@ -95,6 +95,7 @@ function applyWx(w) {
 }
 function setWxMode(mode) {
   wxMode = mode;
+  try { localStorage.setItem('wxMode', mode); } catch {}
   document.querySelectorAll('#wxChips .chip').forEach(c => c.classList.toggle('active', c.dataset.wx === mode));
   if (mode === 'real') {
     real.start();
@@ -134,10 +135,19 @@ const ambient = new Ambient(sound, farm);
 const summary = new DailySummary({ radar, hub, farm });
 const kiosk = new Kiosk({ farm, tour, showTab });
 setInterval(() => ambient.update(0.25), 250);
-setWxMode('real');
+// เข้าครั้งแรก: อากาศแจ่มใส (ภาพสวยที่สุด) · ถ้าเคยเลือกไว้ จำค่าเดิม
+let savedWx = 'clear'; try { savedWx = localStorage.getItem('wxMode') || 'clear'; } catch {}
+setWxMode(savedWx);
 if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
 document.getElementById('fogToggle').addEventListener('change', e => farm.setFog(e.target.checked));
-document.getElementById('labelToggle').addEventListener('change', e => farm.setLabels(e.target.checked));
+// ป้ายชื่อโซน: ขึ้นให้เห็น 10 วินาทีตอนเข้าเว็บ แล้วซ่อนเอง (เปิดใหม่ได้ที่ปุ่ม 🏷️ ข้างปุ่มซูม)
+const labelBox = document.getElementById('labelToggle'), btnLabels = document.getElementById('btnLabels');
+let labelsTouched = false;
+function setLabelsUI(on) { labelBox.checked = on; btnLabels.classList.toggle('active', on); farm.setLabels(on); }
+labelBox.addEventListener('change', () => { labelsTouched = true; setLabelsUI(labelBox.checked); });
+btnLabels.addEventListener('click', () => { labelsTouched = true; setLabelsUI(!labelBox.checked); });
+setLabelsUI(true);
+setTimeout(() => { if (!labelsTouched && !tour.active) setLabelsUI(false); }, 10000);
 document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));
 document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
 const btnTorch = document.getElementById('btnTorch');
@@ -197,6 +207,7 @@ document.getElementById('zoomCtl').addEventListener('click', e => {
   const b = e.target.closest('[data-zoom]'); if (!b) return;
   if (b.dataset.zoom === 'in') farm.zoomBy(0.55);
   else if (b.dataset.zoom === 'out') farm.zoomBy(1.8);
+  else if (b.dataset.zoom === 'labels') return;
   else if (b.dataset.zoom === 'left') farm.rotateBy(-30);
   else if (b.dataset.zoom === 'right') farm.rotateBy(30);
   else if (b.dataset.zoom === 'auto') { farm.setAutoRotate(!farm.controls.autoRotate); b.classList.toggle('active', farm.controls.autoRotate); }

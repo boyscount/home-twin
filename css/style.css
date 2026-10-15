@@ -353,5 +353,6 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
 
 .zoom-ctl button.active { background: var(--accent); color: #0b1410; border-color: var(--accent); }
 .zoom-ctl button[data-zoom="left"] { margin-top: 8px; }
+.zoom-ctl button[data-zoom="labels"] { font-size: 17px; }
 .zoom-hint { white-space: normal; text-align: center; max-width: min(92vw, 520px); }
 @media (max-width: 760px) { .zoom-ctl { gap: 5px; } .zoom-ctl button { width: 44px; height: 44px; font-size: 21px; } }

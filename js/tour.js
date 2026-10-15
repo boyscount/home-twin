@@ -74,12 +74,27 @@ export class Tour {
     const wx = () => document.querySelector('#wxStatus b')?.textContent || (f.wxState?.rain > 0.3 ? 'ฝนตก' : 'อากาศดี');
     const awakeCat = () => { const cs = f.cats.filter(c => !(c.sleep > 0)); return (cs.length ? cs : f.cats)[Math.floor(Math.random() * (cs.length || f.cats.length))]; };
     let cat = null;
+    // คำบรรยายอ่านจากสถานะจริงในฉาก (เวลา / ใครหลับ / ใครทำอะไร) จะได้ตรงกับภาพเสมอ
+    const night = () => (f.nightFactor || 0) > 0.5;
+    const period = () => { const h = f.hour; return h < 5 ? 'กลางดึก' : h < 8 ? 'เช้าวันใหม่' : h < 11 ? 'ช่วงสาย' : h < 14 ? 'เที่ยงวัน' : h < 17 ? 'ช่วงบ่าย' : h < 19 ? 'ยามเย็น' : 'ค่ำคืน'; };
+    const awake = who => who && !who.h.sleeping && who.h.group.visible;
+    const onDeck = () => f.cats.filter(c => c.group.position.y > 0.4).length;
+    const doing = () => {
+      if (f.familyAsleep) return f.dadAct === 'tap' ? 'ทุกคนหลับ มีแค่พ่อออกไปกรีดยาง' : 'ทุกคนหลับแล้ว เรดาร์เฝ้าบ้านอยู่';
+      if (f.bbq.active) return 'ครอบครัวกำลังกินหมูกะทะหน้าบ้าน';
+      if (f.school.active) return 'พี่สาวกำลังสอนภาษาอังกฤษที่ศาลา';
+      if (f.fishers?.present().length) return `ชาวบ้าน ${f.fishers.present().length} คนกำลังปักเบ็ดในทุ่งนา`;
+      return `พ่อ${f.fatherState} · น้องสาว${f.kid.task}`;
+    };
     return [
-      { id: 'intro', dur: 11, title: () => 'บ้านสวนของเรา', sub: () => `${hh()} · ${wx()} · ครอบครัว 4 คน กับสัตว์เลี้ยงอีกเต็มบ้าน`,
+      { id: 'intro', dur: 11, title: () => `บ้านสวน · ${period()}`, sub: () => `${hh()} · ${wx()} · ${doing()}`,
         ...this.orbit(V(2, 0, 2), 78, 40, 0.05) },
       { id: 'festival', dur: 12, when: () => !!f.festival, title: () => `${f.festival.emoji} ${f.festival.name}`, sub: () => f.festival.desc,
         init: () => { const id = f.festival?.id; this.festCam = id === 'newyear' ? [V(0, 0, 10), 60, 22, 0.04] : id === 'loykrathong' ? [V(14, 0, 22), 8, 3.5, 0.1] : id === 'childrensday' ? [V(-25, 1.5, 26), 9, 4, 0.08] : [V(0, 1.5, 30), 10, 4.5, 0.08]; this.festOrbit = this.orbit(...this.festCam); this.festOrbit.init(); },
         cam: (t) => this.festOrbit.cam(t) },
+      { id: 'sleep', dur: 11, when: () => f.familyAsleep && f.sleepers.size > 0, title: () => '🌙 ครอบครัวหลับในมุ้ง',
+        sub: () => `${[...f.sleepers].map(k => ({ dad: 'พ่อ', mom: 'แม่', sis: 'พี่สาว', kid: 'น้องสาว' })[k]).join(' ')} หลับสบาย · เรดาร์เฝ้าบ้านตลอดคืน`,
+        ...this.dolly(V(-1.5, 2.4, 10.5), V(2.2, 2.0, 8.2), V(-0.6, 1.0, 2.2), V(0.4, 0.9, 2.0), 11) },
       { id: 'bbq', dur: 13, when: () => f.bbq.active, title: () => '🍖 หมูกะทะหน้าบ้าน',
         sub: () => { const n = f.cats.filter(c => c.group.position.distanceTo(f.bbq.center) < 3).length; return `พ่อ แม่ พี่สาว น้องสาว ล้อมวงกินหมูกะทะ${n ? ` · แมว ${n} ตัวมานั่งรอขอกิน` : ''}`; },
         ...this.orbit(V(2, 0.9, 15.5), 4.4, 2.5, 0.1) },
@@ -94,24 +109,29 @@ export class Tour {
         init: () => { this.car = this.pickCar(); },
         title: () => 'ถนนหน้าบ้าน', sub: () => `${this.car?.label || 'รถ'} กำลังขับผ่าน · วันนี้มีรถผ่านหน้าบ้านแล้ว ${f.carsToday} คัน`,
         ...this.wrapFollow(() => (this.car && !this.car.dead ? this.car.g : null), 9, 3.2, 1.1, 1) },
-      { id: 'house', dur: 11, title: () => 'บ้าน', sub: () => 'แม่อยู่ในบ้าน · ระเบียงไม้หน้าบ้านมีแมวชอบมานอน',
+      { id: 'house', dur: 11, title: () => 'บ้าน', sub: () => {
+          if (f.familyAsleep) return 'ปิดไฟนอนแล้ว ครอบครัวหลับในมุ้งหลังประตูกระจก';
+          if (f.bbq.active) return 'ในบ้านว่าง ทุกคนออกไปกินหมูกะทะที่สนามหน้าบ้าน';
+          const mom = f.isInside(f.mom.h.group) ? 'แม่อยู่ในบ้าน' : 'แม่อยู่นอกบ้าน';
+          const n = onDeck(); return `${mom}${n ? ` · แมว ${n} ตัวอยู่บนระเบียง` : ''}${night() ? ' · เปิดไฟระเบียงแล้ว' : ''}`;
+        },
         ...this.dolly(V(-16, 3.2, 21), V(9, 3.6, 19), V(-6, 1.6, 4), V(-1, 1.6, 2), 11) },
-      { id: 'dad', dur: 13, title: () => 'พ่อ', sub: () => f.fatherState, ...this.follow(() => f.dad.h.group, 6.5, 2.6, 0.9, 1.3) },
-      { id: 'pigs', dur: 10, title: () => 'คอกหมู', sub: () => `หมู ${f.pigs.length} ตัว · ${f.feedLeft > 0 ? 'กำลังกินอาหารที่พ่อเทให้' : 'เดินเล่นในคอก รอเวลาอาหาร'}`,
+      { id: 'dad', dur: 13, when: () => awake(f.dad), title: () => 'พ่อ', sub: () => f.fatherState + (f.headlamp?.light.intensity > 0 ? ' · คาดไฟฉาย' : ''), ...this.follow(() => f.dad.h.group, 6.5, 2.6, 0.9, 1.3) },
+      { id: 'pigs', dur: 10, title: () => 'คอกหมู', sub: () => `หมู ${f.pigs.length} ตัว · ${f.feedLeft > 0 ? 'กำลังกินอาหารที่พ่อเทให้' : night() ? 'พักผ่อนใต้ไฟคอก' : 'เดินเล่นในคอก รอเวลาอาหาร'}${f.sprinklerOn ? ' · สปริงเกอร์คลายร้อนทำงาน' : ''}`,
         ...this.orbit(V(30, 0.5, -2), 13, 6.5, 0.12) },
-      { id: 'sis', dur: 13, title: () => 'พี่สาว', sub: () => f.sis.task, ...this.follow(() => f.sis.h.group, 5.5, 2.4, 2.2, 1.2) },
-      { id: 'kid', dur: 12, title: () => 'น้องสาว', sub: () => f.kid.task + (f.fishFeed > 0 ? ' — ปลาว่ายมารอเต็มขอบบ่อ' : ''), ...this.follow(() => f.kid.h.group, 4.2, 1.9, 0.7, 0.8) },
+      { id: 'sis', dur: 13, when: () => awake(f.sis) && !f.school.active, title: () => 'พี่สาว', sub: () => f.sis.task, ...this.follow(() => f.sis.h.group, 5.5, 2.4, 2.2, 1.2) },
+      { id: 'kid', dur: 12, when: () => awake(f.kid) && !f.bbq.active, title: () => 'น้องสาว', sub: () => f.kid.task + (f.fishFeed > 0 ? ' — ปลาว่ายมารอเต็มขอบบ่อ' : ''), ...this.follow(() => f.kid.h.group, 4.2, 1.9, 0.7, 0.8) },
       { id: 'cats', dur: 10, init: () => { cat = awakeCat(); },
         title: () => `แมว 6 ตัว — เจ้า${cat?.name || ''}`,
         sub: () => { const s = f.cats.filter(c => c.sleep > 0).map(c => c.name); return s.length ? `ตอนนี้ ${s.join(', ')} กำลังนอนขด` : 'ตื่นกันครบทุกตัว เดินเล่นรอบบ้าน'; },
         ...this.wrapFollow(() => cat?.group, 2.6, 1.7, 0.8, 0.3) },
-      { id: 'pond', dur: 10, title: () => 'บ่อปลา', sub: () => (f.fishFeed > 0 ? 'ปลากำลังรอกินอาหารจากน้องสาว' : `ปลา ${f.fish.length} ตัวว่ายวน`) + (f.devices.aerator ? ' · เครื่องเติมอากาศทำงาน' : ''),
+      { id: 'pond', dur: 10, title: () => 'บ่อปลา', sub: () => (f.fishGasp ? 'ออกซิเจนต่ำ ปลาลอยหัว!' : f.fishFeed > 0 ? 'ปลากำลังรอกินอาหารจากน้องสาว' : `ปลา ${f.fish.length} ตัวว่ายวน`) + (f.devices.aerator ? ' · เครื่องเติมอากาศทำงาน' : '') + ((f.wxState?.rain || 0) > 0.3 ? ' · ฝนตกเป็นระลอกบนผิวน้ำ' : ''),
         ...this.orbit(V(14, 0, 22), 9, 5, 0.14) },
-      { id: 'chicken', dur: 10, title: () => 'เล้าไก่', sub: () => `ไก่ ${f.chickens.length} ตัว · ประตูเล้า${f.devices.chickenDoor ? 'เปิด ไก่ออกมาคุ้ยดิน' : 'ปิด'}`,
+      { id: 'chicken', dur: 10, title: () => 'เล้าไก่', sub: () => `ไก่ ${f.chickens.length} ตัว · ${night() ? 'ไฟหน้าเล้าเปิดอยู่' : f.devices.chickenDoor ? 'ประตูเล้าเปิด ไก่ออกมาคุ้ยดิน' : 'ประตูเล้าปิด'}${f.sis.task === 'เก็บไข่ไก่' ? ' · พี่สาวกำลังเก็บไข่' : ''}`,
         ...this.orbit(V(30, 0.4, 18), 10, 4.5, -0.12) },
-      { id: 'hydro', dur: 11, title: () => 'โรงเรือนผักไฮโดรโปนิกส์', sub: () => `ผักสลัด 600 ต้น · ปั๊มน้ำวน NFT ${f.devices.pump ? 'ทำงาน' : 'หยุด'}`,
+      { id: 'hydro', dur: 11, title: () => 'โรงเรือนผักไฮโดรโปนิกส์', sub: () => `ผักสลัด 600 ต้น · ปั๊ม NFT ${f.devices.pump ? 'ทำงาน' : 'หยุด'}${night() ? ' · ไฟ LED ปลูกพืชเปิดอยู่' : ''}${f.sis.task?.includes('ผัก') || f.sis.task?.includes('สารละลาย') ? ' · พี่สาวอยู่ในโรงเรือน' : ''}`,
         ...this.dolly(V(-24.9, 2.4, 19), V(-24.9, 2.0, 1), V(-25.5, 1, 9), V(-25.5, 1, -8), 11) },
-      { id: 'rubber', dur: 14, title: () => 'สวนยางพารา 400 ต้น', sub: () => '20 แถว · ระยะปลูก 3 × 7 เมตร · กรีดยางช่วงตี 2 – 6' + ((f.nightFactor || 0) > 0.3 ? ' · 🔦 ส่องไฟฉาย' : ''),
+      { id: 'rubber', dur: 14, title: () => 'สวนยางพารา 400 ต้น', sub: () => (f.dadAct === 'tap' ? `พ่อกำลังกรีดยาง (${f.tapState.tapped} ต้น)` : f.dadAct === 'collect' ? `พ่อกำลังเก็บน้ำยาง (${f.tapState.latex.toFixed(1)} กก.)` : '20 แถว · ระยะปลูก 3 × 7 เมตร · กรีดยางช่วงตี 2 – 6') + ((f.nightFactor || 0) > 0.3 ? ' · 🔦 ส่องไฟฉาย' : ''),
         ...this.dolly(V(0, 3.2, -8), V(0, 2.6, -110), V(0, 2.2, -30), V(0, 2.4, -140), 14) }, // เดินลอดใต้ทรงพุ่ม ระหว่างแถวต้นยาง
     ];
   }
@@ -126,7 +146,13 @@ export class Tour {
 
   visitorShot(v) {
     return {
-      id: 'visitor', dur: 13, title: () => '⚠ มีคนมาที่หน้าบ้าน', sub: () => (v.persona?.desc ? v.persona.desc + ' · ' : '') + 'เรดาร์ตรวจจับและกำลังส่งรูปเข้ามือถือ',
+      id: 'visitor', dur: 13,
+      title: () => { const t = window.app?.radar?.tracked.get(v.ent.id); return t?.status === 'known' ? `👋 ${t.name} มาที่บ้าน` : '⚠ มีคนมาที่หน้าบ้าน'; },
+      sub: () => {
+        const t = window.app?.radar?.tracked.get(v.ent.id);
+        const st = !t || t.status === 'outside' ? 'กำลังเดินเข้าประตู' : t.status === 'known' ? 'ระบบจำหน้าได้ ไม่ต้องแจ้งเตือน' : t.status === 'threat' ? 'ครอบครัวแจ้งว่าไม่รู้จัก — เปิดไฟและไซเรน' : 'เรดาร์ถ่ายหน้า ส่งรูปเข้ามือถือ รอคนในบ้านตอบ';
+        return (v.persona?.desc ? v.persona.desc + ' · ' : '') + st;
+      },
       ...this.follow(() => v.h.group, 5, 2.2, 0.35, 1.5),
     };
   }

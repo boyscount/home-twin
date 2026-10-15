@@ -231,6 +231,13 @@ function animateWalk(h, dt, speed) {
 }
 function animateIdle(h, dt) {
   h.phase += dt;
+  if (h.sleeping) { // นอนหงายบนฟูก หายใจช้า ๆ
+    h.legL.rotation.x = h.legR.rotation.x = 0; h.armL.rotation.x = h.armR.rotation.x = 0.1;
+    h.armL.rotation.z = -0.12; h.armR.rotation.z = 0.12;
+    h.head.rotation.y = Math.sin(h.phase * 0.12) * 0.25; h.head.rotation.x = 0;
+    h.group.position.y = h.baseY || 0;
+    return;
+  }
   if (h.sitting) { // นั่งเก้าอี้ (ตอนกินหมูกะทะ)
     h.legL.rotation.x = h.legR.rotation.x = -1.45;
     h.group.position.y = (h.baseY || 0) - 0.47 * h.group.scale.y;
@@ -560,6 +567,7 @@ export class Farm3D {
     this.buildSchool();
     this.buildSprinkler();
     this.buildFarmLights();
+    this.buildBedroom();
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
@@ -1459,7 +1467,7 @@ export class Farm3D {
     this.nightLights.forEach(n => (n.l.intensity = lightsOn ? n.max * Math.max(night, this.devices.lights ? 0.8 : 0) : 0));
     M.warm.emissiveIntensity = lightsOn ? 3 : 0.4;
     if (M.lamp) { M.lamp.emissiveIntensity = lightsOn ? 4 : 0.2; M.grow.emissiveIntensity = lightsOn ? 3.2 : 0.15; }
-    this.innerLight.intensity = lerp(2, 9, night);
+    this.innerLight.intensity = this.familyAsleep ? 0.9 : lerp(2, 9, night); // ปิดไฟนอน เหลือไฟหัวนอนสลัว ๆ
     this.updateEnv(sunDir);
     bus.emit('time', h);
   }
@@ -1732,7 +1740,8 @@ export class Farm3D {
     const gust = 0.03 + (this.wx.cur.wind || 0) * 0.012;
     this.palms?.forEach((p, i) => { p.rotation.z = Math.sin(t * (0.8 + gust * 6) + i) * gust; p.rotation.x = Math.cos(t * 0.6 + i) * gust * 0.7; });
     M.water.normalMap.offset.set(t * 0.02, t * 0.013);
-    this.tv.material.emissiveIntensity = 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
+    this.tv.material.emissiveIntensity = this.familyAsleep ? 0 : 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
+    this.updateBedroom(dt, t);
     if (this.coopDoor) this.coopDoor.rotation.x = lerp(this.coopDoor.rotation.x, this.devices.chickenDoor ? 1.4 : 0, 0.05);
     this.gates.forEach(g => (g.pivot.rotation.y = lerp(g.pivot.rotation.y, this.devices.gateClosed ? 0 : g.side * 1.3, 0.04)));
 
@@ -2110,6 +2119,7 @@ export class Farm3D {
     const alive = () => id === this.dadActId;
     this.dadAct = act;
     const wasAsleep = this.sleepers.has('dad');
+    if (h.sleeping) this.standUp('dad', h);
     h.group.visible = true; this.sleepers.delete('dad');
     h.sitting = false; h.tapping = false; d.bucket.visible = false; h.holding = false; d.bucket.rotation.x = 0;
     this.setHeadlamp(false);
@@ -2123,7 +2133,8 @@ export class Farm3D {
       if (!out.length) this.feedPigs('ตามเวลา');
     } else if (act === 'sleep') {
       this.fatherState = 'เข้านอน';
-      d.w.go(this.pathIn([-7.6, 0.65, -3.2]), () => { if (!alive()) return; h.group.visible = false; this.sleepers.add('dad'); this.fatherState = 'นอนหลับ 💤'; }, true);
+      this.bed.group.visible = true;
+      d.w.go(this.isInside(h.group) ? [this.bed.slots.dad.side] : this.pathIn(this.bed.slots.dad.side), () => { if (!alive()) return; this.lieDown('dad', h); this.fatherState = 'นอนหลับในมุ้ง 💤'; }, true);
     } else if (act === 'rest') {
       this.fatherState = 'พักกลางวันบนระเบียง';
       d.w.go([...out, [3.2, 0, 10], [3.2, 0.65, 7.6], [-6.5, 0.65, 8.3]], () => {
@@ -2158,26 +2169,103 @@ export class Farm3D {
     }
   }
 
+  // ---------------------------------------------------------------- ห้องนอน: ฟูก 4 ผืนในมุ้ง (หลังประตูกระจกหน้าบ้าน มองเห็นจากข้างนอก)
+  buildBedroom() {
+    const g = new THREE.Group(); this.house.add(g); g.visible = false;
+    const mattM = new THREE.MeshStandardMaterial({ color: '#e9e4d8', roughness: 0.95 });
+    const pillowM = new THREE.MeshStandardMaterial({ color: '#f6f3ea', roughness: 0.9 });
+    const blankets = { dad: '#4b6a8a', mom: '#b86b7a', kid: '#e9a3c4', sis: '#d9b45a' };
+    const order = ['dad', 'mom', 'kid', 'sis']; // ลูกคนเล็กนอนข้างแม่
+    const slots = {};
+    order.forEach((key, i) => {
+      const x = -0.15 + i * 0.95;
+      box(0.88, 0.12, 2.0, mattM, x, 0.71, 2.05, g).castShadow = false;
+      const pillow = box(0.5, 0.1, 0.32, pillowM, x, 0.82, 1.22, g); pillow.castShadow = false;
+      const bl = box(0.86, 0.1, 1.25, new THREE.MeshStandardMaterial({ color: blankets[key], roughness: 1 }), x, 0.86, 2.42, g); bl.castShadow = false; bl.visible = false;
+      // ตัว Z ลอยขึ้นจากหัว
+      const zs = [0, 1, 2].map(k => { const sp = new THREE.Sprite(this.zMat.clone()); sp.scale.setScalar(0.22); sp.visible = false; g.add(sp); return { sp, t: k / 3 }; });
+      const world = new THREE.Vector3(x - 2, 0, 0); // house group อยู่ที่ x = -2
+      slots[key] = { x, blanket: bl, zs, side: [world.x, 0.65, 3.5], head: new THREE.Vector3(x, 0.9, 1.25) };
+    });
+    // มุ้ง: ผ้าโปร่งสีขาวคลุมฟูกทั้ง 4 ผืน + เชือกแขวน
+    const netM = new THREE.MeshStandardMaterial({ color: '#f4f6f8', transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false, roughness: 1 });
+    const net = new THREE.Mesh(new THREE.BoxGeometry(4.0, 1.55, 2.3), netM); net.position.set(1.28, 0.65 + 0.78, 2.05); g.add(net);
+    const edgeM = new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35 });
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(net.geometry), edgeM); edges.position.copy(net.position); g.add(edges);
+    for (const [x, z] of [[-0.72, 0.9], [3.28, 0.9], [-0.72, 3.2], [3.28, 3.2]]) cyl(0.004, 0.004, 1.1, M.frame, x, 2.75, z, g, 3);
+    // โคมไฟหัวนอนสลัว ๆ
+    const lamp = sph(0.07, new THREE.MeshStandardMaterial({ color: '#ffd9a0', emissive: '#ffb050', emissiveIntensity: 2 }), -0.95, 0.85, 1.0, g, 8); lamp.castShadow = false;
+    this.bed = { group: g, slots };
+  }
+
+  get zMat() {
+    if (!this._zMat) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const x = c.getContext('2d'); x.fillStyle = '#cfe0ff'; x.font = 'bold 52px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.shadowColor = '#7fa8ff'; x.shadowBlur = 8; x.fillText('Z', 32, 34);
+      this._zMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false });
+    }
+    return this._zMat;
+  }
+
+  lieDown(key, h) {
+    const s = this.bed.slots[key];
+    const local = new THREE.Vector3(s.x, 0, 3.0); // ปลายเท้า → นอนหงาย หัวไปทางหมอน
+    h.group.position.copy(local).add(this.house.position);
+    h.group.rotation.set(-Math.PI / 2, 0, 0);
+    h.baseY = 0.8 + 0.06 * h.group.scale.y; h.sleeping = true; h.group.visible = true;
+    s.blanket.visible = true; s.blanket.scale.set(1, 1, h.group.scale.y < 0.8 ? 0.75 : 1);
+    s.blanket.position.z = h.group.scale.y < 0.8 ? 2.6 : 2.42;
+    this.sleepers.add(key);
+  }
+
+  standUp(key, h) {
+    const s = this.bed.slots[key];
+    if (h.sleeping) { h.sleeping = false; h.group.rotation.set(0, 0, 0); h.baseY = 0.65; h.group.position.set(s.side[0], 0.65, s.side[2]); }
+    s.blanket.visible = false; s.zs.forEach(z => (z.sp.visible = false));
+    h.armL.rotation.z = h.armR.rotation.z = 0;
+    this.sleepers.delete(key);
+  }
+
+  updateBedroom(dt, t) {
+    if (!this.bed?.group.visible) return;
+    for (const key in this.bed.slots) {
+      const s = this.bed.slots[key], on = this.sleepers.has(key);
+      s.blanket.scale.y = on ? 1 + Math.sin(t * 1.6 + s.x) * 0.25 : 1; // ผ้าห่มขยับตามลมหายใจ
+      s.zs.forEach(z => {
+        z.sp.visible = on;
+        if (!on) return;
+        z.t = (z.t + dt * 0.28) % 1;
+        z.sp.position.set(s.x + 0.15 + Math.sin(z.t * 6 + s.x) * 0.08, 1.05 + z.t * 0.9, 1.3 - z.t * 0.2);
+        z.sp.material.opacity = Math.sin(z.t * Math.PI);
+        z.sp.scale.setScalar(0.12 + z.t * 0.16);
+      });
+    }
+  }
+
   sleepFamily() {
     this.familyAsleep = true;
     this.gen++;
-    const spots = { mom: [-7.2, 0.65, -1.6], sis: [-5.6, 0.65, -3.4], kid: [-6.2, 0.65, -2.2] };
+    this.bed.group.visible = true;
     for (const [key, who] of [['mom', this.mom], ['sis', this.sis], ['kid', this.kid]]) {
-      const w = who.w, o = who.h.group;
+      const w = who.w, o = who.h.group, bed = this.bed.slots[key];
       w.locked = true; who.h.sitting = false; who.h.holding = false; who.h.teaching = false;
       if (who.task !== undefined) who.task = 'เข้านอน';
-      const path = this.isInside(o) ? [spots[key]] : this.pathIn(spots[key]);
-      w.go(path, () => { o.visible = false; this.sleepers.add(key); if (who.task !== undefined) who.task = 'นอนหลับ 💤'; }, true);
+      const path = this.isInside(o) ? [bed.side] : this.pathIn(bed.side);
+      w.go(path, () => { this.lieDown(key, who.h); if (who.task !== undefined) who.task = 'นอนหลับในมุ้ง 💤'; }, true);
     }
-    bus.emit('farm-event', '🌙 ทุกคนเข้านอนแล้ว — เรดาร์เฝ้าบ้านต่อ');
+    this.setTime(this.hour);
+    bus.emit('farm-event', '🌙 ทุกคนกางมุ้งเข้านอนแล้ว — เรดาร์เฝ้าบ้านต่อ');
   }
 
   wakeFamily() {
     this.familyAsleep = false;
     this.gen++;
     for (const [key, who] of [['mom', this.mom], ['sis', this.sis], ['kid', this.kid]]) {
-      who.h.group.visible = true; this.sleepers.delete(key); who.w.locked = false;
+      this.standUp(key, who.h); who.w.locked = false;
     }
+    if (!this.sleepers.size) this.bed.group.visible = false;
+    this.setTime(this.hour);
     this.momLoop();
     this.sis.task = 'ตื่นนอน'; this.kid.task = 'ตื่นนอน';
     const gen = this.sisToken ? this.sisToken() : this.gen;
