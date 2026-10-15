@@ -8,8 +8,11 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" id="favicon">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- ฟอนต์ไม่บล็อกการแสดงผล (โหลดเสร็จค่อยสลับ) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
   {
@@ -19,6 +22,15 @@
     }
   }
   </script>
+  <!-- โหลดไฟล์หลักพร้อมกันตั้งแต่แรก (ต้องอยู่หลัง importmap) -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js" crossorigin>
+  <link rel="modulepreload" href="js/main.js">
+  <link rel="modulepreload" href="js/farm3d.js">
+  <link rel="modulepreload" href="js/radar.js">
+  <link rel="modulepreload" href="js/hub.js">
 </head>
 <body>
   <header class="topbar">
@@ -45,7 +57,15 @@
     <!-- ============ TAB 1 : FARM 3D ============ -->
     <section class="view active" id="view-farm">
       <div id="farmCanvas" class="canvas-host"></div>
-      <div class="loading" id="farmLoading">กำลังสร้างบ้านสวน…</div>
+      <div class="loading" id="farmLoading">
+        <div class="splash">
+          <img src="icon.svg" alt="" width="84" height="84">
+          <div class="splash-title">บ้านสวน Monitor</div>
+          <div class="splash-sub">บ้านสวน 3D · เรดาร์ · Hub เซนเซอร์</div>
+          <div class="splash-bar"><i id="splashBar"></i></div>
+          <div class="splash-step" id="splashStep">กำลังโหลดไฟล์…</div>
+        </div>
+      </div>
 
       <button class="panel-toggle" id="panelToggle" aria-expanded="false">☰ ควบคุม</button>
       <aside class="panel farm-panel" id="farmPanel">

@@ -480,7 +480,14 @@ export class Farm3D {
     return [w, h];
   }
 
+  splash(pct, text) {
+    const bar = document.getElementById('splashBar'), st = document.getElementById('splashStep');
+    if (bar) bar.style.width = pct + '%';
+    if (st && text) st.textContent = text;
+  }
+
   init() {
+    this.splash(35, 'กำลังสร้างบ้านสวน…');
     makeTextures(); makeMaterials();
     const [w, h] = this.size();
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -561,7 +568,7 @@ export class Farm3D {
     this.buildRubber();
     this.buildBackdrop();
     this.buildMountains();
-    this.buildGrass();
+    this.grassPending = true; // หญ้าสร้างทีหลัง (หลังเห็นภาพแล้ว) เพื่อให้เปิดเว็บเร็วขึ้น
     this.buildCharacters();
     this.buildLabels();
     this.gen = 0;
@@ -584,8 +591,25 @@ export class Farm3D {
     this.clock = new THREE.Clock();
     this.statusEl = document.getElementById('farmStatus');
     this.statusTimer = 0;
-    r.setAnimationLoop(() => this.tick());
-    setTimeout(() => { const l = document.getElementById('farmLoading'); l.style.opacity = 0; setTimeout(() => l.remove(), 700); }, 300);
+    this.splash(70, 'กำลังเตรียมแสง เงา และท้องฟ้า…');
+    // วาดเฟรมแรก (คอมไพล์ shader) ตอนหน้าโหลดยังแสดงอยู่ แล้วค่อยซ่อนหน้าโหลดเมื่อเห็นภาพจริง
+    // หมายเหตุ: ลอง compileAsync แล้วเฟรมแรกกลับช้าลงมาก จึงใช้การวาดตรง ๆ
+    performance.mark('farm-built');
+    const start = () => {
+      this.tick();
+      performance.mark('farm-first-frame'); // ใช้วัดความเร็วเปิดเว็บ (DevTools → Performance)
+      this.splash(100, 'พร้อมแล้ว');
+      r.setAnimationLoop(() => this.tick());
+      requestAnimationFrame(() => setTimeout(() => {
+        const l = document.getElementById('farmLoading'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 700); }
+        bus.emit('farm-ready');
+      }, 120));
+      // งานที่ไม่จำเป็นต่อภาพแรก ทำตอนเครื่องว่าง
+      const idle = window.requestIdleCallback ? fn => requestIdleCallback(fn, { timeout: 2500 }) : fn => setTimeout(fn, 400);
+      idle(() => { if (this.grassPending) { this.grassPending = false; this.buildGrass(); this.renderer.shadowMap.needsUpdate = true; } });
+    };
+    // ให้หน้าโหลดได้วาดข้อความ/แถบความคืบหน้าก่อน (rAF เดียว ไม่ใช้ setTimeout ที่โดนหน่วงในแท็บพื้นหลัง)
+    requestAnimationFrame(start);
   }
 
   resize() {
@@ -1170,7 +1194,8 @@ export class Farm3D {
 
   setGrass(on) {
     this.grassOn = on; try { localStorage.setItem('grassOn', on ? '1' : '0'); } catch {}
-    this.grass.visible = on && this.grass.count > 0; this.renderer.shadowMap.needsUpdate = true;
+    if (this.grass) this.grass.visible = on && this.grass.count > 0;
+    this.renderer.shadowMap.needsUpdate = true;
   }
 
   setQuality(q) {
@@ -1180,7 +1205,7 @@ export class Farm3D {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
-    this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn;
+    if (this.grass) { this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn; }
     this.renderer.shadowMap.needsUpdate = true;
     this.resize();
   }

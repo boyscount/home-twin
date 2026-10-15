@@ -393,3 +393,15 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
   .sim-panel { max-height: 84vh; }
   .sim-head .check { display: none; }
 }
+
+/* ---------- หน้าโหลด ---------- */
+.loading { background: radial-gradient(circle at 50% 40%, #13281c, var(--bg) 70%); }
+.splash { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 0 24px; }
+.splash img { animation: spin 3s linear infinite; filter: drop-shadow(0 0 18px rgba(57,255,106,.35)); }
+@keyframes spin { 50% { transform: scale(1.06); } }
+.splash-title { font-size: 24px; font-weight: 700; color: var(--text); margin-top: 6px; }
+.splash-sub { font-size: 13px; color: var(--dim); }
+.splash-bar { width: min(260px, 70vw); height: 6px; border-radius: 99px; background: #1d2b23; overflow: hidden; margin-top: 14px; }
+.splash-bar i { display: block; height: 100%; width: 12%; background: linear-gradient(90deg, #39ff6a, #7bd88f); border-radius: 99px; transition: width .35s ease; }
+.splash-step { font-size: 13px; color: var(--dim); min-height: 18px; }
+.loading { z-index: 8; } /* คลุมปุ่มลอยทั้งหมดจนกว่าภาพแรกจะพร้อม */
