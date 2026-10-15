@@ -36,7 +36,8 @@ export class Radar {
     this.setupNotifications();
     this.setupTelegram();
     setTimeout(() => this.renderFamily(), 6000);
-    canvas.addEventListener('click', () => { this.range = this.range === 60 ? 120 : this.range === 120 ? 30 : 60; });
+    this.trails = new Map();   // id → ตำแหน่งย้อนหลัง (ใช้วาดร่องรอย/ทิศทาง/ความเร็ว)
+    this.setupRadarInput();
     bus.on('farm-event', msg => this.log(msg));
     bus.on('class', c => { if (c.on && this.tg.ready) this.tg.sendText(`📚 นักเรียน ${c.kids} คนกำลังมาเรียน${c.lesson}กับพี่สาวที่ศาลา`).catch(() => {}); });
     this.strikes = [];
@@ -374,9 +375,12 @@ export class Radar {
       const b = bearing(e), d = dist(e);
       const crossed = prev <= this.sweep ? (b >= prev && b < this.sweep) : (b >= prev || b < this.sweep);
       const bl = this.blips.get(e.id);
-      if (crossed || !bl) this.blips.set(e.id, { ...e, b, d, seen: now });
+      if (crossed || !bl) {
+        this.blips.set(e.id, { ...e, b, d, seen: now });
+        if (e.type !== 'animal') { const tr = this.trails.get(e.id) || []; tr.push({ x: e.x, z: e.z, t: now }); if (tr.length > 10) tr.shift(); this.trails.set(e.id, tr); }
+      }
     }
-    for (const [id, bl] of this.blips) if (now - bl.seen > 6000) this.blips.delete(id);
+    for (const [id, bl] of this.blips) if (now - bl.seen > 6000) { this.blips.delete(id); this.trails.delete(id); if (this.selected === id) this.selected = null; }
 
     this.listTimer -= dt;
     if (this.listTimer < 0) { this.listTimer = 0.4; this.renderList(ents); }
@@ -396,136 +400,268 @@ export class Radar {
     this.listEl.innerHTML = rows.join('') || '<div class="hud-dim">ไม่มีเป้าหมายในระยะ</div>';
   }
 
+  // ---------------------------------------------------------------- แผนที่จริงจากฉาก 3D (มุมมองจากด้านบน) ใต้จอเรดาร์
+  refreshMap(force = false) {
+    const now = performance.now();
+    if (!force && this.mapAt && now - this.mapAt < 20000 && this.mapRange === this.range) return;
+    const img = this.farm.captureTopView?.(CENTER, this.range);
+    if (img) { this.mapImg = img; this.mapAt = now; this.mapRange = this.range; }
+  }
+
+  setRange(r) {
+    this.range = Math.round(Math.min(150, Math.max(20, r)));
+    document.getElementById('rangeLbl').textContent = `${this.range} m`;
+    clearTimeout(this.mapT); this.mapT = setTimeout(() => this.refreshMap(true), 250);
+  }
+
+  setupRadarInput() {
+    const cv = this.cv;
+    document.getElementById('radarCtl').addEventListener('click', e => {
+      const b = e.target.closest('[data-r]'); if (!b) return;
+      this.setRange(this.range * (b.dataset.r === '+' ? 0.75 : 1.33));
+    });
+    cv.addEventListener('wheel', e => { e.preventDefault(); this.setRange(this.range * (e.deltaY > 0 ? 1.12 : 0.89)); }, { passive: false });
+    // บีบสองนิ้วซูม + แตะเลือกเป้าหมาย
+    const pts = new Map(); let pinch0 = 0, range0 = 0, downAt = 0, downXY = null;
+    cv.addEventListener('pointerdown', e => {
+      cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); range0 = this.range; }
+      downAt = performance.now(); downXY = [e.clientX, e.clientY];
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2 && pinch0) { const [a, b] = [...pts.values()]; this.setRange(range0 * pinch0 / Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1]))); }
+    });
+    const up = e => {
+      const wasPinch = pts.size > 1; pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0;
+      if (wasPinch || !downXY || performance.now() - downAt > 400 || Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]) > 10) return;
+      const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      let best = null, bd = 22;
+      for (const p of this.hit || []) { const d = Math.hypot(p.x - x, p.y - y); if (d < bd) { bd = d; best = p.id; } }
+      this.selected = best;
+    };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', e => pts.delete(e.pointerId));
+    this.setRange(this.range);
+  }
+
+  faceImg(src) {
+    if (!src) return null;
+    this.imgCache ||= new Map();
+    if (!this.imgCache.has(src)) { const im = new Image(); im.src = src; this.imgCache.set(src, im); }
+    const im = this.imgCache.get(src); return im.complete ? im : null;
+  }
+
   draw(now) {
     const cv = this.cv, dpr = Math.min(devicePixelRatio, 2);
     const W = cv.clientWidth, H = cv.clientHeight;
     if (!W) return;
     if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+    this.refreshMap();
     const c = this.ctx; c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, W, H);
-    const G = '#39ff6a', GD = 'rgba(57,255,106,0.25)', GDD = 'rgba(57,255,106,0.1)';
+    const G = '#39ff6a', GD = 'rgba(57,255,106,0.28)', GDD = 'rgba(57,255,106,0.1)';
     const narrow = W < 560;
     const cx = W / 2, cy = narrow ? H / 2 + 22 : H / 2 + 10;
-    const R = narrow ? Math.min(W * 0.36, (H - 120) / 2) : Math.min(W * 0.36, H * 0.42);
-    c.font = '12px "Share Tech Mono", monospace'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    const R = narrow ? Math.min(W * 0.4, (H - 120) / 2) : Math.min(W * 0.34, H * 0.41);
+    const k = R / this.range;
+    const toXY = (x, z) => [cx + (x - CENTER.x) * k, cy + (z - CENTER.z) * k];
+    const tracked = this.tracked;
+    const threats = [...tracked.values()].filter(t => t.status === 'threat' || t.status === 'pending');
+    c.textBaseline = 'middle';
 
-    // หัวข้อ
-    c.fillStyle = G; c.font = 'bold 24px "Share Tech Mono", monospace';
+    // ---- หัวจอ
+    c.shadowColor = G; c.shadowBlur = 8;
+    c.fillStyle = G; c.font = 'bold 24px "Share Tech Mono", monospace'; c.textAlign = 'left';
     c.fillText('HUD', 16, 26); c.font = '13px "Share Tech Mono", monospace'; c.fillText('RADAR · บ้านสวน', 70, 26);
-    c.fillStyle = 'rgba(57,255,106,.6)'; c.font = '11px "Share Tech Mono", monospace';
-    c.fillText(`RANGE ${this.range}m · คลิกเพื่อเปลี่ยน`, 16, 46);
+    c.shadowBlur = 0;
+    const humansIn = [...this.blips.values()].filter(b => b.type === 'human' && b.d <= this.range).length;
+    c.fillStyle = threats.length ? '#ff5d5d' : 'rgba(57,255,106,.7)'; c.font = '11px "Share Tech Mono", monospace';
+    c.fillText(`RNG ${this.range}m · SCAN 4.0s · TGT ${humansIn} · ${threats.length ? 'ALERT ' + threats.length : 'SECURE'}`, 16, 46);
+    c.textAlign = 'right'; c.fillStyle = 'rgba(57,255,106,.7)';
+    c.fillText(new Date().toLocaleTimeString('th-TH', { hour12: false }), W - 16, 26);
+    c.fillText(this.farm.nightFactor > 0.5 ? 'IR NIGHT MODE' : 'DAY MODE', W - 16, 44);
+    c.textAlign = 'left';
 
-    // ไม้บรรทัดด้านซ้าย
+    // ---- ไม้บรรทัดซ้าย
     if (!narrow) {
       const x0 = 18, y0 = 70, y1 = H - 20;
       c.strokeStyle = GD; c.beginPath(); c.moveTo(x0 + 40, y0); c.lineTo(x0 + 40, y1); c.stroke();
       for (let i = 0; i <= 26; i++) {
         const y = y1 - (y1 - y0) * i / 26;
-        c.beginPath(); c.moveTo(x0 + 40, y); c.lineTo(x0 + (i % 2 ? 48 : 60), y); c.stroke();
-        if (i % 2 === 0) { c.fillStyle = 'rgba(57,255,106,.55)'; c.fillText(String(i * 20).padStart(3, '0'), x0, y); }
-        c.strokeStyle = GDD; c.beginPath(); c.moveTo(x0 + 60, y); c.lineTo(cx - R - 20, y); c.stroke(); c.strokeStyle = GD;
+        c.strokeStyle = GD; c.beginPath(); c.moveTo(x0 + 40, y); c.lineTo(x0 + (i % 2 ? 48 : 60), y); c.stroke();
+        if (i % 2 === 0) { c.fillStyle = 'rgba(57,255,106,.5)'; c.fillText(String(i * 20).padStart(3, '0'), x0, y); }
       }
     }
 
-    // วงแหวน + องศา
-    c.strokeStyle = GD; c.lineWidth = 1;
-    for (let i = 1; i <= 4; i++) { c.beginPath(); c.arc(cx, cy, R * i / 4, 0, Math.PI * 2); c.stroke(); }
-    c.strokeStyle = G; c.lineWidth = 1.5; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
-    c.lineWidth = 1;
-    for (let a = 0; a < 360; a += 5) {
-      const r0 = a % 20 === 0 ? R + 4 : R + 2, r1 = a % 20 === 0 ? R + 12 : R + 6;
-      const s = Math.sin(rad(a)), co = -Math.cos(rad(a));
-      c.strokeStyle = a % 20 === 0 ? G : GD;
-      c.beginPath(); c.moveTo(cx + s * r0, cy + co * r0); c.lineTo(cx + s * r1, cy + co * r1); c.stroke();
-      if (a % 20 === 0) { c.fillStyle = 'rgba(57,255,106,.75)'; c.textAlign = 'center'; c.fillText(String(a).padStart(2, '0'), cx + s * (R + 24), cy + co * (R + 24)); }
-    }
-    c.textAlign = 'left';
-    c.strokeStyle = GDD; c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
-    for (let i = 1; i <= 4; i++) { c.fillStyle = 'rgba(57,255,106,.45)'; c.fillText(`${(this.range * i / 4).toFixed(0)}m`, cx + 4, cy - R * i / 4 + 8); }
-    c.fillStyle = G; c.textAlign = 'center'; c.fillText('N', cx, cy - R - 38); c.textAlign = 'left';
-
-    const toXY = (x, z) => {
-      const dx = x - CENTER.x, dz = z - CENTER.z;
-      const k = R / this.range; return [cx + dx * k, cy + dz * k];
-    };
-    // ผังบ้านสวนจาง ๆ
+    // ---- ภายในวงเรดาร์
     c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
-    c.setLineDash([4, 4]); c.strokeStyle = 'rgba(255,224,102,.45)';
+    const bg = c.createRadialGradient(cx, cy, 0, cx, cy, R);
+    bg.addColorStop(0, 'rgba(6,40,16,.95)'); bg.addColorStop(1, 'rgba(1,10,4,.98)');
+    c.fillStyle = bg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    // แผนที่จริง (ย้อมเขียว)
+    if (this.mapImg) {
+      const s = R * (this.mapRange / this.range);
+      c.globalAlpha = 0.5; c.filter = 'grayscale(1) brightness(1.5) contrast(1.25) sepia(1) hue-rotate(65deg) saturate(2.6)';
+      c.drawImage(this.mapImg, cx - s, cy - s, s * 2, s * 2);
+      c.filter = 'none'; c.globalAlpha = 1;
+    }
+    // ตาราง
+    c.strokeStyle = GDD; c.lineWidth = 1;
+    for (let a = 0; a < 360; a += 30) { const t = rad(a); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.sin(t) * R, cy - Math.cos(t) * R); c.stroke(); }
+    c.strokeStyle = GD;
+    for (let i = 1; i <= 4; i++) { c.beginPath(); c.arc(cx, cy, R * i / 4, 0, Math.PI * 2); c.stroke(); }
+    c.fillStyle = 'rgba(57,255,106,.55)'; c.font = '10px "Share Tech Mono", monospace';
+    for (let i = 1; i <= 4; i++) c.fillText(`${Math.round(this.range * i / 4)}m`, cx + 4, cy - R * i / 4 + 9);
+    // เขตรั้ว (กะพริบแดงเมื่อมีภัย)
     let [a1, b1] = toXY(PERIMETER.x0, PERIMETER.z0), [a2, b2] = toXY(PERIMETER.x1, PERIMETER.z1);
-    c.strokeRect(a1, b1, a2 - a1, b2 - b1); c.setLineDash([]);
-    c.strokeStyle = 'rgba(57,255,106,.3)'; c.fillStyle = 'rgba(57,255,106,.4)'; c.font = '10px "IBM Plex Sans Thai"';
+    c.setLineDash([6, 5]); c.lineWidth = 1.5;
+    c.strokeStyle = threats.length ? `rgba(255,80,80,${0.5 + 0.5 * Math.sin(now / 150)})` : 'rgba(255,224,102,.55)';
+    c.strokeRect(a1, b1, a2 - a1, b2 - b1); c.setLineDash([]); c.lineWidth = 1;
+    c.fillStyle = 'rgba(160,255,190,.55)'; c.font = '10px "IBM Plex Sans Thai"';
     for (const z of ZONES) {
-      if (z.r) { const [x, y] = toXY(z.cx, z.cz); c.beginPath(); c.arc(x, y, z.r * R / this.range, 0, Math.PI * 2); c.stroke(); c.fillText(z.name, x - 10, y); }
-      else { [a1, b1] = toXY(z.x0, z.z0); [a2, b2] = toXY(z.x1, z.z1); c.strokeRect(a1, b1, a2 - a1, b2 - b1); c.fillText(z.name, a1 + 3, Math.max(b1 + 10, cy - R + 20)); }
+      if (z.r) { const [x, y] = toXY(z.cx, z.cz); c.fillText(z.name, x - 12, y); }
+      else { [a1, b1] = toXY(z.x0, z.z0); [a2, b2] = toXY(z.x1, z.z1); c.fillText(z.name, Math.max(a1 + 3, cx - R + 8), Math.max(b1 + 10, cy - R + 20)); }
     }
-    const [, ry] = toXY(0, 46); c.strokeStyle = 'rgba(57,255,106,.18)'; c.lineWidth = R / this.range * 9; c.beginPath(); c.moveTo(cx - R, ry); c.lineTo(cx + R, ry); c.stroke(); c.lineWidth = 1;
-    c.fillText('ถนน', cx - R * 0.6, ry);
-
-    // เส้นกวาด
+    // ทิศทางที่มีภัย: ไฮไลต์เป็นเสี้ยว
+    for (const t of threats) {
+      const b = this.blips.get(t.id); if (!b) continue;
+      const a = rad(b.b) - Math.PI / 2;
+      c.fillStyle = 'rgba(255,60,60,0.12)'; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, a - 0.18, a + 0.18); c.closePath(); c.fill();
+    }
+    // เส้นกวาด + หางเรืองแสง
     const sw = rad(this.sweep) - Math.PI / 2;
-    const grad = c.createConicGradient ? c.createConicGradient(sw - 0.9, cx, cy) : null;
-    if (grad) {
-      grad.addColorStop(0, 'rgba(57,255,106,0)'); grad.addColorStop(0.143, 'rgba(57,255,106,0.35)'); grad.addColorStop(0.1431, 'rgba(57,255,106,0)'); grad.addColorStop(1, 'rgba(57,255,106,0)');
-      c.fillStyle = grad; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - 0.9, sw); c.closePath(); c.fill();
+    if (c.createConicGradient) {
+      const grad = c.createConicGradient(sw - 1.2, cx, cy);
+      grad.addColorStop(0, 'rgba(57,255,106,0)'); grad.addColorStop(0.19, 'rgba(57,255,106,0.42)'); grad.addColorStop(0.1901, 'rgba(57,255,106,0)'); grad.addColorStop(1, 'rgba(57,255,106,0)');
+      c.fillStyle = grad; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - 1.2, sw); c.closePath(); c.fill();
     }
-    c.strokeStyle = G; c.lineWidth = 2; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke(); c.lineWidth = 1;
+    c.shadowColor = G; c.shadowBlur = 12; c.strokeStyle = '#b6ffc9'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke();
+    c.shadowBlur = 0; c.lineWidth = 1;
 
-    // blips
-    c.font = '11px "IBM Plex Sans Thai"';
+    // ---- เป้าหมาย
+    this.hit = [];
+    const tags = [];
     for (const bl of this.blips.values()) {
       if (bl.d > this.range * 1.05) continue;
-      const age = (now - bl.seen) / 4000, alpha = Math.max(0.12, 1 - age);
+      const age = (now - bl.seen) / 4000, alpha = Math.max(0.15, 1 - age);
       const [x, y] = toXY(bl.x, bl.z);
-      const t = this.tracked.get(bl.id);
-      if (bl.type === 'human') {
+      const t = tracked.get(bl.id);
+      const trail = this.trails.get(bl.id) || [];
+      if (bl.type === 'human' || bl.type === 'vehicle') {
         const bad = t?.status === 'threat' || t?.status === 'pending';
-        const col = bad ? `rgba(255,70,70,${alpha})` : t?.status === 'outside' ? `rgba(255,224,102,${alpha})` : `rgba(120,200,255,${alpha})`;
-        c.fillStyle = col; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill();
-        if (bad) { const pr = 8 + ((now / 60) % 16); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 8) / 16})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
-        c.fillStyle = col;
-        const lbl = t?.status === 'resident' || t?.status === 'student' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
-        c.fillText(lbl, x + 9, y - 8);
-      } else if (bl.type === 'vehicle') {
-        c.fillStyle = `rgba(255,170,60,${alpha})`; c.fillRect(x - 5, y - 3, 10, 6);
-        c.fillText(bl.label, x + 8, y - 6);
+        const rgb = bl.type === 'vehicle' ? '255,170,60' : bad ? '255,70,70' : t?.status === 'outside' ? '255,224,102' : '120,200,255';
+        // ร่องรอยการเคลื่อนที่
+        trail.forEach((p, i) => { const [tx, ty] = toXY(p.x, p.z); c.fillStyle = `rgba(${rgb},${(i + 1) / trail.length * 0.35 * alpha})`; c.beginPath(); c.arc(tx, ty, 2, 0, Math.PI * 2); c.fill(); });
+        // เวกเตอร์ทิศทาง
+        if (trail.length > 1) {
+          const p0 = trail[Math.max(0, trail.length - 3)];
+          const [px, py] = toXY(p0.x, p0.z), dx = x - px, dy = y - py, m = Math.hypot(dx, dy);
+          if (m > 1.5) { c.strokeStyle = `rgba(${rgb},${alpha})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x + dx / m * 16, y + dy / m * 16); c.stroke(); }
+        }
+        c.shadowColor = `rgb(${rgb})`; c.shadowBlur = 10; c.fillStyle = `rgba(${rgb},${alpha})`;
+        if (bl.type === 'vehicle') { c.fillRect(x - 5, y - 3.5, 10, 7); }
+        else { c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 6, y); c.lineTo(x, y + 6); c.lineTo(x - 6, y); c.closePath(); c.fill(); }
+        c.shadowBlur = 0;
+        if (bad) { const pr = 9 + ((now / 55) % 18); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 9) / 18})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
+        const name = bl.type === 'vehicle' ? bl.label : t?.status === 'resident' || t?.status === 'student' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
+        tags.push({ x, y, rgb, alpha, name, sub: `${bl.d.toFixed(0)}m ${bl.b.toFixed(0).padStart(3, '0')}°`, bad });
       } else {
-        c.fillStyle = `rgba(57,255,106,${alpha * 0.85})`; c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill();
+        c.fillStyle = `rgba(57,255,106,${alpha * 0.8})`; c.beginPath(); c.arc(x, y, 2.6, 0, Math.PI * 2); c.fill();
+      }
+      this.hit.push({ id: bl.id, x, y });
+      if (this.selected === bl.id) {
+        c.strokeStyle = '#ffffff'; c.lineWidth = 1.5; const s = 13;
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { c.beginPath(); c.moveTo(x + sx * s, y + sy * (s - 6)); c.lineTo(x + sx * s, y + sy * s); c.lineTo(x + sx * (s - 6), y + sy * s); c.stroke(); }
+        c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke(); c.setLineDash([]); c.lineWidth = 1;
       }
     }
-    // จุดฟ้าผ่า (แสดง 5 วินาที)
+    // ป้ายชื่อแบบหอบังคับการบิน (มีเส้นโยง)
+    c.font = '11px "IBM Plex Sans Thai"';
+    for (const tg of tags) {
+      const lx = tg.x + 14, ly = tg.y - 16;
+      c.strokeStyle = `rgba(${tg.rgb},${tg.alpha * 0.7})`; c.beginPath(); c.moveTo(tg.x + 5, tg.y - 5); c.lineTo(lx, ly + 6); c.stroke();
+      const w = Math.max(c.measureText(tg.name).width, c.measureText(tg.sub).width) + 10;
+      c.fillStyle = tg.bad ? 'rgba(60,0,0,.75)' : 'rgba(0,25,10,.7)'; c.fillRect(lx, ly - 10, w, 26);
+      c.strokeRect(lx, ly - 10, w, 26);
+      c.fillStyle = `rgba(${tg.rgb},${Math.max(0.6, tg.alpha)})`; c.fillText(tg.name, lx + 5, ly - 2);
+      c.font = '10px "Share Tech Mono"'; c.fillText(tg.sub, lx + 5, ly + 10); c.font = '11px "IBM Plex Sans Thai"';
+    }
+    // ฟ้าผ่า
     this.strikes = this.strikes.filter(s => now - s.t < 5000);
     for (const s of this.strikes) {
       if (s.distance > this.range * 1.05) continue;
       const [x, y] = toXY(s.x, s.z), a = 1 - (now - s.t) / 5000;
-      c.strokeStyle = `rgba(190,210,255,${a})`; c.lineWidth = 2; c.beginPath();
-      c.moveTo(x - 4, y - 12); c.lineTo(x + 3, y - 2); c.lineTo(x - 3, y + 1); c.lineTo(x + 4, y + 12); c.stroke(); c.lineWidth = 1;
+      c.shadowColor = '#9fb6ff'; c.shadowBlur = 12; c.strokeStyle = `rgba(200,215,255,${a})`; c.lineWidth = 2; c.beginPath();
+      c.moveTo(x - 4, y - 12); c.lineTo(x + 3, y - 2); c.lineTo(x - 3, y + 1); c.lineTo(x + 4, y + 12); c.stroke(); c.lineWidth = 1; c.shadowBlur = 0;
     }
+    // ขอบในมืด (ให้ดูเป็นจอโค้ง)
+    const vg = c.createRadialGradient(cx, cy, R * 0.65, cx, cy, R);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    c.fillStyle = vg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
     c.restore();
-    // จุดกลาง
-    c.fillStyle = G; c.beginPath(); c.arc(cx, cy, 4, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = G; c.beginPath(); c.arc(cx, cy, 14, 0, Math.PI * 2); c.stroke();
 
-    // มาตรวัดมุมขวาล่าง
+    // ---- ขอบวง + องศา + ทิศ
+    c.shadowColor = G; c.shadowBlur = 6;
+    c.strokeStyle = G; c.lineWidth = 1.6; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke(); c.lineWidth = 1;
+    c.shadowBlur = 0;
+    c.font = '11px "Share Tech Mono", monospace'; c.textAlign = 'center';
+    for (let a = 0; a < 360; a += 5) {
+      const r0 = a % 30 === 0 ? R + 4 : R + 2, r1 = a % 30 === 0 ? R + 13 : a % 10 === 0 ? R + 8 : R + 5;
+      const s = Math.sin(rad(a)), co = -Math.cos(rad(a));
+      c.strokeStyle = a % 30 === 0 ? G : GD;
+      c.beginPath(); c.moveTo(cx + s * r0, cy + co * r0); c.lineTo(cx + s * r1, cy + co * r1); c.stroke();
+      if (a % 30 === 0 && a % 90 !== 0) { c.fillStyle = 'rgba(57,255,106,.7)'; c.fillText(String(a).padStart(3, '0'), cx + s * (R + 26), cy + co * (R + 26)); }
+    }
+    c.font = 'bold 14px "Share Tech Mono", monospace'; c.fillStyle = G;
+    [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([l, a]) => c.fillText(l, cx + Math.sin(rad(a)) * (R + 26), cy - Math.cos(rad(a)) * (R + 26)));
+    c.textAlign = 'left';
+    // จุดติดตั้งเรดาร์
+    c.fillStyle = G; c.beginPath(); c.arc(cx, cy, 3.5, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = GD; c.beginPath(); c.arc(cx, cy, 12 + Math.sin(now / 400) * 2, 0, Math.PI * 2); c.stroke();
+
+    // ---- ข้อมูลเป้าหมายที่เลือก / ใกล้สุด
+    const sel = this.selected && this.blips.get(this.selected);
+    const near = [...this.blips.values()].filter(e => e.type === 'human').sort((a, b) => a.d - b.d)[0];
+    const info = sel || near;
     if (!narrow) {
-      const ents = [...this.blips.values()];
-      const humans = ents.filter(e => e.type === 'human').length, animals = ents.length - humans;
-      const threats = [...this.tracked.values()].filter(t => t.status === 'threat' || t.status === 'pending').length;
-      const gauges = [['HUMAN', humans, 6], ['ANIMAL', animals, 20], ['KNOWN', this.known.length, 10], ['ALERT', threats, 3]];
+      const x0 = W - 190, y0 = 70;
+      c.fillStyle = 'rgba(0,30,12,.6)'; c.fillRect(x0 - 8, y0 - 12, 182, sel ? 214 : 132);
+      c.strokeStyle = GD; c.strokeRect(x0 - 8, y0 - 12, 182, sel ? 214 : 132);
+      c.fillStyle = G; c.font = '12px "Share Tech Mono"';
+      c.fillText(sel ? 'TARGET LOCK' : 'NEAREST TARGET', x0, y0);
+      if (info) {
+        const t = tracked.get(info.id);
+        const status = info.type !== 'human' ? info.label : t?.status === 'resident' ? `คนในบ้าน · ${info.label}` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? `รู้จัก · ${t.name}` : t?.status === 'threat' ? 'ไม่รู้จัก !' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
+        const trail = this.trails.get(info.id) || [];
+        let speed = 0; if (trail.length > 1) { const a = trail[trail.length - 2], b = trail[trail.length - 1]; speed = Math.hypot(b.x - a.x, b.z - a.z) / Math.max(0.5, (b.t - a.t) / 1000); }
+        const lines = [info.id, `X ${info.x.toFixed(1)}  Z ${info.z.toFixed(1)}`, `BRG ${info.b.toFixed(0).padStart(3, '0')}°  RNG ${info.d.toFixed(1)}m`, `SPD ${speed.toFixed(1)} m/s`];
+        lines.forEach((l, i) => c.fillText(l, x0, y0 + 20 + i * 17));
+        c.font = '12px "IBM Plex Sans Thai"'; c.fillStyle = t?.status === 'threat' || t?.status === 'pending' ? '#ff6b6b' : '#a6ffbc';
+        c.fillText(status, x0, y0 + 20 + lines.length * 17);
+        const face = this.faceImg(t?.img || (t?.status === 'known' ? this.known.find(k => k.id === t.personaId)?.img : null));
+        if (sel && face) { c.drawImage(face, x0, y0 + 112, 112, 84); c.strokeStyle = G; c.strokeRect(x0, y0 + 112, 112, 84); }
+        else if (sel) { c.fillStyle = 'rgba(57,255,106,.5)'; c.font = '11px "IBM Plex Sans Thai"'; c.fillText('แตะที่ว่างเพื่อยกเลิก', x0, y0 + 120); }
+      } else { c.fillStyle = 'rgba(57,255,106,.5)'; c.fillText('---', x0, y0 + 20); }
+      c.font = '10px "IBM Plex Sans Thai"'; c.fillStyle = 'rgba(57,255,106,.5)';
+      if (!sel) c.fillText('แตะเป้าหมายบนจอเพื่อล็อก', x0, y0 + 108);
+    }
+
+    // ---- มาตรวัดมุมขวาล่าง
+    if (!narrow) {
+      const ents = [...this.blips.values()].filter(b => b.d <= this.range);
+      const humans = ents.filter(e => e.type === 'human').length, cars = ents.filter(e => e.type === 'vehicle').length, animals = ents.length - humans - cars;
+      const gauges = [['HUMAN', humans, 12], ['ANIMAL', animals, 24], ['VEHICLE', cars, 4], ['ALERT', threats.length, 3]];
       const gx = W - 150, gy = H - 150;
       gauges.forEach(([name, v, max], i) => {
         const x = gx + (i % 2) * 74, y = gy + Math.floor(i / 2) * 76, r = 26;
-        c.fillStyle = 'rgba(57,255,106,.12)'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-        c.fillStyle = name === 'ALERT' && v ? '#ff4646' : G;
-        c.beginPath(); c.moveTo(x, y); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v / max)); c.closePath(); c.fill();
-        c.fillStyle = 'rgba(57,255,106,.8)'; c.textAlign = 'center'; c.font = '10px "Share Tech Mono"';
-        c.fillText(`${name} ${v}`, x, y + r + 10);
+        c.strokeStyle = GDD; c.lineWidth = 6; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = name === 'ALERT' && v ? '#ff4646' : G; c.shadowColor = c.strokeStyle; c.shadowBlur = 8;
+        c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v / max)); c.stroke(); c.shadowBlur = 0; c.lineWidth = 1;
+        c.fillStyle = 'rgba(57,255,106,.9)'; c.textAlign = 'center'; c.font = 'bold 14px "Share Tech Mono"'; c.fillText(v, x, y);
+        c.font = '10px "Share Tech Mono"'; c.fillStyle = 'rgba(57,255,106,.7)'; c.fillText(name, x, y + r + 12);
       });
       c.textAlign = 'left';
-      // พิกัดเป้าหมายล่าสุด
-      const h = ents.filter(e => e.type === 'human').sort((a, b) => a.d - b.d)[0];
-      c.fillStyle = G; c.font = '12px "Share Tech Mono"';
-      const lines = ['POSITION', h ? `${h.id}` : '---', h ? `X ${h.x.toFixed(1)}  Z ${h.z.toFixed(1)}` : '', h ? `BRG ${h.b.toFixed(0)}°  R ${h.d.toFixed(1)}m` : '', '', `SWEEP ${this.sweep.toFixed(0).padStart(3, '0')}°`, `ALERTS ${this.stats.alerts}`];
-      lines.forEach((l, i) => c.fillText(l, W - 170, 80 + i * 18));
     }
   }
 }

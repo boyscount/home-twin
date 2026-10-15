@@ -1447,6 +1447,25 @@ export class Farm3D {
   }
   setLabels(on) { this.labels.forEach(l => (l.visible = on)); }
 
+  // ภาพมุมสูงของฟาร์ม (orthographic) สำหรับเป็นแผนที่ใต้จอเรดาร์ — ทิศเหนืออยู่บน
+  captureTopView(center, range) {
+    const r = this.renderer, pr = r.getPixelRatio();
+    const sizeVec = new THREE.Vector2(); r.getSize(sizeVec);
+    const S = Math.floor(Math.min(512, sizeVec.x, sizeVec.y)); if (S < 64) return null;
+    const cam = this.topCam || (this.topCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 800));
+    cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range; cam.updateProjectionMatrix();
+    cam.position.set(center.x, 400, center.z); cam.up.set(0, 0, -1); cam.lookAt(center.x, 0, center.z);
+    const fog = this.scene.fog; this.scene.fog = null; this.skyDome.mesh.visible = false;
+    const labels = this.labels.map(l => l.visible); this.labels.forEach(l => (l.visible = false));
+    r.setScissorTest(true); r.setViewport(0, 0, S, S); r.setScissor(0, 0, S, S);
+    r.render(this.scene, cam);
+    const c = document.createElement('canvas'); c.width = c.height = S * pr;
+    c.getContext('2d').drawImage(r.domElement, 0, r.domElement.height - S * pr, S * pr, S * pr, 0, 0, S * pr, S * pr);
+    r.setScissorTest(false); r.setViewport(0, 0, sizeVec.x, sizeVec.y);
+    this.scene.fog = fog; this.skyDome.mesh.visible = true; this.labels.forEach((l, i) => (l.visible = labels[i]));
+    return c;
+  }
+
   // ---------------------------------------------------------------- ตัวช่วยซูม (ปุ่ม + / − และแตะสองครั้ง)
   animateCam(p1, t1, dur = 450) {
     const p0 = this.camera.position.clone(), t0 = this.controls.target.clone(), start = performance.now();

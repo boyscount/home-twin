@@ -334,3 +334,19 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
   .zoom-ctl button { width: 48px; height: 48px; font-size: 24px; border-radius: 14px; }
   .zone-label { font-size: 10.5px; padding: 2px 7px; }
 }
+
+/* ---------- เรดาร์: จอ CRT ---------- */
+#radarCanvas { touch-action: none; cursor: crosshair; }
+.radar-main .crt {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%);
+  mix-blend-mode: multiply;
+}
+.radar-main::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 52%, rgba(57,255,106,.08), transparent 60%); }
+.radar-ctl { position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; font-family: "Share Tech Mono", monospace; color: var(--hud); z-index: 2; }
+.radar-ctl button { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--hud-dim); background: rgba(5,30,12,.75); color: var(--hud); font-size: 20px; touch-action: manipulation; }
+.radar-ctl button:active { background: var(--hud); color: #031208; }
+.radar-ctl span { min-width: 54px; text-align: center; font-size: 14px; }
+@media (max-width: 760px) { .radar-ctl { left: auto; bottom: auto; right: 10px; top: 58px; } .radar-ctl button { width: 42px; height: 42px; } }
