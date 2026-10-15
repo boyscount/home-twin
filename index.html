@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>บ้านสวน Monitor</title>
+  <meta name="theme-color" content="#0b1410">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◉</span>
+      <div>
+        <div class="brand-name">บ้านสวน Monitor</div>
+        <div class="brand-sub">Smart Farm · 3D Twin · Radar · Hub</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="farm" role="tab">🏡 บ้านสวน 3D</button>
+      <button class="tab" data-tab="radar" role="tab">📡 เรดาร์ <span class="badge" id="radarBadge" hidden>0</span></button>
+      <button class="tab" data-tab="hub" role="tab">🛰️ Hub อุปกรณ์</button>
+    </nav>
+    <div class="topstat">
+      <span class="dot ok" id="connDot"></span><span id="connText">จำลองข้อมูล</span>
+      <span class="clock" id="clock">--:--</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ TAB 1 : FARM 3D ============ -->
+    <section class="view active" id="view-farm">
+      <div id="farmCanvas" class="canvas-host"></div>
+      <div class="loading" id="farmLoading">กำลังสร้างบ้านสวน…</div>
+
+      <button class="panel-toggle" id="panelToggle" aria-expanded="false">☰ ควบคุม</button>
+      <aside class="panel farm-panel" id="farmPanel">
+        <h3>มุมกล้อง</h3>
+        <div class="chips" id="camChips">
+          <button data-cam="overview" class="chip active">ภาพรวม</button>
+          <button data-cam="house" class="chip">บ้าน</button>
+          <button data-cam="pig" class="chip">คอกหมู</button>
+          <button data-cam="pond" class="chip">บ่อปลา</button>
+          <button data-cam="chicken" class="chip">เล้าไก่</button>
+          <button data-cam="hydro" class="chip">ไฮโดรโปนิกส์</button>
+          <button data-cam="rubber" class="chip">สวนยาง 400 ต้น</button>
+        </div>
+        <h3>ช่วงเวลา</h3>
+        <input type="range" id="timeSlider" min="5" max="21" step="0.25" value="6.5">
+        <div class="row-between small"><span>05:00</span><span id="timeLabel">06:30</span><span>21:00</span></div>
+        <label class="check"><input type="checkbox" id="autoTime"> เดินเวลาอัตโนมัติ</label>
+        <label class="check"><input type="checkbox" id="fogToggle" checked> หมอกยามเช้า</label>
+        <label class="check"><input type="checkbox" id="labelToggle" checked> ป้ายชื่อโซน</label>
+        <h3>สั่งงานจำลอง</h3>
+        <div class="chips">
+          <button class="chip" id="btnFeed">🐖 พ่อให้อาหารหมู</button>
+          <button class="chip" id="btnVisitor">🚶 มีคนเดินเข้าบ้าน</button>
+        </div>
+      </aside>
+
+      <div class="panel farm-status" id="farmStatus"></div>
+    </section>
+
+    <!-- ============ TAB 2 : RADAR ============ -->
+    <section class="view" id="view-radar">
+      <div class="radar-layout">
+        <div class="radar-main">
+          <canvas id="radarCanvas"></canvas>
+        </div>
+        <aside class="radar-side">
+          <div class="hud-box">
+            <div class="hud-title">TARGETS</div>
+            <div id="targetList" class="target-list"></div>
+          </div>
+          <div class="hud-box">
+            <div class="hud-title">CAMERA SOURCE</div>
+            <label class="check hud"><input type="radio" name="camsrc" value="sim" checked> กล้องจำลองในฉาก 3D</label>
+            <label class="check hud"><input type="radio" name="camsrc" value="webcam"> เว็บแคมจริง (ทดสอบ)</label>
+            <video id="webcam" autoplay muted playsinline hidden></video>
+            <div class="small hud-dim" id="faceApiState"></div>
+          </div>
+          <div class="hud-box">
+            <div class="hud-title">PUSH NOTIFICATION</div>
+            <button class="hud-btn" id="btnNotifPerm">เปิดการแจ้งเตือนบนเครื่องนี้</button>
+            <div class="small hud-dim" id="notifState"></div>
+          </div>
+          <div class="hud-box grow">
+            <div class="hud-title">EVENT LOG</div>
+            <div id="eventLog" class="event-log"></div>
+          </div>
+        </aside>
+
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="phone-status"><span id="phoneClock">--:--</span><span>📶 🔋</span></div>
+              <div class="phone-title">การแจ้งเตือน</div>
+              <div id="phoneNotifs" class="phone-notifs">
+                <div class="phone-empty">ยังไม่มีการแจ้งเตือน</div>
+              </div>
+              <div class="phone-section">คนที่รู้จัก</div>
+              <div id="knownList" class="known-list"></div>
+            </div>
+          </div>
+          <div class="small center dim">จำลองมือถือเจ้าของบ้าน</div>
+        </div>
+      </div>
+
+      <dialog id="nameDialog" class="dialog">
+        <form method="dialog">
+          <img id="nameDialogImg" alt="">
+          <label>ชื่อคนนี้คือใคร?<input id="nameInput" placeholder="เช่น ลุงสมชาย ข้างบ้าน" required></label>
+          <menu><button value="cancel" formnovalidate>ยกเลิก</button><button value="ok" class="primary">บันทึกว่ารู้จัก</button></menu>
+        </form>
+      </dialog>
+    </section>
+
+    <!-- ============ TAB 3 : HUB ============ -->
+    <section class="view" id="view-hub">
+      <div class="hub-head">
+        <div>
+          <h2>Hub อุปกรณ์ &amp; เซนเซอร์</h2>
+          <p class="dim">ตอนนี้แสดงข้อมูลจำลอง — เชื่อม MQTT broker เพื่อรับค่าจริงจาก ESP32 / Raspberry Pi ได้ทันที</p>
+        </div>
+        <form class="mqtt-form" id="mqttForm">
+          <input id="mqttUrl" value="wss://broker.emqx.io:8084/mqtt" aria-label="MQTT WebSocket URL">
+          <input id="mqttTopic" value="banshuan/demo/#" aria-label="Topic">
+          <button class="primary" id="mqttBtn">เชื่อมต่อ</button>
+        </form>
+      </div>
+      <div class="hub-grid" id="hubGrid"></div>
+      <div class="hub-bottom">
+        <div class="card wide">
+          <div class="card-h"><span>อุปกรณ์ในระบบ</span><span class="dim small" id="devCount"></span></div>
+          <table class="dev-table">
+            <thead><tr><th>อุปกรณ์</th><th>ตำแหน่ง</th><th>Topic</th><th>สถานะ</th><th>ล่าสุด</th></tr></thead>
+            <tbody id="devTable"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-h"><span>บันทึกการสั่งงาน</span></div>
+          <div class="event-log light" id="hubLog"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
