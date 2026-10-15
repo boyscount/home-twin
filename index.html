@@ -107,6 +107,16 @@
             <div class="hud-title">PUSH NOTIFICATION</div>
             <button class="hud-btn" id="btnNotifPerm">เปิดการแจ้งเตือนบนเครื่องนี้</button>
             <div class="small hud-dim" id="notifState"></div>
+            <details class="tg" id="tgBox">
+              <summary>📲 Telegram — แจ้งเตือนจริงเข้ามือถือครอบครัว</summary>
+              <input id="tgToken" type="password" placeholder="Bot token จาก @BotFather" autocomplete="off" spellcheck="false">
+              <div class="tg-row"><input id="tgChat" placeholder="Chat ID ของกลุ่มครอบครัว" spellcheck="false"><button class="hud-btn sm" id="tgFind" type="button">ค้นหา</button></div>
+              <div id="tgChats" class="tg-chats"></div>
+              <div class="tg-row"><button class="hud-btn" id="tgSave" type="button">บันทึก &amp; เชื่อมต่อ</button><button class="hud-btn" id="tgTest" type="button">ส่งทดสอบ</button></div>
+              <button class="hud-link" id="tgClear" type="button">ลบการตั้งค่าออกจากเครื่องนี้</button>
+            </details>
+            <div class="small hud-dim" id="tgState"></div>
+            <button class="hud-btn" id="btnStranger" type="button" style="margin-top:8px">🚶 จำลองคนแปลกหน้าที่ประตู</button>
           </div>
           <div class="hud-box grow">
             <div class="hud-title">EVENT LOG</div>
@@ -123,6 +133,8 @@
               <div id="phoneNotifs" class="phone-notifs">
                 <div class="phone-empty">ยังไม่มีการแจ้งเตือน</div>
               </div>
+              <div class="phone-section">ครอบครัว (ระบบรู้จักแล้ว)</div>
+              <div id="familyList" class="known-list"></div>
               <div class="phone-section">คนที่รู้จัก</div>
               <div id="knownList" class="known-list"></div>
             </div>

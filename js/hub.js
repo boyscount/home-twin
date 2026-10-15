@@ -57,6 +57,7 @@ export class Hub {
     bus.on('cmd', c => this.onCmd(c));
     bus.on('alert', () => { this.security.alerts++; this.renderSecurity(); });
     bus.on('radar-known', () => { this.security.known++; this.renderSecurity(); });
+    bus.on('eggs-collected', n => { this.vals['chicken/eggs'] = Math.min(METRICS['chicken/eggs'][4], this.vals['chicken/eggs'] + n); this.render(); });
     bus.on('farm-event', msg => { if (msg.includes('เทอาหาร')) { this.vals['pig/feed'] = Math.max(0, this.vals['pig/feed'] - 6); this.render(); } });
     document.getElementById('mqttForm').addEventListener('submit', e => { e.preventDefault(); this.connectMqtt(); });
     this.log('Hub พร้อมใช้งาน (โหมดจำลอง)');

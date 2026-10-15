@@ -289,6 +289,42 @@ function makeFish(color) {
   return { group: g, tail };
 }
 
+// แมว: สีลำตัว, สีจุด/ลาย (ถ้ามี), สีปลายหู-หาง (วิเชียรมาศ)
+function makeCat(o) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.9 });
+  const point = o.point ? new THREE.MeshStandardMaterial({ color: o.point, roughness: 0.9 }) : mat;
+  const eyeM = new THREE.MeshStandardMaterial({ color: o.eye || '#c8d64a', emissive: o.eye || '#c8d64a', emissiveIntensity: 0.25 });
+  const body = new THREE.Group(); g.add(body);
+  const torso = sph(0.13, mat, 0, 0.24, 0, body, 12); torso.scale.set(0.8, 0.8, 1.7);
+  if (o.patch) { const p = sph(0.1, new THREE.MeshStandardMaterial({ color: o.patch }), 0.05, 0.3, -0.06, body, 8); p.scale.set(0.9, 0.5, 1.2); }
+  const head = new THREE.Group(); head.position.set(0, 0.33, 0.22); body.add(head);
+  sph(0.095, mat, 0, 0, 0, head, 12);
+  const muzzle = sph(0.045, point, 0, -0.025, 0.08, head, 8); muzzle.scale.set(1.2, 0.8, 0.8);
+  sph(0.016, eyeM, -0.035, 0.02, 0.083, head, 6);
+  sph(0.016, eyeM, 0.035, 0.02, 0.083, head, 6);
+  sph(0.012, new THREE.MeshStandardMaterial({ color: '#d98a8a' }), 0, -0.01, 0.12, head, 5);
+  for (const sx of [-1, 1]) { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 4), point); ear.position.set(sx * 0.055, 0.085, 0); ear.rotation.z = -sx * 0.25; head.add(ear); }
+  const legs = [];
+  for (const [x, z] of [[-0.05, 0.12], [0.05, 0.12], [-0.05, -0.12], [0.05, -0.12]]) {
+    const p = new THREE.Group(); p.position.set(x, 0.18, z); body.add(p); cyl(0.022, 0.02, 0.18, point, 0, -0.09, 0, p, 6); legs.push(p);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, 0.28, -0.2); body.add(tail);
+  const tcurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.12, -0.1), new THREE.Vector3(0, 0.26, -0.08)]);
+  tail.add(new THREE.Mesh(new THREE.TubeGeometry(tcurve, 8, 0.018, 5), point));
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  return { group: g, body, head, legs, tail, phase: Math.random() * 10 };
+}
+
+const CATS = [
+  { name: 'ส้ม', color: '#e08a3c', eye: '#e8c547' },
+  { name: 'ดำ', color: '#1d1d1f', eye: '#e8d34a' },
+  { name: 'ขาว', color: '#f2f0ea', eye: '#6fb7e8' },
+  { name: 'สามสี', color: '#f2efe6', patch: '#d4823a', point: '#2b2522' },
+  { name: 'สลิ่ม', color: '#8a8580', patch: '#55504b' },
+  { name: 'วิเชียรมาศ', color: '#efe3cf', point: '#4a3428', eye: '#5aa7e6' },
+];
+
 function makeDog() {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: '#b07a3e', roughness: 0.9 });
@@ -940,8 +976,83 @@ export class Farm3D {
     const dog = makeDog(); dog.group.position.set(2, 0, 14); this.scene.add(dog.group);
     this.dog = { ...dog, target: new THREE.Vector3(2, 0, 14), wait: 2 };
     this.entities.push({ id: 'DOG-1', type: 'animal', label: 'หมา (เจ้าดำ)', obj: dog.group });
+    // พี่สาว — ดูแลผักไฮโดรโปนิกส์และเก็บไข่ไก่
+    const sis = makeHuman({ shirt: '#e9c46a', pants: '#264653', longHair: true, skin: '#c99a72', hair: '#2a1a12' });
+    sis.group.scale.setScalar(0.95); sis.group.position.set(-3, 0, 11.5);
+    this.scene.add(sis.group);
+    this.sis = { h: sis, w: new Walker(sis, 1.1), task: 'พักหน้าบ้าน' };
+    this.entities.push({ id: 'H-SIS', type: 'human', label: 'พี่สาว', resident: true, obj: sis.group, h: sis });
+    // น้องสาว — เด็ก เล่นในสวน ให้อาหารปลา
+    const kid = makeHuman({ shirt: '#ff7eb6', pants: '#7b5cd6', longHair: true, skin: '#d4a57c' });
+    kid.group.scale.setScalar(0.68); kid.group.position.set(0, 0, 16);
+    this.scene.add(kid.group);
+    this.kid = { h: kid, w: new Walker(kid, 1.0), task: 'เล่นในสวน' };
+    this.entities.push({ id: 'H-KID', type: 'human', label: 'น้องสาว', resident: true, obj: kid.group, h: kid });
+    setTimeout(() => this.sisLoop(), 9000);
+    setTimeout(() => this.kidLoop(), 2000);
+    // แมว 6 ตัว
+    this.cats = CATS.map((c, i) => {
+      const cat = makeCat(c);
+      const onDeck = i < 3;
+      cat.group.position.set(onDeck ? -8 + i * 3.2 : rand(-8, 6), onDeck ? 0.68 : 0, onDeck ? 7.4 : rand(12, 28));
+      cat.group.rotation.y = rand(0, 6.28);
+      this.scene.add(cat.group);
+      this.entities.push({ id: 'CAT-' + (i + 1), type: 'animal', label: 'แมว (' + c.name + ')', obj: cat.group });
+      return { ...cat, name: c.name, target: null, wait: rand(1, 8), sleep: i === 0 || i === 4 ? rand(10, 30) : 0 };
+    });
+    this.fishFeed = 0;
     // พ่อเริ่มกิจวัตรหลังโหลดสักครู่
     setTimeout(() => this.feedPigs('auto'), 4000);
+  }
+
+  sisLoop() {
+    const s = this.sis, h = s.h;
+    const tend = (cb) => {
+      h.holding = true; h.armL.rotation.x = -0.9; h.armR.rotation.x = -0.9; h.head.rotation.x = 0.4; s.w.wait = 3;
+      setTimeout(() => { h.holding = false; h.head.rotation.x = 0; cb(); }, 3000);
+    };
+    s.task = 'เดินไปโรงเรือนผัก';
+    s.w.go([[-8, 0, 12.5], [-18, 0, 18.5], [-27.1, 0, 18], [-27.1, 0, 12]], () => {
+      s.task = 'ตรวจผักไฮโดรโปนิกส์'; bus.emit('farm-event', 'พี่สาวกำลังตรวจผักในโรงเรือน');
+      tend(() => s.w.go([[-27.1, 0, 4]], () => tend(() => s.w.go([[-27.1, 0, -2]], () => tend(() => {
+        s.task = 'ไปเก็บไข่ไก่';
+        s.w.go([[-27.1, 0, 18], [-18, 0, 18.5], [-6, 0, 13], [6, 0, 12.6], [24, 0, 12.6], [26.3, 0, 18], [31.8, 0, 17.8]], () => {
+          h.group.rotation.y = Math.PI; s.task = 'เก็บไข่ไก่';
+          tend(() => {
+            const n = 2 + Math.floor(Math.random() * 4);
+            bus.emit('farm-event', `พี่สาวเก็บไข่ไก่ได้ ${n} ฟอง`); bus.emit('eggs-collected', n);
+            s.task = 'เดินกลับบ้าน';
+            s.w.go([[26.3, 0, 18], [24, 0, 12.6], [6, 0, 12.6], [-3, 0, 11.5]], () => {
+              s.task = 'พักหน้าบ้าน'; h.group.rotation.y = 0; s.w.wait = 1;
+              setTimeout(() => this.sisLoop(), rand(40, 70) * 1000);
+            });
+          });
+        });
+      })))));
+    });
+  }
+
+  kidLoop() {
+    const k = this.kid, h = k.h;
+    const next = () => setTimeout(() => this.kidLoop(), rand(1, 4) * 1000);
+    if (Math.random() < 0.35) {
+      k.task = 'ไปให้อาหารปลา';
+      k.w.go([[4, 0, 18], [8.7, 0, 22]], () => {
+        h.group.rotation.y = Math.PI / 2; k.task = 'ให้อาหารปลา';
+        bus.emit('farm-event', 'น้องสาวกำลังให้อาหารปลา — ปลาว่ายมารวมกัน');
+        this.fishFeed = 9; h.holding = true;
+        let n = 0;
+        const toss = setInterval(() => {
+          h.armR.rotation.x = n++ % 2 ? -1.6 : -0.6;
+          if (n > 12) { clearInterval(toss); h.holding = false; k.task = 'เล่นในสวน'; next(); }
+        }, 600);
+      });
+    } else {
+      k.task = 'เล่นในสวน';
+      let p;
+      do { p = [rand(-9, 7), 0, rand(11, 31)]; } while (Math.hypot(p[0] - 14, p[2] - 22) < 6);
+      k.w.go([p], () => { k.w.wait = rand(2, 6); next(); });
+    }
   }
 
   momLoop() {
@@ -1014,7 +1125,7 @@ export class Farm3D {
     return true;
   }
 
-  spawnVisitor(persona) {
+  spawnVisitor(persona, nearGate = false) {
     const p = persona || PERSONAS[this.personaIdx++ % PERSONAS.length];
     if (this.visitors.some(v => v.persona.id === p.id)) return;
     const h = makeHuman(p);
@@ -1025,7 +1136,8 @@ export class Farm3D {
     const ent = { id: 'H-' + p.id, type: 'human', label: 'บุคคล', persona: p, obj: h.group, h, visitor: true };
     const v = { h, w, persona: p, ent };
     this.visitors.push(v); this.entities.push(ent);
-    w.go([[0, 0, 45], [0, 0, 37], [-0.5, 0, 26], [-1, 0, 12]], () => {
+    if (nearGate) h.group.position.set(0.5, 0, 42);
+    w.go([...(nearGate ? [] : [[0, 0, 45]]), [0, 0, 37], [-0.5, 0, 26], [-1, 0, 12]], () => {
       h.group.rotation.y = Math.PI; w.wait = 8;
       setTimeout(() => {
         w.go([[0, 0, 26], [0, 0, 37], [0, 0, 45], [fromLeft ? 70 : -70, 0, 45]], () => {
@@ -1186,6 +1298,8 @@ export class Farm3D {
     this.updateChickens(dt, t);
     this.updateFish(dt, t);
     this.updateDog(dt, t);
+    this.sis.w.update(dt); this.kid.w.update(dt);
+    this.updateCats(dt, t);
     this.updateBubbles(dt);
     this.fan.rotation.y += dt * 6;
     const gust = 0.03 + (this.wx.cur.wind || 0) * 0.012;
@@ -1270,6 +1384,19 @@ export class Farm3D {
   }
 
   updateFish(dt, t) {
+    if (this.fishFeed > 0) {
+      this.fishFeed -= dt;
+      this.fish.forEach((f, i) => {
+        const tx = -3.5 + Math.cos(i * 0.8) * 0.7, tz = Math.sin(i * 0.8) * 0.9, p = f.group.position;
+        const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+        if (d > 0.05) { p.x += dx / d * Math.min(d, dt * 1.4); p.z += dz / d * Math.min(d, dt * 1.4); }
+        p.y = -0.2 + Math.sin(t * 6 + i) * 0.04;
+        f.group.lookAt(this.pond.position.x + tx + Math.sin(t * 3 + i) * 0.3, this.pond.position.y + p.y, this.pond.position.z + tz + Math.cos(t * 3 + i) * 0.3);
+        f.tail.rotation.y = Math.sin(t * 16 + i) * 0.6;
+        if (this.fishFeed <= 0) { f.a = Math.atan2(p.z, p.x); f.r = clamp(Math.hypot(p.x, p.z), 1.2, 3.6); }
+      });
+      return;
+    }
     for (const f of this.fish) {
       f.a += f.sp * dt * (this.devices.aerator ? 1.6 : 1);
       const x = Math.cos(f.a) * f.r, z = Math.sin(f.a) * f.r;
@@ -1289,7 +1416,8 @@ export class Farm3D {
     if (v) d.target = v.h.group.position.clone().add(new THREE.Vector3(1.2, 0, 1.2));
     d.wait -= dt;
     if (!v && d.wait <= 0 && (!d.target || g.position.distanceTo(d.target) < 0.3)) {
-      d.target = new THREE.Vector3(rand(-6, 8), 0, rand(10, 30)); d.wait = rand(3, 9);
+      d.target = Math.random() < 0.4 && this.kid ? this.kid.h.group.position.clone().add(new THREE.Vector3(rand(-1.5, 1.5), 0, rand(-1.5, 1.5))) : new THREE.Vector3(rand(-6, 8), 0, rand(10, 30));
+      d.wait = rand(3, 9);
       if (Math.hypot(d.target.x - 14, d.target.z - 22) < 5.6) d.target.x = 2;
     }
     const dx = d.target.x - g.position.x, dz = d.target.z - g.position.z, dist = Math.hypot(dx, dz);
@@ -1302,6 +1430,49 @@ export class Farm3D {
     d.phase += dt * (moving ? 14 : 0);
     d.legs.forEach((l, i) => (l.rotation.x = moving ? Math.sin(d.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.6 : 0));
     d.tail.rotation.z = Math.sin(t * (v ? 18 : 6)) * 0.5;
+  }
+
+  updateCats(dt, t) {
+    const onDeck = (x, z) => x > -10 && x < 2.4 && z > 5 && z < 8.9;
+    for (const c of this.cats) {
+      const g = c.group;
+      if (c.sleep > 0) { // นอนขด
+        c.sleep -= dt;
+        c.body.position.y = lerp(c.body.position.y, -0.12, 0.1);
+        c.legs.forEach(l => (l.rotation.x = lerp(l.rotation.x, 1.4, 0.1)));
+        c.head.rotation.x = lerp(c.head.rotation.x, 0.5, 0.05);
+        c.body.scale.y = 1 + Math.sin(t * 2 + c.phase) * 0.03;
+        continue;
+      }
+      c.body.position.y = lerp(c.body.position.y, 0, 0.15); c.head.rotation.x *= 0.9;
+      c.wait -= dt;
+      if (!c.target && c.wait <= 0) {
+        const r = Math.random();
+        if (r < 0.15) { c.sleep = rand(15, 40); continue; }
+        if (r < 0.4) c.target = new THREE.Vector3(rand(-9, 1.5), 0, rand(5.6, 8.4)); // ระเบียง
+        else if (r < 0.55) { const a = rand(Math.PI * 0.6, Math.PI * 1.4); c.target = new THREE.Vector3(14 + Math.cos(a) * 5.4, 0, 22 + Math.sin(a) * 5.4); c.watchPond = true; } // ขอบบ่อปลา
+        else if (r < 0.7 && this.kid) c.target = this.kid.h.group.position.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
+        else { do { c.target = new THREE.Vector3(rand(-10, 9), 0, rand(10, 32)); } while (Math.hypot(c.target.x - 14, c.target.z - 22) < 5.5); }
+      }
+      let moving = false;
+      if (c.target) {
+        const dx = c.target.x - g.position.x, dz = c.target.z - g.position.z, d = Math.hypot(dx, dz);
+        if (d > 0.08) {
+          const sp = d > 6 ? 1.6 : 0.7;
+          g.position.x += dx / d * sp * dt; g.position.z += dz / d * sp * dt;
+          let diff = Math.atan2(dx, dz) - g.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); g.rotation.y += diff * Math.min(1, dt * 6);
+          moving = true;
+        } else {
+          c.target = null; c.wait = rand(3, 12);
+          if (c.watchPond) { g.rotation.y = Math.atan2(14 - g.position.x, 22 - g.position.z); c.watchPond = false; }
+        }
+      }
+      g.position.y = lerp(g.position.y, onDeck(g.position.x, g.position.z) ? 0.68 : 0, 0.25);
+      c.phase += dt * (moving ? 12 : 0);
+      c.legs.forEach((l, i) => (l.rotation.x = moving ? Math.sin(c.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.55 : lerp(l.rotation.x, 0, 0.2)));
+      c.tail.rotation.x = Math.sin(t * 1.5 + c.phase) * 0.25; c.tail.rotation.z = Math.sin(t * 2.2 + c.phase) * 0.4;
+      if (!moving) c.head.rotation.y = Math.sin(t * 0.7 + c.phase) * 0.6;
+    }
   }
 
   updateBubbles(dt) {
@@ -1324,7 +1495,8 @@ export class Farm3D {
       <div class="st"><span>เวลาในฉาก</span><b>${hh} ${this.nightFactor > 0.5 ? '🌙' : '☀️'}</b></div>
       <div class="st"><span>คนในพื้นที่</span><b>${people.length} คน</b></div>
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
-      <div class="st"><span>หมู / ไก่ / ปลา</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length}</b></div>
+      <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
+      <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>
       <div class="st"><span>ปั๊มไฮโดร / เติมอากาศบ่อ</span><b>${this.devices.pump ? '🟢' : '⚪'} / ${this.devices.aerator ? '🟢' : '⚪'}</b></div>`;
   }

@@ -95,8 +95,15 @@ function setWxMode(mode) {
     wxStatus.innerHTML = `โหมดจำลอง: <b>${PRESETS[mode].label}</b>`;
   }
 }
+let lastStorm = null;
 bus.on('real-weather', d => {
   if (wxMode !== 'real') return;
+  // แจ้งเตือนจริงเมื่อเริ่มมีพายุฝนฟ้าคะนองในพื้นที่บ้านสวน
+  if (lastStorm === false && d.storm && radar.tg.ready) {
+    radar.tg.sendText(`⛈️ พายุฝนฟ้าคะนองเข้าพื้นที่บ้านสวนแล้ว (${d.label})\nฝน ${d.precipitation} มม. · ลม ${d.wind_speed_10m} กม./ชม.\nเก็บของ ปิดหน้าต่าง และถอดปลั๊กอุปกรณ์ที่ไม่จำเป็น`).catch(() => {});
+    radar.log('📲 แจ้งเตือนพายุเข้า Telegram แล้ว');
+  }
+  lastStorm = d.storm;
   applyWx(d);
   const t = d.fetched.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
   wxStatus.innerHTML = `<b>${d.label}</b> · ${d.temperature_2m}°C · ความชื้น ${d.relative_humidity_2m}%<br>`
@@ -104,12 +111,12 @@ bus.on('real-weather', d => {
     + `📍 ${fmtLoc(d.loc)} · อัปเดต ${t} (Open-Meteo)`;
   hub.setExternal({ 'weather/temp': d.temperature_2m, 'weather/humidity': d.relative_humidity_2m, 'weather/rain': d.precipitation }, 'ESP32-WX', 'Open-Meteo');
 });
-bus.on('real-weather-error', msg => { if (wxMode === 'real') wxStatus.textContent = 'ดึงข้อมูลอากาศไม่สำเร็จ: ' + msg; });
+bus.on('real-weather-error', msg => { if (wxMode === 'real') wxStatus.textContent = `ดึงข้อมูลอากาศไม่สำเร็จ (${msg}) — จะลองใหม่ใน 1 นาที`; });
 bus.on('lightning', e => sound.thunder(e.distance));
 document.getElementById('wxChips').addEventListener('click', e => { const b = e.target.closest('[data-wx]'); if (b) setWxMode(b.dataset.wx); });
 document.getElementById('btnLocate').addEventListener('click', async () => {
   wxStatus.textContent = 'กำลังขอตำแหน่ง GPS…';
-  try { await real.locate(); if (wxMode !== 'real') setWxMode('real'); toast('📍 ตั้งตำแหน่งบ้านสวนแล้ว'); }
+  try { await real.locate(); setWxMode('real'); toast('📍 ตั้งตำแหน่งบ้านสวนแล้ว'); }
   catch (err) { wxStatus.textContent = 'ระบุตำแหน่งไม่ได้: ' + err.message; }
 });
 document.getElementById('soundToggle').addEventListener('change', e => sound.enable(e.target.checked));

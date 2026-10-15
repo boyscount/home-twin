@@ -1,6 +1,7 @@
 // แท็บเรดาร์: ดึงตำแหน่งสิ่งมีชีวิตจากฉาก 3D (ในอนาคตคือ mmWave / PIR / กล้อง AI)
 // เมื่อมี "คน" ที่ไม่ใช่คนในบ้านเข้าเขตรั้ว → ถ่ายหน้า → แจ้งเตือนมือถือ → กด รู้จัก / ไม่รู้จัก
 import { bus, toast, store, nowStr } from './bus.js';
+import { Telegram } from './telegram.js';
 
 const CENTER = { x: 0, z: 5 };          // จุดติดตั้งเรดาร์ (หน้าบ้าน)
 const PERIMETER = { x0: -46, x1: 48, z0: -24, z1: 36 }; // เขตรั้ว
@@ -22,6 +23,8 @@ export class Radar {
     this.range = 60;
     this.blips = new Map();   // id → {x,z,seen,type,...}
     this.tracked = new Map(); // id → สถานะการแจ้งเตือนของคนแต่ละคน
+    this.alerts = new Map();  // tag → การแจ้งเตือน (อยู่ต่อแม้คนเดินออกไปแล้ว เผื่อครอบครัวตอบทีหลัง)
+    this.tg = new Telegram();
     this.known = store.get('knownFaces', []);
     this.stats = { alerts: 0 };
     this.notifCount = 0;
@@ -31,6 +34,8 @@ export class Radar {
     this.renderKnown();
     this.setupCamera();
     this.setupNotifications();
+    this.setupTelegram();
+    setTimeout(() => this.renderFamily(), 6000);
     canvas.addEventListener('click', () => { this.range = this.range === 60 ? 120 : this.range === 120 ? 30 : 60; });
     bus.on('farm-event', msg => this.log(msg));
     this.strikes = [];
@@ -151,41 +156,137 @@ export class Radar {
     while (this.phoneEl.children.length > 8) this.phoneEl.lastChild.remove();
   }
 
-  respond(tag, allow) {
-    const t = [...this.tracked.values()].find(x => x.tag === tag);
-    const el = this.phoneEl.querySelector(`[data-tag="${tag}"]`);
+  // ตอบการแจ้งเตือน — มาจากปุ่มบนมือถือจำลอง, แจ้งเตือนของระบบ หรือ Telegram (ext.by = ชื่อคนกด)
+  respond(tag, allow, ext = {}) {
+    const t = this.alerts.get(tag);
     if (!t || t.answered) return;
+    const by = ext.by;
+    if (t.test) {
+      t.answered = true;
+      this.log(`ทดสอบ Telegram สำเร็จ: ${by || 'คุณ'} กด “${allow ? 'รู้จัก' : 'ไม่รู้จัก'}”`);
+      this.tg.resolve(tag, `✅ ทดสอบสำเร็จ — ${by || 'คุณ'} กด “${allow ? 'รู้จัก' : 'ไม่รู้จัก'}” ระบบได้รับแล้ว`);
+      toast(`📲 Telegram ใช้งานได้ — ${by || 'คุณ'} กดตอบแล้ว`);
+      return;
+    }
+    if (!allow) return this.markThreat(t, by);
+    if (ext.name) return this.markKnown(t, ext.name, by);
+    const el = this.phoneEl.querySelector(`[data-tag="${tag}"]`);
+    const res = el?.querySelector('.notif-result');
+    if (by) { // กดรู้จักใน Telegram → ให้คนในกลุ่มพิมพ์ชื่อตอบกลับ
+      if (t.askedName) return;
+      t.askedName = true; el?.classList.add('done');
+      if (res) res.textContent = `⏳ ${by} กดรู้จักใน Telegram — รอพิมพ์ชื่อ`;
+      this.log(`${by} กด “รู้จัก” ใน Telegram — รอชื่อ`);
+      this.tg.askName(tag, by).catch(e => this.log('ส่งคำถามชื่อไม่สำเร็จ: ' + e.message));
+      return;
+    }
+    const dlg = document.getElementById('nameDialog');
+    document.getElementById('nameDialogImg').src = t.img;
+    const input = document.getElementById('nameInput'); input.value = '';
+    dlg.returnValue = '';
+    dlg.showModal(); input.focus();
+    dlg.onclose = () => {
+      if (dlg.returnValue === 'ok' && input.value.trim()) this.markKnown(t, input.value.trim(), 'เจ้าของ (หน้าเว็บ)');
+    };
+  }
+
+  markKnown(t, name, by = 'เจ้าของ') {
     t.answered = true;
+    const el = this.phoneEl.querySelector(`[data-tag="${t.tag}"]`);
     el?.classList.add('done');
     const res = el?.querySelector('.notif-result');
-    if (allow) {
-      const dlg = document.getElementById('nameDialog');
-      document.getElementById('nameDialogImg').src = t.img;
-      const input = document.getElementById('nameInput'); input.value = '';
-      dlg.returnValue = '';
-      dlg.showModal(); input.focus();
-      dlg.onclose = () => {
-        if (dlg.returnValue === 'ok' && input.value.trim()) {
-          const name = input.value.trim();
-          this.known = this.known.filter(k => k.id !== t.personaId);
-          this.known.push({ id: t.personaId, name, img: t.img, since: new Date().toISOString() });
-          store.set('knownFaces', this.known);
-          this.renderKnown();
-          t.status = 'known'; t.name = name;
-          if (res) res.innerHTML = `<span style="color:#1f9d55">✓ บันทึกเป็น “${escapeHtml(name)}” — ครั้งหน้าไม่ต้องถามอีก</span>`;
-          this.log(`เจ้าของยืนยันว่ารู้จัก: ${name}`);
-          bus.emit('radar-known', { name });
-        } else {
-          t.answered = false; el?.classList.remove('done');
+    this.known = this.known.filter(k => k.id !== t.personaId);
+    this.known.push({ id: t.personaId, name, img: t.img, since: new Date().toISOString(), by });
+    store.set('knownFaces', this.known);
+    this.renderKnown();
+    t.status = 'known'; t.name = name;
+    if (res) res.innerHTML = `<span style="color:#1f9d55">✓ ${escapeHtml(by)} บันทึกเป็น “${escapeHtml(name)}” — ครั้งหน้าไม่ต้องถามอีก</span>`;
+    this.log(`${by} ยืนยันว่ารู้จัก: ${name}`);
+    bus.emit('radar-known', { name });
+    this.tg.resolve(t.tag, `✅ ${by} ยืนยัน: รู้จัก — “${name}” (ครั้งหน้าระบบจะจำได้)`);
+  }
+
+  markThreat(t, by = 'เจ้าของ') {
+    t.answered = true; t.status = 'threat';
+    const el = this.phoneEl.querySelector(`[data-tag="${t.tag}"]`);
+    el?.classList.add('done');
+    const res = el?.querySelector('.notif-result');
+    if (res) res.innerHTML = `<span style="color:#e03131">🚨 ${escapeHtml(by)} แจ้งว่าไม่รู้จัก — เปิดไฟสปอตไลท์ + ไซเรน (จำลอง)</span>`;
+    this.log(`⚠ ${by} แจ้งว่าไม่รู้จัก — เปิดไฟและไซเรน`);
+    bus.emit('cmd', { device: 'lights', value: true, source: 'เรดาร์' });
+    bus.emit('radar-threat', { id: t.id });
+    toast('🚨 บุคคลไม่รู้จัก — เปิดไฟสปอตไลท์แล้ว');
+    this.tg.resolve(t.tag, `🚨 ${by} แจ้งว่าไม่รู้จัก — เปิดไฟสปอตไลท์และไซเรนแล้ว`);
+  }
+
+  // ---------------------------------------------------------------- Telegram
+  setupTelegram() {
+    const $ = id => document.getElementById(id);
+    const state = $('tgState');
+    const setState = (txt, ok) => { state.textContent = txt; state.style.color = ok === false ? '#ff6b6b' : ''; };
+    $('tgChat').value = this.tg.chatId;
+    if (this.tg.token) $('tgToken').placeholder = '•••••• (บันทึกไว้แล้ว — ใส่ใหม่ถ้าต้องการเปลี่ยน)';
+    const token = () => $('tgToken').value.trim() || this.tg.token;
+    this.tg.on('answer', a => this.respond(a.tag, a.allow, { by: a.by }));
+    this.tg.on('name', a => { const t = this.alerts.get(a.tag); if (t && !t.answered) this.markKnown(t, a.name, a.by); });
+    this.tg.on('status', (s, msg) => setState(s === 'online' ? '🟢 เชื่อมต่อ Telegram แล้ว — แจ้งเตือนจะเข้ากลุ่มครอบครัว' : '⚠ ' + msg, s === 'online'));
+    $('tgFind').onclick = async () => {
+      this.tg.stop();
+      this.tg.token = token();
+      setState('กำลังค้นหาแชท… (ต้องพิมพ์อะไรก็ได้ในกลุ่มที่มีบอทก่อน)');
+      try {
+        const chats = await this.tg.findChats();
+        const box = $('tgChats'); box.innerHTML = '';
+        if (!chats.length) setState('ไม่พบแชท — เพิ่มบอทเข้ากลุ่ม แล้วพิมพ์ข้อความในกลุ่มก่อน', false);
+        else setState('เลือกแชทที่จะรับแจ้งเตือน:');
+        for (const c of chats) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'hud-btn sm';
+          b.textContent = `${c.type === 'private' ? '👤' : '👨‍👩‍👧‍👧'} ${c.name}`;
+          b.onclick = () => { $('tgChat').value = c.id; box.innerHTML = ''; setState('เลือกแล้ว — กด “บันทึก & เชื่อมต่อ”'); };
+          box.appendChild(b);
         }
-      };
-    } else {
-      t.status = 'threat';
-      if (res) res.innerHTML = '<span style="color:#e03131">🚨 ตั้งเป็นบุคคลไม่รู้จัก — เปิดไฟสปอตไลท์ + ไซเรน (จำลอง)</span>';
-      this.log('⚠ เจ้าของแจ้งว่าไม่รู้จัก — เปิดไฟและไซเรน');
-      bus.emit('cmd', { device: 'lights', value: true, source: 'เรดาร์' });
-      bus.emit('radar-threat', { id: t.id });
-      toast('🚨 บุคคลไม่รู้จัก — เปิดไฟสปอตไลท์แล้ว');
+      } catch (e) { setState('ค้นหาไม่สำเร็จ: ' + e.message, false); }
+    };
+    $('tgSave').onclick = async () => {
+      if (!token() || !$('tgChat').value.trim()) return setState('ใส่ Bot token และ Chat ID ก่อน', false);
+      this.tg.stop();
+      this.tg.save(token(), $('tgChat').value);
+      $('tgToken').value = ''; $('tgToken').placeholder = '•••••• (บันทึกไว้แล้ว)';
+      try {
+        const me = await this.tg.me();
+        setState(`🟢 บอท @${me.username} พร้อมแล้ว`, true);
+        this.tg.start();
+      } catch (e) { setState('เชื่อมต่อไม่สำเร็จ: ' + e.message, false); }
+    };
+    $('tgTest').onclick = async () => {
+      if (!this.tg.ready) return setState('บันทึก token และ Chat ID ก่อน', false);
+      const dad = this.farm.getEntities().find(e => e.id === 'H-DAD');
+      const tag = 'test' + Date.now().toString(36);
+      const img = await this.capture(dad);
+      this.alerts.set(tag, { tag, test: true, img });
+      try {
+        await this.tg.sendAlert({ tag, img, caption: '🧪 ทดสอบระบบแจ้งเตือนบ้านสวน\nลองกดปุ่มด้านล่าง ระบบจะตอบกลับว่าได้รับแล้ว' });
+        setState('ส่งแล้ว — เปิด Telegram แล้วลองกดปุ่ม', true);
+        this.tg.start();
+      } catch (e) { setState('ส่งไม่สำเร็จ: ' + e.message, false); }
+    };
+    $('tgClear').onclick = () => { this.tg.clear(); $('tgChat').value = ''; $('tgToken').placeholder = 'Bot token จาก @BotFather'; setState('ลบการตั้งค่าออกจากเครื่องนี้แล้ว'); };
+    $('btnStranger').onclick = () => { this.farm.spawnVisitor(null, true); this.log('ทดสอบ: มีคนแปลกหน้ามาที่ประตูหน้าบ้าน'); };
+    if (this.tg.ready) { setState('กำลังเชื่อมต่อ Telegram…'); this.tg.start(); }
+    else setState('ยังไม่ได้ตั้งค่า — ดูวิธีเตรียมใน README');
+  }
+
+  // สมาชิกครอบครัว — ถ่ายหน้าจากฉาก 3D มาเป็นรายชื่อที่ระบบรู้จักอยู่แล้ว
+  renderFamily() {
+    const el = document.getElementById('familyList');
+    el.innerHTML = '';
+    for (const e of this.farm.getEntities().filter(e => e.resident)) {
+      const c = this.farm.captureFace(e.id);
+      const d = document.createElement('div'); d.className = 'known';
+      d.innerHTML = `<img alt=""><span></span>`;
+      if (c) d.querySelector('img').src = c.toDataURL('image/jpeg', 0.8);
+      d.querySelector('span').textContent = e.label;
+      el.appendChild(d);
     }
   }
 
@@ -226,11 +327,13 @@ export class Radar {
         const k = this.known.find(k => k.id === t.personaId);
         const tag = 'n' + Date.now() + Math.random().toString(16).slice(2, 6);
         t.tag = tag;
+        this.alerts.set(tag, t);
         if (k) {
           t.status = 'known'; t.name = k.name;
           this.log(`จดจำใบหน้าได้: ${k.name} เข้าเขตบ้าน`);
           this.phoneNotify({ tag, title: `${k.name} มาถึงบ้านแล้ว`, body: 'ระบบจดจำใบหน้าได้ — ไม่ต้องดำเนินการ', img: k.img });
           this.pushSystemNotification(`${k.name} มาถึงบ้านแล้ว`, 'ระบบจดจำใบหน้าได้', k.img, tag);
+          if (this.tg.ready) this.tg.sendPhoto(k.img, `✅ ${k.name} มาถึงบ้านแล้ว (ระบบจดจำใบหน้าได้)`).catch(err => this.log('Telegram: ' + err.message));
           continue;
         }
         t.status = 'pending';
@@ -242,6 +345,12 @@ export class Radar {
         this.log('ส่งภาพใบหน้าไปที่มือถือแล้ว · รอเจ้าของยืนยัน');
         this.phoneNotify({ tag, title: '⚠ ตรวจพบบุคคลที่หน้าบ้าน', body: `ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))} · คุณรู้จักคนนี้ไหม?`, img, ask: true });
         this.pushSystemNotification('⚠ ตรวจพบบุคคลที่หน้าบ้าน', 'คุณรู้จักคนนี้ไหม? แตะเพื่อตอบ', img, tag, true);
+        if (this.tg.ready) {
+          const when = new Date().toLocaleString('th-TH', { hour12: false });
+          this.tg.sendAlert({ tag, img, caption: `⚠ ตรวจพบบุคคลที่หน้าบ้าน\n📍 ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))}\n🕒 ${when}\n\nมีใครในบ้านรู้จักคนนี้ไหม?` })
+            .then(() => this.log('📲 ส่งรูปเข้า Telegram กลุ่มครอบครัวแล้ว'))
+            .catch(err => this.log('ส่ง Telegram ไม่สำเร็จ: ' + err.message));
+        }
       }
     }
     for (const [id, t] of this.tracked) if (!present.has(id)) {

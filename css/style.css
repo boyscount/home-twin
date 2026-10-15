@@ -235,3 +235,14 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
 
 .wx-status { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); line-height: 1.5; color: var(--dim); }
 .wx-status b { color: var(--text); font-weight: 600; }
+
+.tg { margin-top: 10px; font-family: "IBM Plex Sans Thai"; }
+.tg summary { cursor: pointer; color: #a6ffbc; font-size: 13px; }
+.tg input { width: 100%; margin-top: 8px; background: #031208; border: 1px solid var(--hud-dim); color: var(--hud); padding: 7px 8px; border-radius: 3px; font-family: "Share Tech Mono", monospace; font-size: 12px; }
+.tg-row { display: flex; gap: 6px; align-items: flex-end; }
+.tg-row input { flex: 1; }
+.tg-row .hud-btn { margin-top: 8px; }
+.hud-btn.sm { width: auto; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.tg-chats { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tg-chats .hud-btn { text-align: left; }
+.hud-link { background: none; border: 0; color: #2fbf57; font-size: 11px; margin-top: 6px; padding: 0; text-decoration: underline; font-family: "IBM Plex Sans Thai"; }

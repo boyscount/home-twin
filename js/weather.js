@@ -40,8 +40,13 @@ export class RealWeather {
     });
   }
 
-  start() { this.refresh(); clearInterval(this.timer); this.timer = setInterval(() => this.refresh(), 10 * 60 * 1000); }
-  stop() { clearInterval(this.timer); }
+  start() {
+    clearInterval(this.timer); clearTimeout(this.retry);
+    const run = () => this.refresh().catch(() => { this.retry = setTimeout(run, 60 * 1000); }); // ล้มเหลว → ลองใหม่ใน 1 นาที
+    run();
+    this.timer = setInterval(run, 10 * 60 * 1000);
+  }
+  stop() { clearInterval(this.timer); clearTimeout(this.retry); }
 
   async refresh() {
     const { lat, lon } = this.loc;
