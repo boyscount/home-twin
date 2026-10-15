@@ -1,0 +1,157 @@
+// เอฟเฟกต์สภาพอากาศในฉาก 3D: ฝน, เมฆ, หมอก, ฟ้าแลบ/ฟ้าผ่า (ส่งเหตุการณ์ 'lightning' ให้เสียงฟ้าร้องและเรดาร์)
+import * as THREE from 'three';
+import { bus } from './bus.js';
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+export const PRESETS = {
+  clear: { clouds: 0.05, rain: 0, storm: false, wind: 1.5, label: 'แจ่มใส' },
+  cloudy: { clouds: 0.8, rain: 0, storm: false, wind: 3, label: 'เมฆครึ้ม' },
+  rain: { clouds: 0.9, rain: 0.6, storm: false, wind: 4, label: 'ฝนตก' },
+  storm: { clouds: 1, rain: 1, storm: true, wind: 9, label: 'พายุฝนฟ้าคะนอง' },
+};
+
+export class WeatherFX {
+  constructor(farm) {
+    this.farm = farm;
+    this.target = { ...PRESETS.clear, windDir: 80, fog: 0 };
+    this.cur = { clouds: 0.05, rain: 0, wind: 1.5, fog: 0 };
+    this.nextStrike = 4;
+    this.flash = 0;
+    this.buildRain();
+    this.buildClouds();
+    this.flashLight = new THREE.DirectionalLight('#dfe8ff', 0);
+    this.flashLight.position.set(0, 200, 0);
+    farm.scene.add(this.flashLight);
+  }
+
+  // รับค่าแบบ 0..1 — เปลี่ยนแบบค่อย ๆ เฟด
+  set(w) { Object.assign(this.target, w); }
+
+  buildRain() {
+    this.N = 8000;
+    const pos = new Float32Array(this.N * 6);
+    this.drops = new Float32Array(this.N * 3);
+    for (let i = 0; i < this.N; i++) { this.drops[i * 3] = rand(-50, 50); this.drops[i * 3 + 1] = rand(0, 40); this.drops[i * 3 + 2] = rand(-50, 50); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#b8cde0', transparent: true, opacity: 0.5, depthWrite: false }));
+    this.rain.frustumCulled = false; this.rain.visible = false;
+    this.farm.scene.add(this.rain);
+  }
+
+  buildClouds() {
+    const c = document.createElement('canvas'); c.width = c.height = 512;
+    const ctx = c.getContext('2d');
+    for (let i = 0; i < 260; i++) {
+      const x = rand(0, 512), y = rand(0, 512), r = rand(20, 80);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(255,255,255,${rand(0.15, 0.35)})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      for (const [dx, dy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512]]) { ctx.save(); ctx.translate(dx, dy); ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.restore(); }
+    }
+    const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3, 3);
+    this.cloudMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, fog: false, color: '#ffffff' });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.cloudMat);
+    m.rotation.x = Math.PI / 2; m.position.y = 160; m.renderOrder = -1;
+    this.farm.scene.add(m); this.cloud = m;
+    // ชั้นเมฆที่สอง ให้ดูมีความลึก
+    this.cloudMat2 = this.cloudMat.clone(); this.cloudMat2.map = tex.clone(); this.cloudMat2.map.repeat.set(2, 2);
+    const m2 = new THREE.Mesh(m.geometry, this.cloudMat2); m2.rotation.x = Math.PI / 2; m2.position.y = 220; m2.renderOrder = -2;
+    this.farm.scene.add(m2);
+  }
+
+  strike() {
+    const f = this.farm;
+    const a = rand(0, Math.PI * 2), d = Math.random() < 0.12 ? rand(40, 90) : rand(120, 600);
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    // สายฟ้าแบบหยัก + กิ่ง
+    const group = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: '#f4f7ff', fog: false, toneMapped: false, transparent: true });
+    const bolt = (x0, y0, z0, x1, y1, z1, segs, r) => {
+      const pts = [];
+      for (let i = 0; i <= segs; i++) {
+        const t = i / segs, j = i === 0 || i === segs ? 0 : (y0 - y1) * 0.06;
+        pts.push(new THREE.Vector3(lerp(x0, x1, t) + rand(-j, j), lerp(y0, y1, t), lerp(z0, z1, t) + rand(-j, j)));
+      }
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0), segs * 2, r, 4), mat));
+      return pts;
+    };
+    const main = bolt(x + rand(-30, 30), 160, z + rand(-30, 30), x, 0, z, 18, Math.max(0.25, d / 500));
+    for (let b = 0; b < 3; b++) {
+      const p = main[Math.floor(rand(3, 12))];
+      bolt(p.x, p.y, p.z, p.x + rand(-40, 40), p.y - rand(30, 70), p.z + rand(-40, 40), 8, Math.max(0.12, d / 1100));
+    }
+    f.scene.add(group);
+    this.flash = 1; this.flashPos = new THREE.Vector3(x, 150, z);
+    this.flashLight.position.set(x, 150, z);
+    let life = 0.45;
+    const fade = () => {
+      life -= 0.016; mat.opacity = life > 0.3 ? 1 : Math.max(0, life / 0.3) * (Math.random() > 0.3 ? 1 : 0.2);
+      if (life > 0) requestAnimationFrame(fade);
+      else { f.scene.remove(group); group.traverse(o => o.geometry?.dispose()); mat.dispose(); }
+    };
+    fade();
+    bus.emit('lightning', { x, z, distance: Math.hypot(x, z - 5) });
+  }
+
+  update(dt, t) {
+    const c = this.cur, tg = this.target, k = Math.min(1, dt * 0.6);
+    const before = c.clouds + c.rain * 2 + c.fog;
+    c.clouds = lerp(c.clouds, tg.clouds, k); c.rain = lerp(c.rain, tg.rain, k);
+    c.wind = lerp(c.wind, tg.wind, k); c.fog = lerp(c.fog, tg.fog || 0, k);
+    const f = this.farm;
+    // แจ้ง farm ให้ปรับแสงเมื่อค่าเปลี่ยนพอสมควร
+    if (Math.abs(before - (this._applied ?? -1)) > 0.02) { this._applied = before; f.applyWeather(c); }
+
+    // ฝน
+    const n = Math.floor(this.N * Math.min(1, c.rain));
+    this.rain.visible = n > 20;
+    if (this.rain.visible) {
+      const center = f.controls.target, dist = f.camera.position.distanceTo(center);
+      const spread = Math.min(1.6, Math.max(0.5, dist / 60));
+      const pos = this.rain.geometry.attributes.position.array, d = this.drops;
+      const wdir = (tg.windDir || 0) * Math.PI / 180;
+      const wx = -Math.sin(wdir) * c.wind * 0.6, wz = Math.cos(wdir) * c.wind * 0.6;
+      const speed = 24, len = 0.045;
+      for (let i = 0; i < n; i++) {
+        d[i * 3 + 1] -= speed * dt; d[i * 3] += wx * dt; d[i * 3 + 2] += wz * dt;
+        if (d[i * 3 + 1] < 0) { d[i * 3 + 1] += 40; d[i * 3] = rand(-50, 50); d[i * 3 + 2] = rand(-50, 50); }
+        if (d[i * 3] > 50) d[i * 3] -= 100; else if (d[i * 3] < -50) d[i * 3] += 100;
+        if (d[i * 3 + 2] > 50) d[i * 3 + 2] -= 100; else if (d[i * 3 + 2] < -50) d[i * 3 + 2] += 100;
+        const x = center.x + d[i * 3] * spread, y = d[i * 3 + 1], z = center.z + d[i * 3 + 2] * spread, o = i * 6;
+        pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+        pos[o + 3] = x - wx * len; pos[o + 4] = y + speed * len; pos[o + 5] = z - wz * len;
+      }
+      this.rain.geometry.setDrawRange(0, n * 2);
+      this.rain.geometry.attributes.position.needsUpdate = true;
+      this.rain.material.opacity = 0.25 + 0.35 * c.rain;
+    }
+
+    // เมฆ
+    const dayLight = 1 - (f.nightFactor || 0);
+    const shade = lerp(1, 0.45, Math.min(1, c.rain + (tg.storm ? 0.4 : 0))) * lerp(0.12, 1, dayLight);
+    this.cloudMat.opacity = Math.min(0.95, c.clouds * 1.05);
+    this.cloudMat2.opacity = Math.min(0.85, c.clouds * 0.9);
+    this.cloudMat.map.offset.x += dt * 0.0015 * c.wind; this.cloudMat2.map.offset.y += dt * 0.001 * c.wind;
+
+    // ฟ้าแลบ
+    if (tg.storm) {
+      this.nextStrike -= dt;
+      if (this.nextStrike < 0) { this.strike(); this.nextStrike = rand(4, 14); }
+    }
+    if (this.flash > 0) {
+      this.flash -= dt * 2.5;
+      const flick = this.flash > 0 ? (Math.sin(this.flash * 40) > -0.2 ? this.flash : this.flash * 0.2) : 0;
+      this.flashLight.intensity = flick * 9;
+      const lum = shade + flick * 1.5;
+      this.cloudMat.color.setScalar(Math.min(2, lum)); this.cloudMat2.color.setScalar(Math.min(2, lum * 0.9));
+      f.flashSky?.(flick);
+      this.flashing = true;
+    } else {
+      if (this.flashing) { this.flashing = false; f.flashSky?.(0); }
+      this.flashLight.intensity = 0;
+      this.cloudMat.color.setScalar(shade); this.cloudMat2.color.setScalar(shade * 0.9);
+    }
+  }
+}

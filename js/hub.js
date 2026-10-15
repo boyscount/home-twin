@@ -201,6 +201,17 @@ export class Hub {
     this.render();
   }
 
+  // ค่าจากแหล่งภายนอก (เช่น Open-Meteo) — ถือว่าเป็นค่าจริงไป 15 นาที
+  setExternal(values, node, source) {
+    for (const [k, v] of Object.entries(values)) {
+      if (!(k in METRICS) || !isFinite(v)) continue;
+      this.vals[k] = v; this.live[k] = Date.now() + 15 * 60 * 1000; this.hist[k].push(v); this.hist[k].shift();
+    }
+    const pill = this.grid.querySelector(`[data-node="${node}"]`);
+    if (pill) { pill.className = 'pill on'; pill.textContent = 'LIVE · ' + source; }
+    this.render();
+  }
+
   setConn(live) {
     document.getElementById('connDot').className = 'dot ' + (live ? 'live' : 'ok');
     document.getElementById('connText').textContent = live ? 'MQTT เชื่อมต่อแล้ว' : 'จำลองข้อมูล';

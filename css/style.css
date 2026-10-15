@@ -232,3 +232,6 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
   .mqtt-form input, .mqtt-form input + input { width: 100%; }
   .dev-table th:nth-child(3), .dev-table td:nth-child(3) { display: none; }
 }
+
+.wx-status { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); line-height: 1.5; color: var(--dim); }
+.wx-status b { color: var(--text); font-weight: 600; }

@@ -3,6 +3,8 @@ import { bus, toast } from './bus.js';
 import { Farm3D } from './farm3d.js';
 import { Radar } from './radar.js';
 import { Hub } from './hub.js';
+import { RealWeather, WeatherSound } from './weather.js';
+import { PRESETS } from './weatherfx.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const radar = new Radar(document.getElementById('radarCanvas'), farm);
@@ -53,7 +55,66 @@ const timeLabel = document.getElementById('timeLabel');
 const fmtTime = h => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 slider.addEventListener('input', () => { farm.setTime(+slider.value); timeLabel.textContent = fmtTime(+slider.value); });
 bus.on('time', h => { slider.value = h; timeLabel.textContent = fmtTime(h); });
-document.getElementById('autoTime').addEventListener('change', e => farm.autoTime = e.target.checked);
+document.getElementById('autoTime').addEventListener('change', e => {
+  farm.autoTime = e.target.checked;
+  if (e.target.checked) { realTimeBox.checked = false; clearInterval(realTimer); }
+});
+
+// ---------- เวลาจริง ----------
+const realTimeBox = document.getElementById('realTime');
+let realTimer;
+const syncRealTime = () => { const d = new Date(); farm.setTime(d.getHours() + d.getMinutes() / 60); };
+realTimeBox.addEventListener('change', () => {
+  clearInterval(realTimer);
+  if (realTimeBox.checked) {
+    document.getElementById('autoTime').checked = false; farm.autoTime = false;
+    syncRealTime(); realTimer = setInterval(syncRealTime, 30000);
+  }
+});
+slider.addEventListener('input', () => { if (realTimeBox.checked) { realTimeBox.checked = false; clearInterval(realTimer); } });
+
+// ---------- สภาพอากาศ ----------
+const real = new RealWeather();
+const sound = new WeatherSound();
+const wxStatus = document.getElementById('wxStatus');
+let wxMode = 'real';
+const fmtLoc = l => `${l.name} · ${l.lat.toFixed(2)}, ${l.lon.toFixed(2)}`;
+function applyWx(w) {
+  farm.wx.set({ clouds: w.clouds, rain: w.rain, storm: w.storm, wind: w.wind, windDir: w.windDir ?? 80, fog: w.fog || 0 });
+  sound.setRain(w.rain);
+}
+function setWxMode(mode) {
+  wxMode = mode;
+  document.querySelectorAll('#wxChips .chip').forEach(c => c.classList.toggle('active', c.dataset.wx === mode));
+  if (mode === 'real') {
+    real.start();
+    wxStatus.textContent = 'กำลังดึงสภาพอากาศจริง…';
+  } else {
+    real.stop();
+    applyWx(PRESETS[mode]);
+    wxStatus.innerHTML = `โหมดจำลอง: <b>${PRESETS[mode].label}</b>`;
+  }
+}
+bus.on('real-weather', d => {
+  if (wxMode !== 'real') return;
+  applyWx(d);
+  const t = d.fetched.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  wxStatus.innerHTML = `<b>${d.label}</b> · ${d.temperature_2m}°C · ความชื้น ${d.relative_humidity_2m}%<br>`
+    + `ฝน ${d.precipitation} มม. · ลม ${d.wind_speed_10m} กม./ชม. · เมฆ ${d.cloud_cover}%<br>`
+    + `📍 ${fmtLoc(d.loc)} · อัปเดต ${t} (Open-Meteo)`;
+  hub.setExternal({ 'weather/temp': d.temperature_2m, 'weather/humidity': d.relative_humidity_2m, 'weather/rain': d.precipitation }, 'ESP32-WX', 'Open-Meteo');
+});
+bus.on('real-weather-error', msg => { if (wxMode === 'real') wxStatus.textContent = 'ดึงข้อมูลอากาศไม่สำเร็จ: ' + msg; });
+bus.on('lightning', e => sound.thunder(e.distance));
+document.getElementById('wxChips').addEventListener('click', e => { const b = e.target.closest('[data-wx]'); if (b) setWxMode(b.dataset.wx); });
+document.getElementById('btnLocate').addEventListener('click', async () => {
+  wxStatus.textContent = 'กำลังขอตำแหน่ง GPS…';
+  try { await real.locate(); if (wxMode !== 'real') setWxMode('real'); toast('📍 ตั้งตำแหน่งบ้านสวนแล้ว'); }
+  catch (err) { wxStatus.textContent = 'ระบุตำแหน่งไม่ได้: ' + err.message; }
+});
+document.getElementById('soundToggle').addEventListener('change', e => sound.enable(e.target.checked));
+setWxMode('real');
+if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
 document.getElementById('fogToggle').addEventListener('change', e => farm.setFog(e.target.checked));
 document.getElementById('labelToggle').addEventListener('change', e => farm.setLabels(e.target.checked));
 document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));

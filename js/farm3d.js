@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bus } from './bus.js';
+import { WeatherFX } from './weatherfx.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -406,6 +407,9 @@ export class Farm3D {
     this.buildBackdrop();
     this.buildCharacters();
     this.buildLabels();
+    this.wxState = { clouds: 0, rain: 0, fog: 0 };
+    this.fogBase = 0.0065;
+    this.wx = new WeatherFX(this);
 
     this.setTime(this.hour);
 
@@ -1058,17 +1062,25 @@ export class Farm3D {
     const night = 1 - clamp((elev + 6) / 12, 0, 1);
     this.nightFactor = night;
     this.sun.position.copy(sunDir).multiplyScalar(150).add(this.sun.target.position);
-    this.sun.intensity = day * 3.2;
+    const cl = this.wxState?.clouds || 0, rn = this.wxState?.rain || 0;
+    const su = this.sky.material.uniforms;
+    su.turbidity.value = lerp(6, 18, cl); su.rayleigh.value = lerp(2.2, 0.5, cl); su.mieCoefficient.value = lerp(0.006, 0.02, cl);
+    this.sun.intensity = day * 3.2 * (1 - 0.85 * cl);
     const warm = clamp(1 - elev / 30, 0, 1);
     this.sun.color.setRGB(1, lerp(0.97, 0.72, warm), lerp(0.92, 0.5, warm));
-    this.hemi.intensity = lerp(0.12, 0.85, day);
-    this.hemi.color.setHSL(0.6, 0.5, lerp(0.25, 0.85, day));
-    this.renderer.toneMappingExposure = lerp(0.9, 0.5, day);
-    const fogC = new THREE.Color().setHSL(lerp(0.62, 0.1, warm * day), lerp(0.25, 0.15, day), lerp(0.06, 0.8, day));
+    this.hemi.intensity = lerp(0.12, 0.85, day) * (1 - 0.3 * cl - 0.2 * rn);
+    this.hemi.color.setHSL(0.6, 0.5 * (1 - cl), lerp(0.25, 0.85, day));
+    this.hemiBase = this.hemi.intensity;
+    this.renderer.toneMappingExposure = lerp(0.9, 0.5, day) * (1 - 0.2 * cl - 0.2 * rn);
+    const fogC = new THREE.Color().setHSL(lerp(0.62, 0.1, warm * day), lerp(0.25, 0.15, day) * (1 - cl), lerp(0.06, 0.8, day) * (1 - 0.3 * cl - 0.45 * rn));
     this.scene.fog.color.copy(fogC);
-    this.sky.visible = true;
-    this.scene.background = night > 0.7 ? new THREE.Color('#05080f') : null;
-    const lightsOn = night > 0.25 || this.devices.lights;
+    this.fogColor = fogC.clone();
+    this.scene.fog.density = this.fogBase + rn * 0.009 + (this.wxState?.fog || 0) * 0.02;
+    // ฟ้าครึ้มมาก: ใช้ท้องฟ้าสีเทาเรียบ (อ้างอิงสีหมอกตัวเดียวกัน ฟ้าแลบจึงสว่างวาบทั้งฟ้า)
+    const overcast = cl > 0.6;
+    this.sky.visible = !overcast;
+    this.scene.background = overcast ? this.scene.fog.color : night > 0.7 ? new THREE.Color('#05080f') : null;
+    const lightsOn = night > 0.25 || this.devices.lights || (cl > 0.85 && rn > 0.5 && night > 0.05);
     this.nightLights.forEach(n => (n.l.intensity = lightsOn ? n.max * Math.max(night, this.devices.lights ? 0.8 : 0) : 0));
     M.warm.emissiveIntensity = lightsOn ? 3 : 0.4;
     this.innerLight.intensity = lerp(2, 9, night);
@@ -1089,7 +1101,24 @@ export class Farm3D {
     }, 120);
   }
 
-  setFog(on) { this.scene.fog.density = on ? 0.0065 : 0.0012; }
+  setFog(on) { this.fogBase = on ? 0.0065 : 0.0012; this.setTime(this.hour); }
+
+  // เรียกจาก WeatherFX เมื่อสภาพอากาศเปลี่ยน
+  applyWeather(w) {
+    this.wxState = { clouds: w.clouds, rain: w.rain, fog: w.fog };
+    // พื้นเปียก: ผิวลื่นสะท้อนแสงมากขึ้น
+    M.concrete.roughness = 0.9 - w.rain * 0.55; M.asphalt.roughness = 0.95 - w.rain * 0.6;
+    M.deck.roughness = 0.6 - w.rain * 0.35; M.roof.roughness = 0.5 - w.rain * 0.3;
+    M.water.normalScale.setScalar(0.4 + w.rain * 1.4);
+    if (Math.abs((this.envClouds ?? -1) - w.clouds) > 0.15) { this.envClouds = w.clouds; this.envHour = undefined; }
+    this.setTime(this.hour);
+  }
+
+  flashSky(k) {
+    if (!this.fogColor) return;
+    this.scene.fog.color.copy(this.fogColor).lerp(new THREE.Color('#c9d4ff'), Math.min(1, k * 0.8));
+    this.hemi.intensity = this.hemiBase + k * 2.5;
+  }
   setLabels(on) { this.labels.forEach(l => (l.visible = on)); }
 
   flyTo(name) {
@@ -1147,7 +1176,8 @@ export class Farm3D {
   tick() {
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.clock.elapsedTime;
-    if (this.autoTime) { let h = this.hour + dt * 0.05; if (h > 21) h = 5; this.setTimeThrottled(h); }
+    if (this.autoTime) { let h = this.hour + dt * 0.05; if (h >= 24) h = 0; this.setTimeThrottled(h); }
+    this.wx.update(dt, t);
 
     this.dad.w.update(dt);
     this.mom.w.update(dt);
@@ -1158,7 +1188,8 @@ export class Farm3D {
     this.updateDog(dt, t);
     this.updateBubbles(dt);
     this.fan.rotation.y += dt * 6;
-    this.palms?.forEach((p, i) => { p.rotation.z = Math.sin(t * 0.8 + i) * 0.03; p.rotation.x = Math.cos(t * 0.6 + i) * 0.02; });
+    const gust = 0.03 + (this.wx.cur.wind || 0) * 0.012;
+    this.palms?.forEach((p, i) => { p.rotation.z = Math.sin(t * (0.8 + gust * 6) + i) * gust; p.rotation.x = Math.cos(t * 0.6 + i) * gust * 0.7; });
     M.water.normalMap.offset.set(t * 0.02, t * 0.013);
     this.tv.material.emissiveIntensity = 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
     if (this.coopDoor) this.coopDoor.rotation.x = lerp(this.coopDoor.rotation.x, this.devices.chickenDoor ? 1.4 : 0, 0.05);

@@ -56,9 +56,23 @@
           <button data-cam="rubber" class="chip">สวนยาง 400 ต้น</button>
         </div>
         <h3>ช่วงเวลา</h3>
-        <input type="range" id="timeSlider" min="5" max="21" step="0.25" value="6.5">
-        <div class="row-between small"><span>05:00</span><span id="timeLabel">06:30</span><span>21:00</span></div>
-        <label class="check"><input type="checkbox" id="autoTime"> เดินเวลาอัตโนมัติ</label>
+        <input type="range" id="timeSlider" min="0" max="23.75" step="0.25" value="6.5">
+        <div class="row-between small"><span>00:00</span><span id="timeLabel">06:30</span><span>23:45</span></div>
+        <label class="check"><input type="checkbox" id="realTime" checked> 🕒 ใช้เวลาจริง</label>
+        <label class="check"><input type="checkbox" id="autoTime"> เดินเวลาเร็ว (ไทม์แลปส์)</label>
+        <h3>สภาพอากาศ</h3>
+        <div class="chips" id="wxChips">
+          <button data-wx="real" class="chip active">🌐 ของจริง</button>
+          <button data-wx="clear" class="chip">☀️ แจ่มใส</button>
+          <button data-wx="cloudy" class="chip">☁️ ครึ้ม</button>
+          <button data-wx="rain" class="chip">🌧️ ฝนตก</button>
+          <button data-wx="storm" class="chip">⛈️ ฟ้าคะนอง</button>
+        </div>
+        <div class="wx-status small" id="wxStatus">กำลังดึงสภาพอากาศจริง…</div>
+        <div class="chips" style="margin-top:6px">
+          <button class="chip" id="btnLocate">📍 ใช้ตำแหน่งบ้านสวน (GPS)</button>
+        </div>
+        <label class="check"><input type="checkbox" id="soundToggle"> 🔊 เสียงฝน / ฟ้าร้อง</label>
         <label class="check"><input type="checkbox" id="fogToggle" checked> หมอกยามเช้า</label>
         <label class="check"><input type="checkbox" id="labelToggle" checked> ป้ายชื่อโซน</label>
         <h3>สั่งงานจำลอง</h3>

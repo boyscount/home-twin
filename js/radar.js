@@ -33,6 +33,11 @@ export class Radar {
     this.setupNotifications();
     canvas.addEventListener('click', () => { this.range = this.range === 60 ? 120 : this.range === 120 ? 30 : 60; });
     bus.on('farm-event', msg => this.log(msg));
+    this.strikes = [];
+    bus.on('lightning', e => {
+      this.strikes.push({ ...e, t: performance.now() });
+      this.log(`⚡ ฟ้าผ่าห่างจากบ้าน ${e.distance < 1000 ? e.distance.toFixed(0) + ' ม.' : (e.distance / 1000).toFixed(1) + ' กม.'} ${bearingName(bearing(e))}`);
+    });
     this.log('ระบบเรดาร์เริ่มทำงาน · รัศมีตรวจจับ ' + this.range + ' ม.');
     this.last = performance.now();
     this.listTimer = 0;
@@ -371,6 +376,14 @@ export class Radar {
       } else {
         c.fillStyle = `rgba(57,255,106,${alpha * 0.85})`; c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill();
       }
+    }
+    // จุดฟ้าผ่า (แสดง 5 วินาที)
+    this.strikes = this.strikes.filter(s => now - s.t < 5000);
+    for (const s of this.strikes) {
+      if (s.distance > this.range * 1.05) continue;
+      const [x, y] = toXY(s.x, s.z), a = 1 - (now - s.t) / 5000;
+      c.strokeStyle = `rgba(190,210,255,${a})`; c.lineWidth = 2; c.beginPath();
+      c.moveTo(x - 4, y - 12); c.lineTo(x + 3, y - 2); c.lineTo(x - 3, y + 1); c.lineTo(x + 4, y + 12); c.stroke(); c.lineWidth = 1;
     }
     c.restore();
     // จุดกลาง
