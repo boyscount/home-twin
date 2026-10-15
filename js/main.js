@@ -11,6 +11,7 @@ import { DailySummary } from './summary.js';
 import { Kiosk } from './kiosk.js';
 import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 import { Fishermen } from './fishermen.js';
+import { Simulator } from './simulate.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
@@ -148,20 +149,6 @@ labelBox.addEventListener('change', () => { labelsTouched = true; setLabelsUI(la
 btnLabels.addEventListener('click', () => { labelsTouched = true; setLabelsUI(!labelBox.checked); });
 setLabelsUI(true);
 setTimeout(() => { if (!labelsTouched && !tour.active) setLabelsUI(false); }, 10000);
-document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));
-document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
-const btnTorch = document.getElementById('btnTorch');
-btnTorch.addEventListener('click', () => {
-  farm.camLightManual = !farm.camLightManual; farm.setCamLight(farm.camLightManual);
-  btnTorch.classList.toggle('active', farm.camLightManual);
-});
-const btnClass = document.getElementById('btnClass');
-btnClass.addEventListener('click', () => (farm.school.active ? farm.endClass() : farm.startClass()));
-bus.on('class', c => { btnClass.textContent = c.on ? '📚 เลิกเรียน' : '📚 สอนภาษาอังกฤษ'; btnClass.classList.toggle('active', c.on); });
-const btnBBQ = document.getElementById('btnBBQ');
-btnBBQ.addEventListener('click', () => (farm.bbq.active ? farm.endBBQ() : farm.startBBQ()));
-bus.on('bbq', on => { btnBBQ.textContent = on ? '🍖 เก็บวงหมูกะทะ' : '🍖 กินหมูกะทะ'; btnBBQ.classList.toggle('active', on); });
-document.getElementById('btnCar').addEventListener('click', () => { farm.spawnVehicle(); const v = farm.vehicles.at(-1); v.g.position.x = -v.dir * 90; });
 
 // ---------- กล้องเล่าเรื่อง ----------
 const btnTour = document.getElementById('btnTour');
@@ -239,4 +226,12 @@ festSel.innerHTML = `<option value="auto">อัตโนมัติตาม�
 festSel.value = festivals.mode;
 festSel.addEventListener('change', () => festivals.setMode(festSel.value));
 
-window.app = { farm, radar, hub, bus, sound, ambient, tour, summary, kiosk, festivals };
+// ---------- เมนูจำลองเหตุการณ์ ----------
+const setHour = h => {
+  realTimeBox.checked = false; clearInterval(realTimer);
+  farm.autoTime = false; document.getElementById('autoTime').checked = false;
+  farm.setTime(h);
+};
+const sim = new Simulator({ farm, hub, radar, tour, festivals, setWx: setWxMode, setHour, showTab });
+
+window.app = { farm, radar, hub, bus, sound, ambient, tour, summary, kiosk, festivals, sim };

@@ -452,6 +452,8 @@ const CAMS = {
   rubber: { pos: [45, 30, -10], target: [0, 2, -80] },
   school: { pos: [-17, 6, 36], target: [-25, 1, 25.5] },
   carport: { pos: [22, 5, 18], target: [14, 1, 5.5] },
+  field: { pos: [74, 9, 54], target: [58, 0, 30] },
+  bbq: { pos: [8, 4, 22], target: [2, 0.8, 15.5] },
   gate: { pos: [9, 5, 50], target: [0, 1, 34] },
 };
 
@@ -1288,8 +1290,9 @@ export class Farm3D {
     });
   }
 
-  kidLoop(gen = this.gen) {
-    if (gen !== this.gen) return;
+  kidToken() { return `${this.gen}.${this.kidGen || 0}`; }
+  kidLoop(gen = this.kidToken()) {
+    if (gen !== this.kidToken()) return;
     const k = this.kid, h = k.h;
     const next = () => setTimeout(() => this.kidLoop(gen), rand(1, 4) * 1000);
     if (Math.random() < 0.35) {
@@ -2241,6 +2244,45 @@ export class Farm3D {
         z.sp.scale.setScalar(0.12 + z.t * 0.16);
       });
     }
+  }
+
+  // ---------------------------------------------------------------- คำสั่งจากเมนูจำลอง
+  spawnKnownVisitor(ids) {
+    const p = PERSONAS.find(p => ids.includes(p.id) && !this.visitors.some(v => v.persona.id === p.id));
+    if (!p) return false;
+    this.spawnVisitor(p, true); return true;
+  }
+
+  kidFeedFish() {
+    const k = this.kid, h = k.h;
+    if (h.sleeping || k.w.locked) return;
+    this.kidGen = (this.kidGen || 0) + 1; // หยุดกิจวัตรเดิมก่อน
+    k.task = 'ไปให้อาหารปลา';
+    k.w.go([[4, 0, 18], [8.7, 0, 22]], () => {
+      h.group.rotation.y = Math.PI / 2; k.task = 'ให้อาหารปลา'; this.fishFeed = 9; h.holding = true;
+      bus.emit('farm-event', 'น้องสาวกำลังให้อาหารปลา — ปลาว่ายมารวมกัน');
+      let n = 0;
+      const toss = setInterval(() => { h.armR.rotation.x = n++ % 2 ? -1.6 : -0.6; if (n > 12) { clearInterval(toss); h.holding = false; k.task = 'เล่นในสวน'; this.kidLoop(); } }, 600);
+    });
+  }
+
+  sisCollectEggs() {
+    const s = this.sis, h = s.h;
+    if (h.sleeping || this.school.active || this.bbq.active || this.sisBusy) return;
+    this.sisGen = (this.sisGen || 0) + 1;
+    h.teaching = false; h.holding = false; s.task = 'ไปเก็บไข่ไก่';
+    const via = h.group.position.x < -18 ? [[-18, 0, 18.5], [-6, 0, 13]] : [];
+    s.w.go([...via, [6, 0, 12.6], [24, 0, 12.6], [26.3, 0, 18], [31.8, 0, 17.8]], () => {
+      h.group.rotation.y = Math.PI; s.task = 'เก็บไข่ไก่'; h.holding = true; h.armL.rotation.x = h.armR.rotation.x = -0.9;
+      setTimeout(() => {
+        h.holding = false;
+        const n = 2 + Math.floor(Math.random() * 4);
+        bus.emit('farm-event', `พี่สาวเก็บไข่ไก่ได้ ${n} ฟอง`); bus.emit('eggs-collected', n);
+        s.task = 'เดินกลับบ้าน';
+        const tok = this.sisToken();
+        s.w.go([[26.3, 0, 18], [24, 0, 12.6], [6, 0, 12.6], [-3, 0, 11.5]], () => { s.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(tok), 20000); });
+      }, 3000);
+    }, true);
   }
 
   sleepFamily() {

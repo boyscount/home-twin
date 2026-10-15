@@ -99,12 +99,7 @@ export class Hub {
       <button class="act" data-force='{"pig/feed":9}'>อาหารหมูเหลือ 9% → พ่อไปเติม</button>
       <button class="act" data-force='{"pig/temp":35.5}'>คอกหมูร้อน 35°C → สปริงเกอร์</button>`;
     this.grid.appendChild(test);
-    test.querySelectorAll('[data-force]').forEach(b => b.addEventListener('click', () => {
-      const fx = JSON.parse(b.dataset.force);
-      for (const [k, v] of Object.entries(fx)) { this.vals[k] = v; this.live[k] = Date.now() + (k === 'pig/temp' ? 40000 : 10 * 60000); }
-      this.log('🧪 ทดสอบ: ' + b.textContent);
-      this.render(); bus.emit('sensors', this.vals);
-    }));
+    test.querySelectorAll('[data-force]').forEach(b => b.addEventListener('click', () => { this.force(JSON.parse(b.dataset.force)); this.log('🧪 ทดสอบ: ' + b.textContent); }));
     this.grid.querySelectorAll('[data-dev]').forEach(inp => inp.addEventListener('change', () => {
       bus.emit('cmd', { device: inp.dataset.dev, value: inp.checked, source: 'Hub' });
     }));
@@ -239,6 +234,12 @@ export class Hub {
     const pill = this.grid.querySelector(`[data-node="${node}"]`);
     if (pill) { pill.className = 'pill on'; pill.textContent = 'LIVE · ' + source; }
     this.render();
+  }
+
+  // บังคับค่าเซนเซอร์ (ใช้ทดสอบ/สาธิต) — ฉาก 3D จะตอบสนองทันที
+  force(fx) {
+    for (const [k, v] of Object.entries(fx)) { this.vals[k] = v; this.live[k] = Date.now() + (k === 'pig/temp' ? 40000 : 10 * 60000); }
+    this.render(); bus.emit('sensors', this.vals);
   }
 
   setConn(live) {

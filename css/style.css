@@ -356,3 +356,40 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
 .zoom-ctl button[data-zoom="labels"] { font-size: 17px; }
 .zoom-hint { white-space: normal; text-align: center; max-width: min(92vw, 520px); }
 @media (max-width: 760px) { .zoom-ctl { gap: 5px; } .zoom-ctl button { width: 44px; height: 44px; font-size: 21px; } }
+
+/* ---------- เมนูจำลอง ---------- */
+.sim-fab {
+  position: absolute; left: 16px; bottom: 16px; z-index: 3; border: 0; border-radius: 999px; padding: 12px 18px;
+  background: var(--accent); color: #0b1410; font-weight: 700; font-size: 15px; box-shadow: 0 8px 24px rgba(0,0,0,.45); touch-action: manipulation;
+}
+.tour-on .sim-fab, body.kiosk .sim-fab { display: none; }
+.sim-sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,0); display: flex; align-items: flex-end; justify-content: center; transition: background .2s; }
+.sim-sheet.show { background: rgba(0,0,0,.45); }
+.sim-panel {
+  width: min(980px, 100%); max-height: 78vh; display: flex; flex-direction: column; background: #101c16; border: 1px solid var(--line);
+  border-radius: 18px 18px 0 0; transform: translateY(100%); transition: transform .22s ease-out; box-shadow: 0 -10px 40px rgba(0,0,0,.5);
+}
+.sim-sheet.show .sim-panel { transform: none; }
+.sim-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.sim-head > div { flex: 1; }
+.sim-close { border: 1px solid var(--line); background: transparent; border-radius: 10px; width: 40px; height: 40px; font-size: 18px; }
+.sim-body { overflow: auto; padding: 6px 16px 22px; -webkit-overflow-scrolling: touch; }
+.sim-group h4 { margin: 14px 0 8px; font-size: 14px; color: var(--dim); font-weight: 600; }
+.sim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.sim-btn {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 72px; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.04); touch-action: manipulation;
+}
+.sim-btn:hover { border-color: var(--accent); }
+.sim-btn:active { transform: scale(.97); background: rgba(123,216,143,.15); }
+.sim-ico { font-size: 22px; line-height: 1; }
+.sim-label { font-size: 13.5px; line-height: 1.3; }
+.sim-state { position: absolute; top: 8px; right: 8px; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: #2a3a31; color: var(--dim); }
+.sim-btn.on { border-color: var(--accent); }
+.sim-btn.on .sim-state { background: var(--accent); color: #0b1410; }
+@media (max-width: 760px) {
+  .sim-fab { bottom: 124px; left: 12px; padding: 11px 16px; }
+  .sim-grid { grid-template-columns: repeat(2, 1fr); }
+  .sim-panel { max-height: 84vh; }
+  .sim-head .check { display: none; }
+}

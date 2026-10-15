@@ -87,15 +87,8 @@
         <label class="check"><input type="checkbox" id="soundToggle"> 🔊 เสียงบรรยากาศ (ฝน ฟ้าร้อง สัตว์ รถ)</label>
         <label class="check"><input type="checkbox" id="fogToggle" checked> หมอกยามเช้า</label>
         <label class="check"><input type="checkbox" id="labelToggle" checked> ป้ายชื่อโซน</label>
-        <h3>สั่งงานจำลอง</h3>
-        <div class="chips">
-          <button class="chip" id="btnFeed">🐖 พ่อให้อาหารหมู</button>
-          <button class="chip" id="btnVisitor">🚶 มีคนเดินเข้าบ้าน</button>
-          <button class="chip" id="btnBBQ">🍖 กินหมูกะทะ</button>
-          <button class="chip" id="btnClass">📚 สอนภาษาอังกฤษ</button>
-          <button class="chip" id="btnCar">🚗 มีรถขับผ่าน</button>
-          <button class="chip" id="btnTorch">🔦 ไฟฉาย</button>
-        </div>
+        <h3>จำลองเหตุการณ์</h3>
+        <button class="tour-btn" type="button" onclick="document.getElementById('simFab').click()">🎮 เปิดเมนูจำลองทั้งหมด</button>
       </aside>
 
       <div class="panel farm-status" id="farmStatus"></div>
@@ -107,6 +100,17 @@
         <button type="button" data-zoom="left" title="หมุนซ้าย">⟲</button>
         <button type="button" data-zoom="right" title="หมุนขวา">⟳</button>
         <button type="button" data-zoom="auto" id="btnAutoRot" title="หมุนรอบอัตโนมัติช้า ๆ">🔄</button>
+      </div>
+      <button class="sim-fab" id="simFab" type="button">🎮 จำลอง</button>
+      <div class="sim-sheet" id="simSheet" hidden>
+        <div class="sim-panel" role="dialog" aria-label="เมนูจำลองเหตุการณ์">
+          <div class="sim-head">
+            <div><b>🎮 จำลองเหตุการณ์</b><div class="dim small">กดแล้วกล้องจะพาไปดูจุดนั้น</div></div>
+            <label class="check small"><input type="checkbox" id="simKeep"> เปิดเมนูค้างไว้</label>
+            <button class="sim-close" type="button" aria-label="ปิด">✕</button>
+          </div>
+          <div class="sim-body"></div>
+        </div>
       </div>
       <div class="zoom-hint" id="zoomHint" hidden>☝️ ลากนิ้วเดียว = หมุน · 🤏 บีบ = ซูม · บิดสองนิ้ว = หมุน · แตะ 2 ครั้ง = ซูมไปตรงนั้น</div>
       <div class="letterbox top"></div><div class="letterbox bottom"></div>

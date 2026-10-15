@@ -78,6 +78,7 @@ export class Fishermen {
   schedule() {
     const h = this.farm.hour, day = new Date().toDateString();
     for (const p of this.people) {
+      if (p.manual) continue; // กำลังทำตามคำสั่งจากเมนูจำลอง
       const plan = this.planFor(p, h);
       // เวลากระโดดออกนอกช่วงงานกลางคัน (เช่น เลื่อนแถบเวลา) → ให้กลับบ้านไปเลย
       if (plan === 'away' && p.present && p.act !== 'away') { p.actId++; p.act = 'away'; this.setPresent(p, false); }
@@ -124,7 +125,7 @@ export class Fishermen {
       if (!alive()) return;
       if (i >= order.length) {
         p.done[key] = true; p.task = act === 'plant' ? 'ปักเบ็ดเสร็จแล้ว' : act === 'collect' ? 'เก็บเบ็ดเสร็จ' : 'ตรวจเบ็ดเสร็จ';
-        p.act = 'away-pending'; this.start(p, 'away'); p.act = 'away';
+        p.act = 'away-pending'; this.start(p, 'away'); p.act = 'away'; p.manual = false;
         return;
       }
       const r = order[i++];
@@ -162,6 +163,14 @@ export class Fishermen {
       // เบ็ดที่ปลาติด: ปลายคันกระตุก
       for (const r of p.rods) if (r.g.visible && r.hooked) r.pole.rotation.y = Math.sin(t * 9 + r.stand[2]) * 0.12;
     }
+  }
+
+  // เมนูจำลอง: ให้ชาวบ้านคนแรกที่ว่างออกมาปักเบ็ดเดี๋ยวนี้
+  startNow() {
+    const p = this.people.find(x => !x.present) || this.people[0];
+    p.manual = true;
+    this.start(p, 'plant', 'manual-' + Date.now());
+    return p;
   }
 
   present() { return this.people.filter(p => p.present); }
