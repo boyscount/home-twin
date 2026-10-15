@@ -447,7 +447,13 @@ export class Farm3D {
     this.controls.minDistance = 4; this.controls.maxDistance = 260;
     // เลื่อนกล้อง (pan) ไปตามพื้นราบ ไม่ใช่ขึ้น-ลงตามจอ — ลากสองนิ้วบนมือถือจะได้ไม่จมลงดิน
     this.controls.screenSpacePanning = false;
-    this.controls.zoomToCursor = false;
+    // ซูมเข้าหาจุดที่นิ้วบีบ/เมาส์ชี้ (ไม่ใช่กลางจอเสมอ) — clampCamera() กันไม่ให้หลุดพื้นที่หรือมุดดิน
+    this.controls.zoomToCursor = true;
+    this.touchDevice = matchMedia('(pointer: coarse)').matches;
+    this.controls.zoomSpeed = this.touchDevice ? 1.9 : 1.2; // จอสัมผัส: บีบครั้งเดียวไปได้ไกลขึ้น
+    this.controls.rotateSpeed = this.touchDevice ? 0.7 : 1;
+    this.controls.panSpeed = this.touchDevice ? 1.4 : 1;
+    this.setupDoubleTap();
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
 
     // แสง & ท้องฟ้า
@@ -1292,6 +1298,52 @@ export class Farm3D {
     this.hemi.intensity = this.hemiBase + k * 2.5;
   }
   setLabels(on) { this.labels.forEach(l => (l.visible = on)); }
+
+  // ---------------------------------------------------------------- ตัวช่วยซูม (ปุ่ม + / − และแตะสองครั้ง)
+  animateCam(p1, t1, dur = 450) {
+    const p0 = this.camera.position.clone(), t0 = this.controls.target.clone(), start = performance.now();
+    this.flying = (now) => {
+      let k = Math.min(1, (now - start) / dur); k = 1 - Math.pow(1 - k, 3);
+      this.camera.position.lerpVectors(p0, p1, k); this.controls.target.lerpVectors(t0, t1, k);
+      if (k >= 1) this.flying = null;
+    };
+  }
+
+  zoomBy(factor) {
+    this.tour?.stop();
+    const t = this.controls.target, off = this.camera.position.clone().sub(t);
+    const d = clamp(off.length() * factor, this.controls.minDistance, this.controls.maxDistance);
+    this.animateCam(t.clone().add(off.setLength(d)), t.clone());
+  }
+
+  // แตะสองครั้ง → ซูมเข้าไปที่จุดนั้นบนพื้น
+  focusAt(clientX, clientY) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, this.camera);
+    const hit = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) return;
+    hit.x = clamp(hit.x, -150, 150); hit.z = clamp(hit.z, -170, 70);
+    const off = this.camera.position.clone().sub(this.controls.target);
+    const d = clamp(off.length() * 0.4, 8, this.controls.maxDistance);
+    this.tour?.stop();
+    this.animateCam(hit.clone().add(off.setLength(d)), hit, 650);
+  }
+
+  setupDoubleTap() {
+    const el = this.renderer.domElement;
+    let last = 0, lx = 0, ly = 0, downX = 0, downY = 0, multi = false;
+    el.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; if (!e.isPrimary) multi = true; });
+    el.addEventListener('pointerup', e => {
+      if (!e.isPrimary) return;
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY) > 12;
+      if (multi || moved) { multi = false; last = 0; return; }
+      const now = performance.now();
+      if (now - last < 320 && Math.hypot(e.clientX - lx, e.clientY - ly) < 40) { this.focusAt(e.clientX, e.clientY); last = 0; }
+      else { last = now; lx = e.clientX; ly = e.clientY; }
+    });
+    el.addEventListener('dblclick', e => e.preventDefault());
+  }
 
   flyTo(name) {
     const c = CAMS[name]; if (!c) return;

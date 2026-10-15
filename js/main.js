@@ -166,6 +166,21 @@ bus.on('alert', () => {
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 
+// ---------- ปุ่มซูม ----------
+document.getElementById('zoomCtl').addEventListener('click', e => {
+  const b = e.target.closest('[data-zoom]'); if (!b) return;
+  if (b.dataset.zoom === 'in') farm.zoomBy(0.55);
+  else if (b.dataset.zoom === 'out') farm.zoomBy(1.8);
+  else { document.querySelectorAll('#camChips .chip').forEach(c => c.classList.toggle('active', c.dataset.cam === 'overview')); farm.flyTo('overview'); }
+});
+// บอกวิธีซูมครั้งแรกบนมือถือ
+try {
+  if (farm.touchDevice && !localStorage.getItem('zoomHintSeen')) {
+    const hint = document.getElementById('zoomHint'); hint.hidden = false;
+    setTimeout(() => { hint.hidden = true; localStorage.setItem('zoomHintSeen', '1'); }, 6000);
+  }
+} catch {}
+
 // ---------- เทศกาล ----------
 const festSel = document.getElementById('festivalSel');
 const todayFest = festivalFor();
