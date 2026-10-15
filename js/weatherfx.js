@@ -53,11 +53,11 @@ export class WeatherFX {
     const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3, 3);
     this.cloudMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, fog: false, color: '#ffffff' });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), this.cloudMat);
-    m.rotation.x = Math.PI / 2; m.position.y = 160; m.renderOrder = -1;
+    m.rotation.x = Math.PI / 2; m.position.y = 160; m.renderOrder = -1; m.visible = false; // เมฆย้ายไปอยู่ใน SkyDome แล้ว
     this.farm.scene.add(m); this.cloud = m;
     // ชั้นเมฆที่สอง ให้ดูมีความลึก
     this.cloudMat2 = this.cloudMat.clone(); this.cloudMat2.map = tex.clone(); this.cloudMat2.map.repeat.set(2, 2);
-    const m2 = new THREE.Mesh(m.geometry, this.cloudMat2); m2.rotation.x = Math.PI / 2; m2.position.y = 220; m2.renderOrder = -2;
+    const m2 = new THREE.Mesh(m.geometry, this.cloudMat2); m2.rotation.x = Math.PI / 2; m2.position.y = 220; m2.renderOrder = -2; m2.visible = false;
     this.farm.scene.add(m2);
   }
 
@@ -134,6 +134,9 @@ export class WeatherFX {
     this.cloudMat.opacity = Math.min(0.95, c.clouds * 1.05);
     this.cloudMat2.opacity = Math.min(0.85, c.clouds * 0.9);
     this.cloudMat.map.offset.x += dt * 0.0015 * c.wind; this.cloudMat2.map.offset.y += dt * 0.001 * c.wind;
+
+    // ส่งค่าเมฆไปที่ท้องฟ้า shader
+    if (f.skyDome) { f.skyDome.u.cover.value = c.clouds; f.skyDome.u.dark.value = Math.min(1, c.rain * 0.8 + (tg.storm ? 0.35 : 0)); }
 
     // ฟ้าแลบ
     if (tg.storm) {

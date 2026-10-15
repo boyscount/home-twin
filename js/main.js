@@ -1,6 +1,6 @@
 // จุดเริ่มของแอป: สลับแท็บ, นาฬิกา, event bus ที่เชื่อม 3D ↔ เรดาร์ ↔ Hub
 import { bus, toast } from './bus.js';
-import { Farm3D } from './farm3d.js';
+import { Farm3D, QUALITY } from './farm3d.js';
 import { Radar } from './radar.js';
 import { Hub } from './hub.js';
 import { RealWeather, WeatherSound } from './weather.js';
@@ -180,6 +180,12 @@ try {
     setTimeout(() => { hint.hidden = true; localStorage.setItem('zoomHintSeen', '1'); }, 6000);
   }
 } catch {}
+
+// ---------- คุณภาพภาพ ----------
+const qSel = document.getElementById('qualitySel');
+qSel.innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}">${q.label}</option>`).join('');
+qSel.value = farm.quality;
+qSel.addEventListener('change', () => farm.setQuality(qSel.value));
 
 // ---------- เทศกาล ----------
 const festSel = document.getElementById('festivalSel');

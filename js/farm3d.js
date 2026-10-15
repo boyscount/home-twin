@@ -2,7 +2,12 @@
 // พิกัด: x = ตะวันออก, z = ทิศใต้ (ถนนอยู่ด้านหน้า z+), บ้านอยู่ราว ๆ จุด (0,0,0) ซึ่งเป็นศูนย์กลางเรดาร์
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SkyDome } from './sky.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
@@ -388,6 +393,31 @@ const PERSONAS = [
 ];
 
 // ---------------------------------------------------------------- main class
+// ระดับคุณภาพภาพ — มือถือเริ่มที่ 'medium' เพื่อไม่ให้หน่วง/ร้อน
+export const QUALITY = {
+  // shadowEvery = วาดเงาใหม่ทุกกี่เฟรม (เงาคือส่วนที่กินเครื่องที่สุด)
+  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 2, grass: 24000 },
+  medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, grass: 9000 },
+  low: { label: 'ต่ำ (ประหยัดแบต)', post: false, shadow: 1024, shadowEvery: 4, pr: 1, grass: 0 },
+};
+
+// เกรดสี + ขอบมืด (vignette) หลัง tone mapping
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, saturation: { value: 1.1 }, contrast: { value: 1.06 }, vignette: { value: 0.32 }, warmth: { value: 0.0 } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float saturation, contrast, vignette, warmth; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      c.rgb = mix(vec3(l), c.rgb, saturation);
+      c.rgb = (c.rgb - 0.5) * contrast + 0.5;
+      c.rgb += vec3(0.03, 0.01, -0.02) * warmth;
+      float v = smoothstep(0.85, 0.2, length(vUv - 0.5));
+      c.rgb *= mix(1.0 - vignette, 1.0, v);
+      gl_FragColor = c;
+    }`,
+};
+
 const CAMS = {
   overview: { pos: [38, 36, 72], target: [2, 0, 0] },
   house: { pos: [6, 4.5, 26], target: [-2, 2, 2] },
@@ -426,9 +456,13 @@ export class Farm3D {
     makeTextures(); makeMaterials();
     const [w, h] = this.size();
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    r.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.touchDevice = matchMedia('(pointer: coarse)').matches;
+    let q = 'high'; try { q = localStorage.getItem('quality') || (this.touchDevice ? 'medium' : 'high'); } catch {}
+    this.quality = QUALITY[q] ? q : 'medium';
+    r.setPixelRatio(Math.min(devicePixelRatio, QUALITY[this.quality].pr));
     r.setSize(w, h);
     r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.autoUpdate = false; this.frameN = 0; // อัปเดตเงาเว้นเฟรม (ดู tick)
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.55;
     this.host.appendChild(r.domElement);
 
@@ -449,7 +483,6 @@ export class Farm3D {
     this.controls.screenSpacePanning = false;
     // ซูมเข้าหาจุดที่นิ้วบีบ/เมาส์ชี้ (ไม่ใช่กลางจอเสมอ) — clampCamera() กันไม่ให้หลุดพื้นที่หรือมุดดิน
     this.controls.zoomToCursor = true;
-    this.touchDevice = matchMedia('(pointer: coarse)').matches;
     this.controls.zoomSpeed = this.touchDevice ? 1.9 : 1.2; // จอสัมผัส: บีบครั้งเดียวไปได้ไกลขึ้น
     this.controls.rotateSpeed = this.touchDevice ? 0.7 : 1;
     this.controls.panSpeed = this.touchDevice ? 1.4 : 1;
@@ -457,12 +490,11 @@ export class Farm3D {
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
 
     // แสง & ท้องฟ้า
-    this.sky = new Sky(); this.sky.scale.setScalar(4000); s.add(this.sky);
-    const su = this.sky.material.uniforms;
-    su.turbidity.value = 6; su.rayleigh.value = 2.2; su.mieCoefficient.value = 0.006; su.mieDirectionalG.value = 0.82;
+    this.skyDome = new SkyDome(); s.add(this.skyDome.mesh);
     this.sun = new THREE.DirectionalLight('#fff1d8', 3);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(QUALITY[this.quality].shadow, QUALITY[this.quality].shadow);
+    this.sun.shadow.radius = 3;
     Object.assign(this.sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 400 });
     this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.03;
     this.sun.target.position.set(5, 0, 5);
@@ -470,8 +502,14 @@ export class Farm3D {
     this.hemi = new THREE.HemisphereLight('#cfe3ff', '#4a5a30', 0.8); s.add(this.hemi);
     s.fog = new THREE.FogExp2('#cfd6d0', 0.0065);
     this.pmrem = new THREE.PMREMGenerator(r);
-    this.envScene = new THREE.Scene();
-    this.envSky = new Sky(); this.envSky.scale.setScalar(1000); this.envScene.add(this.envSky);
+    this.envScene = new THREE.Scene(); this.envScene.add(this.skyDome.envMesh);
+    // post-processing: bloom ให้ไฟ/ดวงอาทิตย์เรือง + เกรดสี
+    this.composer = new EffectComposer(r);
+    this.composer.addPass(new RenderPass(s, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.55, 2.0);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+    this.grade = new ShaderPass(GradeShader); this.composer.addPass(this.grade);
     this.nightLights = [];
 
     this.buildGround();
@@ -484,6 +522,8 @@ export class Farm3D {
     this.buildHydro();
     this.buildRubber();
     this.buildBackdrop();
+    this.buildMountains();
+    this.buildGrass();
     this.buildCharacters();
     this.buildLabels();
     this.gen = 0;
@@ -512,6 +552,7 @@ export class Farm3D {
     if (!this.host.clientWidth) return;
     const [w, h] = this.size();
     this.renderer.setSize(w, h); this.labelRenderer.setSize(w, h);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.fov = w / h < 1 ? 62 : 45; // จอแนวตั้ง (มือถือ) ขยายมุมมองให้เห็นทั้งสวน
     this.camera.updateProjectionMatrix();
@@ -562,6 +603,7 @@ export class Farm3D {
       im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.22, 0.27), 0.5, rand(0.35, 0.5))); n++;
     }
     im.receiveShadow = true; s.add(im);
+    this.riceBlades = im;
   }
 
   buildHouse() {
@@ -989,6 +1031,102 @@ export class Farm3D {
     this.rubberCount = total;
   }
 
+  // ภูเขาไกล ๆ 2 ชั้น (ไม่โดนหมอกแบบปกติ แต่ไล่สีเข้าหาสีหมอกเอง) → ภาพมีความลึก
+  buildMountains() {
+    this.mountainMat = new THREE.ShaderMaterial({
+      uniforms: { fogColor: { value: new THREE.Color() }, night: { value: 0 } },
+      vertexShader: `attribute float hgt; attribute float layer; varying float vH; varying float vL;
+        void main() { vH = hgt; vL = layer; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p; }`,
+      fragmentShader: `uniform vec3 fogColor; uniform float night; varying float vH; varying float vL;
+        void main() {
+          vec3 tint = mix(vec3(0.16, 0.24, 0.24), vec3(0.3, 0.38, 0.44), vL);
+          tint = mix(tint, fogColor * 0.35, night * 0.6);
+          float a = mix(0.62, 0.42, vL);
+          vec3 c = mix(fogColor, mix(fogColor, tint, a), smoothstep(0.0, 0.55, vH));
+          gl_FragColor = vec4(c, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      fog: false, depthWrite: true,
+    });
+    const pos = [], hgt = [], layer = [], idx = [];
+    const ridge = (a, seed) => 0.5 + 0.28 * Math.sin(a * 3 + seed) + 0.14 * Math.sin(a * 7.3 + seed * 2) + 0.08 * Math.sin(a * 17 + seed * 3) + 0.05 * Math.sin(a * 41 + seed);
+    [[780, 70, 0, 1.3], [1150, 120, 1, 4.1]].forEach(([R, H, L, seed]) => {
+      const base = pos.length / 3, N = 220;
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2, x = Math.cos(a) * R, z = Math.sin(a) * R;
+        const top = Math.max(0.15, ridge(a, seed)) * H * (z > 300 ? 0.55 : 1); // ด้านถนน (ใต้) ภูเขาต่ำกว่า
+        pos.push(x, -10, z, x, top, z); hgt.push(0, 1, 0, 1); layer.push(L, L);
+        if (i < N) { const k = base + i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('hgt', new THREE.Float32BufferAttribute(hgt, 1));
+    g.setAttribute('layer', new THREE.Float32BufferAttribute(layer, 1));
+    g.setIndex(idx);
+    const m = new THREE.Mesh(g, this.mountainMat); m.frustumCulled = false; m.renderOrder = -5;
+    this.scene.add(m);
+  }
+
+  // หญ้าทีละใบในสนามบ้าน + โยกตามลม (shader) และให้ต้นข้าวโยกด้วย
+  buildGrass() {
+    this.grassU = { time: { value: 0 }, wind: { value: 0.8 } };
+    const sway = (mat, amp) => {
+      mat.onBeforeCompile = sh => {
+        sh.uniforms.time = this.grassU.time; sh.uniforms.wind = this.grassU.wind;
+        sh.vertexShader = 'uniform float time; uniform float wind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+          vec4 wp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float hh = max(position.y, 0.0);
+          float s = sin(time * 1.7 + wp.x * 0.31 + wp.z * 0.23) * 0.6 + sin(time * 3.3 + wp.x * 0.9 + wp.z * 0.4) * 0.25;
+          transformed.x += s * wind * ${amp.toFixed(3)} * hh * hh;
+          transformed.z += s * wind * ${(amp * 0.5).toFixed(3)} * hh * hh;`);
+      };
+    };
+    if (this.riceBlades) sway(this.riceBlades.material, 0.35);
+    const blade = new THREE.PlaneGeometry(0.07, 0.42, 1, 3);
+    const bp = blade.attributes.position;
+    for (let i = 0; i < bp.count; i++) { const y = bp.getY(i) + 0.21; bp.setX(i, bp.getX(i) * (1 - y / 0.46)); bp.setY(i, y); }
+    blade.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.9 });
+    sway(mat, 0.5);
+    const max = QUALITY.high.grass;
+    const im = new THREE.InstancedMesh(blade, mat, max);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+    const blocked = (x, z) =>
+      (x > -12 && x < 7 && z > -6 && z < 10) || (x > 9.5 && x < 18.5 && z > 1.5 && z < 9.5) ||          // บ้าน, โรงรถ
+      (x > -3.6 && x < 3.6 && z > 22) || (Math.abs((x - 3) + (z - 24)) < 4.2 && x > -4 && x < 17 && z > 8 && z < 25) || // ทางรถ
+      Math.hypot(x - 14, z - 22) < 5.3 || (x > -32.5 && x < -19.5 && z > -4.5 && z < 16.5) ||          // บ่อ, โรงเรือน
+      (x > 23.5 && x < 36.5 && z > -6.5 && z < 2.5) || (x > 25.5 && x < 34.5 && z > 14 && z < 22) ||   // คอกหมู, เล้าไก่
+      (x > -28.8 && x < -21.2 && z > 22.6 && z < 29.8) || (x > 37.5 && x < 42.5 && z > -9.5 && z < -4.5) || z > 35.4;
+    let n = 0;
+    while (n < max) {
+      const x = rand(-45, 49), z = rand(-23, 35.5);
+      if (blocked(x, z)) continue;
+      e.set(rand(-0.25, 0.25), rand(0, Math.PI), rand(-0.25, 0.25)); q.setFromEuler(e);
+      const k = rand(0.7, 1.5); sc.set(k, k * rand(0.8, 1.3), k);
+      m4.compose(v.set(x, 0.02, z), q, sc);
+      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.21, 0.29), rand(0.45, 0.65), rand(0.22, 0.42)));
+      n++;
+    }
+    im.receiveShadow = true; im.frustumCulled = false;
+    im.count = QUALITY[this.quality].grass;
+    im.visible = im.count > 0;
+    this.scene.add(im); this.grass = im;
+  }
+
+  setQuality(q) {
+    if (!QUALITY[q]) return;
+    this.quality = q; const Q = QUALITY[q];
+    try { localStorage.setItem('quality', q); } catch {}
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
+    if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
+    this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+    this.grass.count = Q.grass; this.grass.visible = Q.grass > 0;
+    this.renderer.shadowMap.needsUpdate = true;
+    this.resize();
+  }
+
   buildBackdrop() {
     // ทิวไม้ไกล ๆ ในหมอก
     const geo = new THREE.IcosahedronGeometry(1, 1);
@@ -1235,14 +1373,11 @@ export class Farm3D {
     const azim = 90 - ((h - 6) / 12) * 180; // ตะวันออก → ตะวันตก
     const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim + 20);
     const sunDir = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
-    this.sky.material.uniforms.sunPosition.value.copy(sunDir);
     const day = clamp((elev + 4) / 20, 0, 1);
     const night = 1 - clamp((elev + 6) / 12, 0, 1);
     this.nightFactor = night;
     this.sun.position.copy(sunDir).multiplyScalar(150).add(this.sun.target.position);
     const cl = this.wxState?.clouds || 0, rn = this.wxState?.rain || 0;
-    const su = this.sky.material.uniforms;
-    su.turbidity.value = lerp(6, 18, cl); su.rayleigh.value = lerp(2.2, 0.5, cl); su.mieCoefficient.value = lerp(0.006, 0.02, cl);
     this.sun.intensity = day * 3.2 * (1 - 0.85 * cl);
     const warm = clamp(1 - elev / 30, 0, 1);
     this.sun.color.setRGB(1, lerp(0.97, 0.72, warm), lerp(0.92, 0.5, warm));
@@ -1250,14 +1385,27 @@ export class Farm3D {
     this.hemi.color.setHSL(0.6, 0.5 * (1 - cl), lerp(0.25, 0.85, day));
     this.hemiBase = this.hemi.intensity;
     this.renderer.toneMappingExposure = lerp(0.9, 0.5, day) * (1 - 0.2 * cl - 0.2 * rn);
-    const fogC = new THREE.Color().setHSL(lerp(0.62, 0.1, warm * day), lerp(0.25, 0.15, day) * (1 - cl), lerp(0.06, 0.8, day) * (1 - 0.3 * cl - 0.45 * rn));
+    // สีขอบฟ้า/หมอก: ฟ้าใสตอนกลางวัน → ส้มทองตอนพระอาทิตย์ขึ้น-ตก → น้ำเงินเข้มตอนกลางคืน → เทาเมื่อฟ้าครึ้ม
+    const sunUp = clamp((elev + 6) / 10, 0, 1);
+    const fogC = new THREE.Color(0.58, 0.7, 0.86)
+      .lerp(new THREE.Color(0.95, 0.62, 0.42), warm * sunUp * 0.75)
+      .lerp(new THREE.Color(0.025, 0.035, 0.07), night)
+      .lerp(new THREE.Color(0.5, 0.53, 0.57).multiplyScalar(Math.max(0.06, day)), Math.min(1, cl * 0.8 + rn * 0.2));
     this.scene.fog.color.copy(fogC);
     this.fogColor = fogC.clone();
-    this.scene.fog.density = this.fogBase + rn * 0.009 + (this.wxState?.fog || 0) * 0.02;
-    // ฟ้าครึ้มมาก: ใช้ท้องฟ้าสีเทาเรียบ (อ้างอิงสีหมอกตัวเดียวกัน ฟ้าแลบจึงสว่างวาบทั้งฟ้า)
-    const overcast = cl > 0.6;
-    this.sky.visible = !overcast;
-    this.scene.background = overcast ? this.scene.fog.color : night > 0.7 ? new THREE.Color('#05080f') : null;
+    // หมอกยามเช้าหนาเฉพาะช่วงเช้ามืด–สาย กลางวันโปร่งขึ้นจึงมองเห็นไกลและมีมิติ
+    const mist = this.fogBase > 0.003 ? (h >= 4.5 && h < 8.5 ? 1 - Math.abs(h - 6.5) / 2 : 0) : 0;
+    this.scene.fog.density = (this.fogBase > 0.003 ? lerp(0.0024, 0.0075, clamp(mist, 0, 1)) : this.fogBase) + rn * 0.008 + (this.wxState?.fog || 0) * 0.02;
+    this.scene.background = null;
+    this.skyDome.update({ sunDir, day, night, warm, cover: cl, rain: rn, horizon: fogC });
+    // กลางคืน: แสงจันทร์สีฟ้าอ่อน ๆ (ใช้ไฟดวงเดียวกับดวงอาทิตย์)
+    if (night > 0.5) {
+      this.sun.position.copy(this.skyDome.u.moonDir.value).multiplyScalar(150).add(this.sun.target.position);
+      this.sun.color.set('#9fb6ff'); this.sun.intensity = 0.45 * (1 - 0.8 * cl) * night;
+    }
+    if (this.mountainMat) { this.mountainMat.uniforms.fogColor.value.copy(fogC); this.mountainMat.uniforms.night.value = night; }
+    this.bloom.threshold = lerp(2.2, 0.75, night); this.bloom.strength = lerp(0.28, 0.85, night);
+    this.grade.uniforms.warmth.value = warm * day;
     const lightsOn = night > 0.25 || this.devices.lights || (cl > 0.85 && rn > 0.5 && night > 0.05);
     this.nightLights.forEach(n => (n.l.intensity = lightsOn ? n.max * Math.max(night, this.devices.lights ? 0.8 : 0) : 0));
     M.warm.emissiveIntensity = lightsOn ? 3 : 0.4;
@@ -1271,8 +1419,6 @@ export class Farm3D {
     this.envHour = this.hour;
     clearTimeout(this.envTimer);
     this.envTimer = setTimeout(() => {
-      this.envSky.material.uniforms.sunPosition.value.copy(sunDir);
-      Object.keys(this.sky.material.uniforms).forEach(k => { if (k !== 'sunPosition') this.envSky.material.uniforms[k].value = this.sky.material.uniforms[k].value; });
       if (this.envRT) this.envRT.dispose();
       this.envRT = this.pmrem.fromScene(this.envScene, 0.04);
       this.scene.environment = this.envRT.texture;
@@ -1296,6 +1442,8 @@ export class Farm3D {
     if (!this.fogColor) return;
     this.scene.fog.color.copy(this.fogColor).lerp(new THREE.Color('#c9d4ff'), Math.min(1, k * 0.8));
     this.hemi.intensity = this.hemiBase + k * 2.5;
+    this.skyDome.u.flash.value = k * 0.9;
+    this.skyDome.u.horizon.value.copy(this.scene.fog.color);
   }
   setLabels(on) { this.labels.forEach(l => (l.visible = on)); }
 
@@ -1379,7 +1527,9 @@ export class Farm3D {
     const r = this.renderer;
     r.setScissorTest(true);
     r.setViewport(0, 0, W / pr, H / pr); r.setScissor(0, 0, W / pr, H / pr);
+    this.skyDome.mesh.position.copy(this.snapCam.position);
     r.render(this.scene, this.snapCam);
+    this.skyDome.mesh.position.copy(this.camera.position);
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d');
     ctx.drawImage(r.domElement, 0, r.domElement.height - H, W, H, 0, 0, W, H);
@@ -1436,11 +1586,15 @@ export class Farm3D {
     this.tour?.update(dt);
     this.festivals?.update(dt, t);
 
+    this.skyDome.u.time.value = t;
+    if (this.grassU) { this.grassU.time.value = t; this.grassU.wind.value = 0.6 + (this.wx?.cur.wind || 1.5) * 0.12; }
     if (!this.visible) return;
     if (this.flying) this.flying(performance.now());
     this.controls.update();
     this.clampCamera();
-    this.renderer.render(this.scene, this.camera);
+    this.skyDome.mesh.position.copy(this.camera.position);
+    if (++this.frameN % QUALITY[this.quality].shadowEvery === 0) this.renderer.shadowMap.needsUpdate = true;
+    if (QUALITY[this.quality].post) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   }
 
