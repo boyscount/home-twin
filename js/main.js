@@ -52,6 +52,7 @@ panelToggle.addEventListener('click', () => {
 farmPanel.addEventListener('click', e => {
   if (e.target.closest('[data-cam]') && matchMedia('(max-width: 760px)').matches) panelToggle.click();
 });
+bus.on('zone-fly', cam => document.querySelectorAll('#camChips .chip').forEach(c => c.classList.toggle('active', c.dataset.cam === cam)));
 document.getElementById('camChips').addEventListener('click', e => {
   const b = e.target.closest('[data-cam]'); if (!b) return;
   document.querySelectorAll('#camChips .chip').forEach(c => c.classList.toggle('active', c === b));

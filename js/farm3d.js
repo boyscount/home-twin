@@ -444,6 +444,8 @@ const CAMS = {
   hydro: { pos: [-15, 7, 22], target: [-26, 0.5, 6] },
   rubber: { pos: [45, 30, -10], target: [0, 2, -80] },
   school: { pos: [-17, 6, 36], target: [-25, 1, 25.5] },
+  carport: { pos: [22, 5, 18], target: [14, 1, 5.5] },
+  gate: { pos: [9, 5, 50], target: [0, 1, 34] },
 };
 
 export class Farm3D {
@@ -1315,7 +1317,7 @@ export class Farm3D {
 
   buildLabels() {
     const add = (text, x, y, z, cam) => {
-      const el = document.createElement('div'); el.className = 'zone-label'; el.textContent = text;
+      const el = document.createElement('div'); el.className = 'zone-label'; el.textContent = text; el.dataset.cam = cam;
       el.addEventListener('click', () => this.flyTo(cam));
       const o = new CSS2DObject(el); o.position.set(x, y, z); this.scene.add(o); this.labels.push(o);
       return el;
@@ -1326,9 +1328,9 @@ export class Farm3D {
     add('🐔 เล้าไก่', 30, 3, 18, 'chicken');
     add('🥬 ผักไฮโดรโปนิกส์', -26, 4.2, 6, 'hydro');
     add('🌳 สวนยาง 400 ต้น', 0, 11, -40, 'rubber');
-    add('🚗 โรงรถ', 14, 4, 5.5, 'house');
+    add('🚗 โรงรถ', 14, 4, 5.5, 'carport');
     add('📚 ศาลาเรียน', -25, 5.6, 26, 'school');
-    this.gateLabel = add('🚪 ประตูหน้า', 0, 2.6, 36, 'overview');
+    this.gateLabel = add('🚪 ประตูหน้า', 0, 2.6, 36, 'gate');
   }
 
   // ---------------------------------------------------------------- behaviours
@@ -1616,6 +1618,20 @@ export class Farm3D {
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
 
+  // หาป้ายชื่อโซนที่อยู่ใต้นิ้ว (ขยายระยะกดรอบป้าย 14px ให้แตะง่ายบนจอเล็ก) — เลือกป้ายที่ใกล้นิ้วที่สุด
+  labelAt(x, y, pad = 14) {
+    let best = null, bd = Infinity;
+    for (const l of this.labels) {
+      const el = l.element;
+      if (!l.visible || el.style.display === 'none' || !el.dataset.cam) continue;
+      const r = el.getBoundingClientRect();
+      if (x < r.left - pad || x > r.right + pad || y < r.top - pad || y > r.bottom + pad) continue;
+      const d = Math.hypot(x - (r.left + r.right) / 2, y - (r.top + r.bottom) / 2);
+      if (d < bd) { bd = d; best = el.dataset.cam; }
+    }
+    return best;
+  }
+
   setupDoubleTap() {
     const el = this.renderer.domElement;
     let last = 0, lx = 0, ly = 0, downX = 0, downY = 0, multi = false;
@@ -1625,6 +1641,9 @@ export class Farm3D {
       const moved = Math.hypot(e.clientX - downX, e.clientY - downY) > 12;
       if (multi || moved) { multi = false; last = 0; return; }
       const now = performance.now();
+      // แตะโดนป้ายชื่อโซน → บินไปที่โซนนั้น (บนจอสัมผัสป้ายไม่รับนิ้วโดยตรง เพื่อไม่ให้ขวางการบีบ/บิด)
+      const zone = this.labelAt(e.clientX, e.clientY);
+      if (zone) { this.flyTo(zone); bus.emit('zone-fly', zone); last = 0; return; }
       if (now - last < 320 && Math.hypot(e.clientX - lx, e.clientY - ly) < 40) { this.focusAt(e.clientX, e.clientY); last = 0; }
       else { last = now; lx = e.clientX; ly = e.clientY; }
     });
