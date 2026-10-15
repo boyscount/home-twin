@@ -12,6 +12,7 @@ export class Tour {
     this.active = false;
     this.auto = store.get('autoTour', true);
     this.idle = 0;
+    this.idleSeconds = IDLE_SECONDS;
     this.i = -1;
     this.t = 0;
     this.seen = new Set();
@@ -164,7 +165,7 @@ export class Tour {
 
   update(dt) {
     if (!this.active) {
-      if (this.auto && this.f.visible && !document.querySelector('dialog[open]')) { this.idle += dt; if (this.idle > IDLE_SECONDS) this.start(); }
+      if (this.auto && this.f.visible && !document.querySelector('dialog[open]')) { this.idle += dt; if (this.idle > this.idleSeconds) this.start(); }
       return;
     }
     // คนแปลกหน้าเข้ามา → ตัดไปดูทันที (ครั้งเดียวต่อคน)

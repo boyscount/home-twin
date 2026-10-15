@@ -332,6 +332,7 @@ export class Radar {
         if (k) {
           t.status = 'known'; t.name = k.name;
           this.log(`จดจำใบหน้าได้: ${k.name} เข้าเขตบ้าน`);
+          bus.emit('known-arrival', { name: k.name, img: k.img });
           this.phoneNotify({ tag, title: `${k.name} มาถึงบ้านแล้ว`, body: 'ระบบจดจำใบหน้าได้ — ไม่ต้องดำเนินการ', img: k.img });
           this.pushSystemNotification(`${k.name} มาถึงบ้านแล้ว`, 'ระบบจดจำใบหน้าได้', k.img, tag);
           if (this.tg.ready) this.tg.sendPhoto(k.img, `✅ ${k.name} มาถึงบ้านแล้ว (ระบบจดจำใบหน้าได้)`).catch(err => this.log('Telegram: ' + err.message));
@@ -343,6 +344,7 @@ export class Radar {
         bus.emit('alert', { id: e.id });
         const img = await this.capture(e);
         t.img = img;
+        bus.emit('alert-photo', { img, desc: e.persona?.desc });
         this.log('ส่งภาพใบหน้าไปที่มือถือแล้ว · รอเจ้าของยืนยัน');
         this.phoneNotify({ tag, title: '⚠ ตรวจพบบุคคลที่หน้าบ้าน', body: `ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))} · คุณรู้จักคนนี้ไหม?`, img, ask: true });
         this.pushSystemNotification('⚠ ตรวจพบบุคคลที่หน้าบ้าน', 'คุณรู้จักคนนี้ไหม? แตะเพื่อตอบ', img, tag, true);

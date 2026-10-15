@@ -32,6 +32,7 @@
       <button class="tab" data-tab="hub" role="tab">🛰️ Hub อุปกรณ์</button>
     </nav>
     <div class="topstat">
+      <button class="kiosk-btn" id="btnKiosk" title="โหมดทีวี — เต็มจอ เล่าเรื่องวนไป จอไม่ดับ">📺 โหมดทีวี</button>
       <span class="dot ok" id="connDot"></span><span id="connText">จำลองข้อมูล</span>
       <span class="clock" id="clock">--:--</span>
     </div>
@@ -197,6 +198,18 @@
   </main>
 
   <div class="toast" id="toast" hidden></div>
+
+  <!-- โหมดทีวี -->
+  <div class="kiosk-hud" id="kioskHud" hidden>
+    <div class="k-left">
+      <div class="k-clock">--:--</div>
+      <div class="k-date"></div>
+      <div class="k-wx"></div>
+    </div>
+    <div class="k-family"></div>
+    <button class="k-exit" type="button">✕ ออกจากโหมดทีวี</button>
+  </div>
+  <div class="kiosk-banner" id="kioskBanner" hidden></div>
 
   <script type="module" src="js/main.js"></script>
 </body>

@@ -278,3 +278,36 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
 }
 
 .summary-text { white-space: pre-wrap; font-family: "IBM Plex Sans Thai", sans-serif; font-size: 12.5px; line-height: 1.6; color: var(--text); margin: 0 0 6px; max-height: 320px; overflow: auto; }
+
+/* ---------- โหมดทีวี ---------- */
+.kiosk-btn { border: 1px solid var(--line); background: rgba(255,255,255,.05); border-radius: 999px; padding: 5px 12px; font-size: 13px; margin-right: 6px; }
+.kiosk-btn:hover { border-color: var(--accent); }
+body.kiosk .topbar { display: none; }
+body.kiosk main { top: 0; }
+body.kiosk .farm-panel, body.kiosk .panel-toggle, body.kiosk .farm-status, body.kiosk .tour-stop { display: none !important; }
+body.kiosk-idle, body.kiosk-idle * { cursor: none !important; }
+.kiosk-hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.85); }
+.k-left { position: absolute; top: calc(7% + 18px); left: 32px; }
+.k-clock { font-family: "Share Tech Mono", monospace; font-size: clamp(40px, 7vw, 86px); line-height: 1; }
+.k-date { font-size: clamp(14px, 1.6vw, 20px); margin-top: 6px; }
+.k-wx { font-size: clamp(13px, 1.4vw, 18px); color: var(--accent); margin-top: 4px; }
+.k-family { position: absolute; top: calc(7% + 18px); right: 32px; text-align: right; font-size: clamp(12px, 1.3vw, 16px); line-height: 1.7; max-width: 40vw; }
+.k-family b { color: var(--accent); font-weight: 600; margin-right: 6px; }
+.k-exit { position: absolute; bottom: calc(7% + 16px); right: 24px; pointer-events: auto; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 8px 16px; opacity: 0; transition: opacity .4s; }
+body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
+.kiosk-banner {
+  position: fixed; z-index: 31; left: 50%; top: calc(7% + 20px); transform: translateX(-50%);
+  display: flex; gap: 18px; align-items: center; padding: 14px 22px 14px 14px; border-radius: 18px;
+  background: rgba(10, 20, 14, .88); border: 2px solid var(--accent); color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  animation: slideIn .5s ease-out; max-width: min(720px, 92vw);
+}
+.kiosk-banner.warn { border-color: var(--danger); }
+.kiosk-banner.info { border-color: var(--warn); }
+.kiosk-banner img { width: clamp(120px, 16vw, 220px); border-radius: 12px; }
+.kb-title { font-size: clamp(20px, 2.6vw, 34px); font-weight: 700; }
+.kb-sub { font-size: clamp(13px, 1.4vw, 18px); color: var(--dim); margin-top: 4px; }
+@media (max-width: 760px) {
+  .kiosk-btn { padding: 4px 8px; font-size: 12px; }
+  .k-family { display: none; }
+  .k-left { left: 16px; }
+}
