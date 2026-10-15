@@ -396,8 +396,8 @@ const PERSONAS = [
 // ระดับคุณภาพภาพ — มือถือเริ่มที่ 'medium' เพื่อไม่ให้หน่วง/ร้อน
 export const QUALITY = {
   // shadowEvery = วาดเงาใหม่ทุกกี่เฟรม (เงาคือส่วนที่กินเครื่องที่สุด)
-  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 2, grass: 24000 },
-  medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, grass: 9000 },
+  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 2, grass: 10000 },
+  medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, grass: 4500 },
   low: { label: 'ต่ำ (ประหยัดแบต)', post: false, shadow: 1024, shadowEvery: 4, pr: 1, grass: 0 },
 };
 
@@ -1092,9 +1092,10 @@ export class Farm3D {
       };
     };
     if (this.riceBlades) sway(this.riceBlades.material, 0.35);
-    const blade = new THREE.PlaneGeometry(0.07, 0.42, 1, 3);
+    // ใบหญ้าเล็ก ๆ สูงราว 20–30 ซม. (ของเดิมใหญ่เกินจนดูเป็นหนาม)
+    const blade = new THREE.PlaneGeometry(0.045, 0.26, 1, 2);
     const bp = blade.attributes.position;
-    for (let i = 0; i < bp.count; i++) { const y = bp.getY(i) + 0.21; bp.setX(i, bp.getX(i) * (1 - y / 0.46)); bp.setY(i, y); }
+    for (let i = 0; i < bp.count; i++) { const y = bp.getY(i) + 0.13; bp.setX(i, bp.getX(i) * (1 - y / 0.29)); bp.setY(i, y); }
     blade.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.9 });
     sway(mat, 0.5);
@@ -1107,20 +1108,36 @@ export class Farm3D {
       Math.hypot(x - 14, z - 22) < 5.3 || (x > -32.5 && x < -19.5 && z > -4.5 && z < 16.5) ||          // บ่อ, โรงเรือน
       (x > 23.5 && x < 36.5 && z > -6.5 && z < 2.5) || (x > 25.5 && x < 34.5 && z > 14 && z < 22) ||   // คอกหมู, เล้าไก่
       (x > -28.8 && x < -21.2 && z > 22.6 && z < 29.8) || (x > 37.5 && x < 42.5 && z > -9.5 && z < -4.5) || z > 35.4;
-    let n = 0;
-    while (n < max) {
+    // ขึ้นเป็นกอ ๆ ตามขอบรั้ว ใต้ต้นไม้ และกระจายบาง ๆ ในสนาม — ไม่โรยเต็มพื้นเท่ากันหมด
+    const clumps = [];
+    while (clumps.length < 420) {
       const x = rand(-45, 49), z = rand(-23, 35.5);
       if (blocked(x, z)) continue;
-      e.set(rand(-0.25, 0.25), rand(0, Math.PI), rand(-0.25, 0.25)); q.setFromEuler(e);
-      const k = rand(0.7, 1.5); sc.set(k, k * rand(0.8, 1.3), k);
+      const edge = z > 31 || x < -40 || x > 43 || z < -18; // ริมรั้ว/ขอบที่ดิน หญ้าขึ้นหนากว่า
+      clumps.push({ x, z, r: rand(0.25, edge ? 1.4 : 0.8), w: edge ? 3 : 1 });
+    }
+    const pick = () => { let s = Math.random() * clumps.reduce((a, c) => a + c.w, 0); for (const c of clumps) { s -= c.w; if (s <= 0) return c; } return clumps[0]; };
+    let n = 0;
+    while (n < max) {
+      const c = pick(), a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * c.r;
+      const x = c.x + Math.cos(a) * d, z = c.z + Math.sin(a) * d;
+      if (blocked(x, z)) continue;
+      e.set(rand(-0.35, 0.35), rand(0, Math.PI), rand(-0.35, 0.35)); q.setFromEuler(e);
+      const k = rand(0.55, 1.05) * (1 - d / (c.r * 1.6)); sc.set(k, k * rand(0.7, 1.15), k); // กลางกอสูงกว่าขอบ
       m4.compose(v.set(x, 0.02, z), q, sc);
-      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.21, 0.29), rand(0.45, 0.65), rand(0.22, 0.42)));
+      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.24, 0.28), rand(0.35, 0.5), rand(0.26, 0.38))); // โทนเดียวกับพื้นหญ้า
       n++;
     }
     im.receiveShadow = true; im.frustumCulled = false;
     im.count = QUALITY[this.quality].grass;
-    im.visible = im.count > 0;
+    try { this.grassOn = localStorage.getItem('grassOn') !== '0'; } catch { this.grassOn = true; }
+    im.visible = im.count > 0 && this.grassOn;
     this.scene.add(im); this.grass = im;
+  }
+
+  setGrass(on) {
+    this.grassOn = on; try { localStorage.setItem('grassOn', on ? '1' : '0'); } catch {}
+    this.grass.visible = on && this.grass.count > 0; this.renderer.shadowMap.needsUpdate = true;
   }
 
   setQuality(q) {
@@ -1130,7 +1147,7 @@ export class Farm3D {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
-    this.grass.count = Q.grass; this.grass.visible = Q.grass > 0;
+    this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn;
     this.renderer.shadowMap.needsUpdate = true;
     this.resize();
   }

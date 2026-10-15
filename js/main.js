@@ -191,6 +191,9 @@ const qSel = document.getElementById('qualitySel');
 qSel.innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}">${q.label}</option>`).join('');
 qSel.value = farm.quality;
 qSel.addEventListener('change', () => farm.setQuality(qSel.value));
+const grassBox = document.getElementById('grassToggle');
+grassBox.checked = farm.grassOn;
+grassBox.addEventListener('change', () => farm.setGrass(grassBox.checked));
 
 // ---------- เทศกาล ----------
 const festSel = document.getElementById('festivalSel');
