@@ -24,7 +24,8 @@ export class Kiosk {
       document.body.classList.remove('kiosk-idle');
       clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add('kiosk-idle'), 3000);
     });
-    bus.on('alert-photo', a => this.showBanner('⚠ มีคนมาที่หน้าบ้าน', a.desc || 'เรดาร์ส่งรูปเข้ามือถือแล้ว', a.img, 'warn'));
+    bus.on('alert-photo', a => { this.alertId = a.id; this.showBanner('⚠ มีคนมาที่หน้าบ้าน', (a.desc ? a.desc + ' · ' : '') + 'แตะเพื่อดูเรดาร์', a.img, 'warn'); });
+    this.banner.addEventListener('click', () => { if (!this.banner.classList.contains('warn')) return; this.exit(); bus.emit('open-radar', { id: this.alertId }); });
     bus.on('known-arrival', a => this.showBanner(`✅ ${a.name} มาถึงบ้านแล้ว`, 'ระบบจดจำใบหน้าได้', a.img, 'ok'));
     bus.on('bbq', on => { if (on) this.showBanner('🍖 ได้เวลาหมูกะทะ', 'ครอบครัวตั้งวงกินข้าวเย็นหน้าบ้าน', null, 'info'); });
     setInterval(() => this.renderHud(), 1000);

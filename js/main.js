@@ -181,10 +181,18 @@ document.querySelector('[data-tab=radar]').addEventListener('click', () => setTi
 
 // badge บนแท็บเรดาร์เมื่อมีคนแปลกหน้าแต่ผู้ใช้อยู่แท็บอื่น
 let unseen = 0;
-bus.on('alert', () => {
-  if (document.querySelector('.tab.active').dataset.tab === 'radar') return;
+// แตะแจ้งเตือน → ไปแท็บเรดาร์และล็อกเป้าหมายที่คนนั้นให้เลย
+function openRadarFor(id) {
+  tour.stop();
+  showTab('radar');
+  if (id && radar.blips.has(id)) radar.selected = id;
+  unseen = 0; document.getElementById('radarBadge').hidden = true;
+}
+bus.on('open-radar', e => openRadarFor(e?.id));
+bus.on('alert', e => {
+  if (document.querySelector('.tab.active').dataset.tab === 'radar') { if (e?.id && radar.blips.has(e.id)) radar.selected = e.id; return; }
   const b = document.getElementById('radarBadge'); unseen++; b.textContent = unseen; b.hidden = false;
-  toast('📡 เรดาร์ตรวจพบบุคคล — ดูที่แท็บเรดาร์');
+  toast('⚠ ตรวจพบคนแปลกหน้าที่หน้าบ้าน — แตะเพื่อดูเรดาร์', 10000, () => openRadarFor(e?.id));
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 

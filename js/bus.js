@@ -6,9 +6,12 @@ export const bus = {
 };
 
 let toastTimer;
-export function toast(msg, ms = 3200) {
+// onClick: ถ้าใส่มา ข้อความจะกดได้ (เช่น แตะแจ้งเตือนคนแปลกหน้า → เปิดแท็บเรดาร์)
+export function toast(msg, ms = 3200, onClick = null) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.hidden = false;
+  el.classList.toggle('clickable', !!onClick);
+  el.onclick = onClick ? () => { el.hidden = true; onClick(); } : null;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), ms);
 }

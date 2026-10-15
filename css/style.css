@@ -405,3 +405,7 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
 .splash-bar i { display: block; height: 100%; width: 12%; background: linear-gradient(90deg, #39ff6a, #7bd88f); border-radius: 99px; transition: width .35s ease; }
 .splash-step { font-size: 13px; color: var(--dim); min-height: 18px; }
 .loading { z-index: 8; } /* คลุมปุ่มลอยทั้งหมดจนกว่าภาพแรกจะพร้อม */
+
+.toast.clickable { cursor: pointer; border-color: var(--danger); background: #3a1414; font-weight: 600; padding: 12px 20px; }
+.toast.clickable::after { content: '  ›'; }
+.kiosk-banner { cursor: pointer; }

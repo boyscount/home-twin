@@ -29,7 +29,7 @@ self.addEventListener('notificationclick', event => {
   const action = event.action || 'open';
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (action !== 'open') all.forEach(c => c.postMessage({ type: 'notif-action', action, tag }));
+    all.forEach(c => c.postMessage(action === 'open' ? { type: 'open-radar', tag } : { type: 'notif-action', action, tag }));
     const c = all[0];
     if (c) return c.focus();
     return self.clients.openWindow('./?tab=radar');

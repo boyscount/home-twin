@@ -126,6 +126,7 @@ export class Radar {
       navigator.serviceWorker.register('sw.js').then(reg => (this.swReg = reg)).catch(() => {});
       navigator.serviceWorker.addEventListener('message', e => {
         if (e.data?.type === 'notif-action') this.respond(e.data.tag, e.data.action === 'allow');
+        if (e.data?.type === 'open-radar') bus.emit('open-radar', { id: this.alerts.get(e.data.tag)?.id });
       });
     }
   }
@@ -345,13 +346,13 @@ export class Radar {
         bus.emit('alert', { id: e.id });
         const img = await this.capture(e);
         t.img = img;
-        bus.emit('alert-photo', { img, desc: e.persona?.desc });
+        bus.emit('alert-photo', { img, desc: e.persona?.desc, id: e.id });
         this.log('ส่งภาพใบหน้าไปที่มือถือแล้ว · รอเจ้าของยืนยัน');
         this.phoneNotify({ tag, title: '⚠ ตรวจพบบุคคลที่หน้าบ้าน', body: `ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))} · คุณรู้จักคนนี้ไหม?`, img, ask: true });
         this.pushSystemNotification('⚠ ตรวจพบบุคคลที่หน้าบ้าน', 'คุณรู้จักคนนี้ไหม? แตะเพื่อตอบ', img, tag, true);
         if (this.tg.ready) {
           const when = new Date().toLocaleString('th-TH', { hour12: false });
-          this.tg.sendAlert({ tag, img, caption: `⚠ ตรวจพบบุคคลที่หน้าบ้าน\n📍 ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))}\n🕒 ${when}\n\nมีใครในบ้านรู้จักคนนี้ไหม?` })
+          this.tg.sendAlert({ tag, img, caption: `⚠ ตรวจพบบุคคลที่หน้าบ้าน\n📍 ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))}\n🕒 ${when}\n\nมีใครในบ้านรู้จักคนนี้ไหม?\n📡 ดูเรดาร์: ${location.origin}${location.pathname}?tab=radar` })
             .then(() => this.log('📲 ส่งรูปเข้า Telegram กลุ่มครอบครัวแล้ว'))
             .catch(err => this.log('ส่ง Telegram ไม่สำเร็จ: ' + err.message));
         }
