@@ -70,7 +70,7 @@ main { position: absolute; inset: 60px 0 0 0; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* ---------- farm ---------- */
-.canvas-host { position: absolute; inset: 0; isolation: isolate; } /* กัน z-index ของป้าย CSS2D ไม่ให้ลอยทับแผงควบคุม */
+.canvas-host { position: absolute; inset: 0; isolation: isolate; touch-action: none; } /* นิ้ว pinch บนฉาก 3D = ซูมกล้อง ไม่ใช่ซูมทั้งหน้าเว็บ */ /* กัน z-index ของป้าย CSS2D ไม่ให้ลอยทับแผงควบคุม */
 .canvas-host canvas { display: block; }
 .loading {
   position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; color: var(--dim);

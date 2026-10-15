@@ -359,7 +359,7 @@ const CAMS = {
   overview: { pos: [38, 36, 72], target: [2, 0, 0] },
   house: { pos: [6, 4.5, 26], target: [-2, 2, 2] },
   pig: { pos: [36, 7, 13], target: [30, 0.5, -2] },
-  pond: { pos: [13, 8, 32.5], target: [14, -0.5, 21] },
+  pond: { pos: [13, 8, 32.5], target: [14, 0, 21] },
   chicken: { pos: [38, 5, 27], target: [30, 0.5, 18] },
   hydro: { pos: [-15, 7, 22], target: [-26, 0.5, 6] },
   rubber: { pos: [45, 30, -10], target: [0, 2, -80] },
@@ -409,8 +409,11 @@ export class Farm3D {
     this.controls = new OrbitControls(this.camera, r.domElement);
     this.controls.target.set(...CAMS.overview.target);
     this.controls.enableDamping = true;
-    this.controls.maxPolarAngle = Math.PI * 0.48;
-    this.controls.minDistance = 3; this.controls.maxDistance = 260;
+    this.controls.maxPolarAngle = Math.PI * 0.46;
+    this.controls.minDistance = 4; this.controls.maxDistance = 260;
+    // เลื่อนกล้อง (pan) ไปตามพื้นราบ ไม่ใช่ขึ้น-ลงตามจอ — ลากสองนิ้วบนมือถือจะได้ไม่จมลงดิน
+    this.controls.screenSpacePanning = false;
+    this.controls.zoomToCursor = false;
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
 
     // แสง & ท้องฟ้า
@@ -1318,8 +1321,20 @@ export class Farm3D {
     if (!this.visible) return;
     if (this.flying) this.flying(performance.now());
     this.controls.update();
+    this.clampCamera();
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
+  }
+
+  // กันกล้องมุดดิน/หลุดออกนอกพื้นที่: จุดหมุนอยู่บนพื้นในขอบเขตฟาร์ม และกล้องสูงจากพื้นอย่างน้อย 1.6 ม. (ระดับสายตา)
+  clampCamera() {
+    const t = this.controls.target, c = this.camera.position;
+    const tx = clamp(t.x, -150, 150), tz = clamp(t.z, -170, 70), ty = clamp(t.y, 0, 20);
+    if (tx !== t.x || tz !== t.z || ty !== t.y) {
+      c.x += tx - t.x; c.z += tz - t.z; c.y += ty - t.y;
+      t.set(tx, ty, tz);
+    }
+    if (c.y < 1.6) c.y = 1.6;
   }
 
   setTimeThrottled(h) {
