@@ -120,6 +120,6 @@ export class Simulator {
     if (!this.keepOpen) this.close();
   }
 
-  open() { this.refreshStates(); this.sheet.hidden = false; setTimeout(() => this.sheet.classList.add('show'), 20); }
+  open() { this.tour.stop(); this.refreshStates(); this.sheet.hidden = false; setTimeout(() => this.sheet.classList.add('show'), 20); }
   close() { this.sheet.classList.remove('show'); setTimeout(() => (this.sheet.hidden = true), 220); }
 }
