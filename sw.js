@@ -1,13 +1,17 @@
 // Service worker: ทำให้แจ้งเตือนมีปุ่ม "รู้จัก / ไม่รู้จัก" และพร้อมสำหรับ Web Push จากเซิร์ฟเวอร์ในอนาคต
-const CDN_CACHE = 'cdn-v1', APP_CACHE = 'app-v1';
+const CDN_CACHE = 'cdn-v1';
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+// navigation preload: เบราว์เซอร์เริ่มโหลดหน้าเว็บพร้อมกับปลุก service worker (ไม่ต้องรอ SW ตื่นก่อน)
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
+  await self.clients.claim();
+})()));
 
 // เปิดครั้งถัดไปเร็วขึ้น: ไฟล์ three.js / ฟอนต์ (เวอร์ชันตายตัว) เก็บไว้ในเครื่องเลย
-// ไฟล์ของเว็บเอง: ดึงของใหม่ก่อนเสมอ (deploy แล้วเห็นทันที) ถ้าเน็ตหลุดค่อยใช้ของที่เก็บไว้
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
+  if (req.mode === 'navigate') { event.respondWith((async () => (await event.preloadResponse) || fetch(req))()); return; }
   const url = new URL(req.url);
   const immutable = (url.hostname === 'cdn.jsdelivr.net' && /@\d/.test(url.pathname)) || url.hostname === 'fonts.gstatic.com';
   if (immutable) {
@@ -15,12 +19,8 @@ self.addEventListener('fetch', event => {
       const hit = await c.match(req); if (hit) return hit;
       const res = await fetch(req); if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res;
     }));
-  } else if (url.origin === self.location.origin) {
-    event.respondWith(fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(APP_CACHE).then(c => c.put(req, copy)); }
-      return res;
-    }).catch(() => caches.match(req)));
   }
+  // ไฟล์ของเว็บเอง (หน้าเว็บ, js, css) ปล่อยให้เบราว์เซอร์โหลดตรง ๆ — ไม่ผ่าน service worker จะได้ไม่ช้าและ deploy แล้วเห็นทันที
 });
 
 self.addEventListener('notificationclick', event => {
