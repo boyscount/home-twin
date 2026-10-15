@@ -276,3 +276,5 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
   .tc-title { font-size: 22px; }
   .tc-sub { font-size: 13px; }
 }
+
+.summary-text { white-space: pre-wrap; font-family: "IBM Plex Sans Thai", sans-serif; font-size: 12.5px; line-height: 1.6; color: var(--text); margin: 0 0 6px; max-height: 320px; overflow: auto; }

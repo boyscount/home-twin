@@ -7,6 +7,7 @@ import { RealWeather, WeatherSound } from './weather.js';
 import { PRESETS } from './weatherfx.js';
 import { Tour } from './tour.js';
 import { Ambient } from './ambient.js';
+import { DailySummary } from './summary.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
@@ -124,6 +125,7 @@ document.getElementById('btnLocate').addEventListener('click', async () => {
 });
 document.getElementById('soundToggle').addEventListener('change', e => sound.enable(e.target.checked));
 const ambient = new Ambient(sound, farm);
+const summary = new DailySummary({ radar, hub, farm });
 setInterval(() => ambient.update(0.25), 250);
 setWxMode('real');
 if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
@@ -160,4 +162,4 @@ bus.on('alert', () => {
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 
-window.app = { farm, radar, hub, bus, sound, ambient, tour };
+window.app = { farm, radar, hub, bus, sound, ambient, tour, summary };
