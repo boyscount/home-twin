@@ -488,6 +488,13 @@ export class Farm3D {
     this.controls.panSpeed = this.touchDevice ? 1.4 : 1;
     this.setupDoubleTap();
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
+    // ไฟฉายติดกล้อง (ใช้ตอนกล้องเล่าเรื่องเข้าสวนยางตอนกลางคืน หรือกดเปิดเอง)
+    s.add(this.camera);
+    this.camLight = new THREE.SpotLight('#fff1d8', 0, 110, 0.48, 0.6, 1.0);
+    this.camLight.position.set(0.4, -0.3, 0);
+    const camTarget = new THREE.Object3D(); camTarget.position.set(0, -3.5, -12);
+    this.camera.add(this.camLight, camTarget); this.camLight.target = camTarget;
+    this.camLightManual = false;
 
     // แสง & ท้องฟ้า
     this.skyDome = new SkyDome(); s.add(this.skyDome.mesh);
@@ -530,6 +537,7 @@ export class Farm3D {
     this.buildBBQ();
     this.buildSchool();
     this.buildSprinkler();
+    this.buildFarmLights();
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
@@ -1409,6 +1417,7 @@ export class Farm3D {
     const lightsOn = night > 0.25 || this.devices.lights || (cl > 0.85 && rn > 0.5 && night > 0.05);
     this.nightLights.forEach(n => (n.l.intensity = lightsOn ? n.max * Math.max(night, this.devices.lights ? 0.8 : 0) : 0));
     M.warm.emissiveIntensity = lightsOn ? 3 : 0.4;
+    if (M.lamp) { M.lamp.emissiveIntensity = lightsOn ? 4 : 0.2; M.grow.emissiveIntensity = lightsOn ? 3.2 : 0.15; }
     this.innerLight.intensity = lerp(2, 9, night);
     this.updateEnv(sunDir);
     bus.emit('time', h);
@@ -1424,6 +1433,41 @@ export class Farm3D {
       this.scene.environment = this.envRT.texture;
     }, 120);
   }
+
+  // ไฟกลางคืนที่คอกหมู เล้าไก่ และโรงเรือนผัก (เปิดพร้อมไฟบ้านอัตโนมัติ)
+  buildFarmLights() {
+    const s = this.scene;
+    M.lamp = new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#fff3d6', emissiveIntensity: 0.2 });
+    M.grow = new THREE.MeshStandardMaterial({ color: '#ff6be0', emissive: '#ff3fd0', emissiveIntensity: 0.15 });
+    const light = (x, y, z, color, max, dist) => {
+      const l = new THREE.PointLight(color, 0, dist, 1.4); l.position.set(x, y, z); s.add(l); this.nightLights.push({ l, max });
+    };
+    const bulb = (x, y, z, cord = 0.3) => {
+      cyl(0.01, 0.01, cord, M.frame, x, y + cord / 2 + 0.08, z, s, 4);
+      const b = sph(0.11, M.lamp, x, y, z, s, 10); b.castShadow = false;
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.14, 12, 1, true), M.frame); shade.position.set(x, y + 0.1, z); s.add(shade);
+    };
+    const pole = (x, z, h = 3.2) => {
+      cyl(0.06, 0.08, h, M.frame, x, h / 2, z, s, 6);
+      box(0.5, 0.05, 0.05, M.frame, x + 0.2, h, z, s);
+      bulb(x + 0.42, h - 0.15, z, 0.05);
+    };
+    // คอกหมู: หลอดไฟใต้หลังคา 2 ดวง
+    for (const x of [26.5, 33.5]) { bulb(x, 2.35, -2); light(x, 2.2, -2, '#ffd9a0', 9, 14); }
+    // เล้าไก่: ไฟเหนือประตูเล้า + เสาไฟมุมลาน
+    bulb(31.6, 2.05, 17.25, 0.05); light(31.6, 2.0, 17.6, '#ffe2b0', 6, 10);
+    pole(26.2, 21.2); light(26.6, 2.9, 21.2, '#fff1d6', 7, 15);
+    // โรงเรือนผัก: ไฟปลูกพืช LED สีชมพู-ม่วงเหนือโต๊ะ NFT + ไฟหน้าประตู
+    for (let t = 0; t < 5; t++) {
+      const x = -30.4 + t * 2.2;
+      const bar = box(0.12, 0.05, 14.5, M.grow, x, 2.15, 6, s); bar.castShadow = false;
+      for (const z of [-0.5, 12.5]) cyl(0.008, 0.008, 0.75, M.frame, x, 2.55, z, s, 4);
+    }
+    light(-26, 2.3, 2, '#ff5fd8', 7, 14); light(-26, 2.3, 10.5, '#ff5fd8', 7, 14);
+    pole(-23.5, 17.2, 2.9); light(-23.1, 2.6, 17.2, '#fff1d6', 6, 12);
+  }
+
+  setCamLight(on) { this.camLight.intensity = on ? 52 : 0; }
 
   setFog(on) { this.fogBase = on ? 0.0065 : 0.0012; this.setTime(this.hour); }
 

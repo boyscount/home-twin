@@ -137,6 +137,11 @@ document.getElementById('fogToggle').addEventListener('change', e => farm.setFog
 document.getElementById('labelToggle').addEventListener('change', e => farm.setLabels(e.target.checked));
 document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));
 document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
+const btnTorch = document.getElementById('btnTorch');
+btnTorch.addEventListener('click', () => {
+  farm.camLightManual = !farm.camLightManual; farm.setCamLight(farm.camLightManual);
+  btnTorch.classList.toggle('active', farm.camLightManual);
+});
 const btnClass = document.getElementById('btnClass');
 btnClass.addEventListener('click', () => (farm.school.active ? farm.endClass() : farm.startClass()));
 bus.on('class', c => { btnClass.textContent = c.on ? '📚 เลิกเรียน' : '📚 สอนภาษาอังกฤษ'; btnClass.classList.toggle('active', c.on); });

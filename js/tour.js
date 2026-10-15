@@ -107,8 +107,8 @@ export class Tour {
         ...this.orbit(V(30, 0.4, 18), 10, 4.5, -0.12) },
       { id: 'hydro', dur: 11, title: () => 'โรงเรือนผักไฮโดรโปนิกส์', sub: () => `ผักสลัด 600 ต้น · ปั๊มน้ำวน NFT ${f.devices.pump ? 'ทำงาน' : 'หยุด'}`,
         ...this.dolly(V(-24.9, 2.4, 19), V(-24.9, 2.0, 1), V(-25.5, 1, 9), V(-25.5, 1, -8), 11) },
-      { id: 'rubber', dur: 14, title: () => 'สวนยางพารา 400 ต้น', sub: () => '20 แถว · ระยะปลูก 3 × 7 เมตร · กรีดยางช่วงตี 2 – 6',
-        ...this.dolly(V(0, 5, -8), V(0, 7, -110), V(0, 4, -30), V(0, 4, -140), 14) },
+      { id: 'rubber', dur: 14, title: () => 'สวนยางพารา 400 ต้น', sub: () => '20 แถว · ระยะปลูก 3 × 7 เมตร · กรีดยางช่วงตี 2 – 6' + ((f.nightFactor || 0) > 0.3 ? ' · 🔦 ส่องไฟฉาย' : ''),
+        ...this.dolly(V(0, 3.2, -8), V(0, 2.6, -110), V(0, 2.2, -30), V(0, 2.4, -140), 14) }, // เดินลอดใต้ทรงพุ่ม ระหว่างแถวต้นยาง
     ];
   }
 
@@ -139,6 +139,7 @@ export class Tour {
   }
 
   stop() {
+    this.f.setCamLight(this.f.camLightManual);
     if (!this.active) return;
     this.active = false; this.idle = 0;
     this.view.classList.remove('tour-on');
@@ -184,6 +185,10 @@ export class Tour {
     if (this.t > this.shot.dur) this.next();
     const d = this.shot.cam(this.t, dt);
     if (!d) { this.next(); return; }
+    // กลางคืน: เปิดไฟฉายติดกล้องตอนเข้าไปในที่มืด (สวนยาง, โรงเรือน, ตามพ่อไปกรีดยาง)
+    const dark = (this.f.nightFactor || 0) > 0.3;
+    const deep = this.shot.id === 'rubber' || this.shot.id === 'hydro' || (this.shot.id === 'dad' && this.f.dad.h.group.position.z < -14);
+    this.f.setCamLight((dark && deep) || this.f.camLightManual);
     const k = 1 - Math.exp(-dt * (this.shot.lerp || 1.1));
     this.f.camera.position.lerp(d.pos, k);
     this.f.controls.target.lerp(d.target, k);
