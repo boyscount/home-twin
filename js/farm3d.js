@@ -216,7 +216,17 @@ function animateIdle(h, dt) {
       h.armR.rotation.x = -1.0 + k * 0.45; h.armL.rotation.x = -0.5;
       h.head.rotation.x = 0.15 + Math.max(0, k) * 0.15;
     }
-    h.head.rotation.y = Math.sin(h.phase * 0.35 + (h.eatOffset || 0)) * 0.6;
+    if (h.handUp > 0) { h.handUp -= dt; h.armR.rotation.x = -2.9; h.armR.rotation.z = 0.15; }
+    else if (!h.eating) { h.armR.rotation.x = -0.6; h.armL.rotation.x = -0.6; h.armR.rotation.z = 0; }
+    h.head.rotation.y = Math.sin(h.phase * 0.35 + (h.eatOffset || 0)) * (h.eating ? 0.6 : 0.2);
+    return;
+  }
+  if (h.teaching) { // ยืนสอน: เขียนกระดาน / ชี้ / หันมาคุยกับเด็ก
+    h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85;
+    h.group.position.y = h.baseY || 0;
+    if (h.writing) { h.armR.rotation.x = -1.9 + Math.sin(h.phase * 6) * 0.15; h.armR.rotation.z = Math.sin(h.phase * 3) * 0.2; }
+    else { h.armR.rotation.x = -0.9 + Math.sin(h.phase * 1.5) * 0.35; h.armR.rotation.z = 0; h.armL.rotation.x = -0.3; }
+    h.head.rotation.y = h.writing ? 0 : Math.sin(h.phase * 0.6) * 0.5;
     return;
   }
   h.head.rotation.x *= 0.9;
@@ -379,6 +389,7 @@ const CAMS = {
   chicken: { pos: [38, 5, 27], target: [30, 0.5, 18] },
   hydro: { pos: [-15, 7, 22], target: [-26, 0.5, 6] },
   rubber: { pos: [45, 30, -10], target: [0, 2, -80] },
+  school: { pos: [-17, 6, 36], target: [-25, 1, 25.5] },
 };
 
 export class Farm3D {
@@ -464,6 +475,7 @@ export class Farm3D {
     this.buildLabels();
     this.gen = 0;
     this.buildBBQ();
+    this.buildSchool();
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
     this.fogBase = 0.0065;
@@ -1108,6 +1120,7 @@ export class Farm3D {
     add('🥬 ผักไฮโดรโปนิกส์', -26, 4.2, 6, 'hydro');
     add('🌳 สวนยาง 400 ต้น', 0, 11, -40, 'rubber');
     add('🚗 โรงรถ', 14, 4, 5.5, 'house');
+    add('📚 ศาลาเรียน', -25, 5.6, 26, 'school');
     this.gateLabel = add('🚪 ประตูหน้า', 0, 2.6, 36, 'overview');
   }
 
@@ -1279,7 +1292,7 @@ export class Farm3D {
   // ---------------------------------------------------------------- API ให้เรดาร์
   getEntities() {
     return this.entities.map(e => ({
-      id: e.id, type: e.type, label: e.label, resident: !!e.resident, persona: e.persona || null,
+      id: e.id, type: e.type, label: e.label, resident: !!e.resident, student: !!e.student, persona: e.persona || null,
       x: e.obj.position.x, z: e.obj.position.z, heading: e.obj.rotation.y,
     }));
   }
@@ -1331,6 +1344,7 @@ export class Farm3D {
     this.updateDog(dt, t);
     this.sis.w.update(dt); this.kid.w.update(dt);
     this.updateBBQ(dt, t);
+    this.updateSchool(dt, t);
     this.updateTraffic(dt);
     this.updateCats(dt, t);
     this.updateBubbles(dt);
@@ -1531,6 +1545,7 @@ export class Farm3D {
 
   startBBQ(source = 'manual') {
     const b = this.bbq; if (b.active) return;
+    if (this.school.active) this.endClass();
     b.active = true; b.group.visible = true; b.timeLeft = source === 'auto' ? 300 : 180;
     b.light.intensity = 3;
     this.gen++; // หยุดกิจวัตรเดิมของทุกคน
@@ -1668,6 +1683,138 @@ export class Farm3D {
     this.vehicles = this.vehicles.filter(v => !v.dead);
   }
 
+  // ---------------------------------------------------------------- พี่สาวสอนหนังสือเด็ก ๆ ที่ศาลา
+  buildSchool() {
+    const c = new THREE.Vector3(-25, 0, 26);
+    const g = new THREE.Group(); g.position.copy(c); this.scene.add(g);
+    box(7, 0.5, 6, M.deck, 0, 0.25, 0, g);
+    for (let i = 0; i < 3; i++) box(1.6, 0.17, 0.35, M.wood, 0, 0.08 + i * 0.17, 3.35 - i * 0.3, g);
+    for (const [x, z] of [[-3.3, -2.8], [3.3, -2.8], [-3.3, 2.8], [3.3, 2.8], [0, -2.8], [0, 2.8]]) cyl(0.1, 0.12, 3, M.wood, x, 1.9, z, g, 8);
+    // หลังคาจั่วทรงไทย
+    const tri = new THREE.Shape([new THREE.Vector2(-4, 0), new THREE.Vector2(4, 0), new THREE.Vector2(0, 2.3)]);
+    const roofGeo = new THREE.ExtrudeGeometry(tri, { depth: 8.4, bevelEnabled: false }); roofGeo.translate(0, 0, -4.2);
+    const roof = new THREE.Mesh(roofGeo, M.roof); roof.rotation.y = Math.PI / 2; roof.position.y = 3.4; roof.castShadow = true; g.add(roof);
+    box(8.4, 0.12, 0.3, M.wallDark, 0, 3.4, 4, g); box(8.4, 0.12, 0.3, M.wallDark, 0, 3.4, -4, g);
+    // กระดานไวท์บอร์ด
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4 }));
+    board.position.set(0, 1.85, -2.45); g.add(board);
+    box(2.75, 1.45, 0.06, M.metal, 0, 1.85, -2.5, g);
+    for (const x of [-1.2, 1.2]) cyl(0.03, 0.03, 1.1, M.metal, x, 1.05, -2.5, g, 6);
+    // โต๊ะญี่ปุ่นเตี้ย 2 แถว + เก้าอี้เตี้ยของเด็ก
+    const seats = [];
+    const stoolM = ['#f39c12', '#16a085', '#e74c3c', '#2980b9'];
+    for (let row = 0; row < 2; row++) {
+      const z = 0 + row * 1.6;
+      box(5.2, 0.05, 0.5, M.wood, -0.2, 0.82, z - 0.55, g);
+      for (const x of [-2.6, 2.2]) box(0.06, 0.32, 0.4, M.wood, x, 0.66, z - 0.55, g);
+      for (let i = 0; i < 4; i++) {
+        const x = -2.1 + i * 1.25;
+        cyl(0.14, 0.16, 0.3, new THREE.MeshStandardMaterial({ color: stoolM[(i + row) % 4] }), x, 0.65, z, g, 10);
+        box(0.28, 0.02, 0.2, M.white, x, 0.86, z - 0.55, g); // สมุด
+        seats.push(c.clone().add(new THREE.Vector3(x, 0.5, z)));
+      }
+    }
+    this.school = {
+      group: g, center: c, seats, board: { cv, tex }, active: false, kids: [], timeLeft: 0, lastDay: null, phase: 0, lessonIdx: 0,
+      lessons: [
+        { name: 'ภาษาไทย', lines: ['ก  ข  ฃ  ค  ฅ  ฆ  ง', 'จ  ฉ  ช  ซ  ฌ  ญ', 'ก ไก่  ข ไข่ในเล้า'] },
+        { name: 'คณิตศาสตร์', lines: ['2 + 3 = 5', '7 − 4 = 3', '3 × 4 = 12'] },
+        { name: 'ภาษาอังกฤษ', lines: ['A  B  C  D  E', 'Apple  Ball  Cat', 'Pig  Fish  Chicken'] },
+        { name: 'วิทยาศาสตร์', lines: ['พืชต้องการอะไร?', 'น้ำ · แสงแดด · อากาศ', 'ผักไฮโดรโปนิกส์ไม่ใช้ดิน'] },
+      ],
+    };
+    this.school.lesson = this.school.lessons[0];
+    this.drawBoard(0);
+  }
+
+  drawBoard(progress) {
+    const { cv, tex } = this.school.board, ctx = cv.getContext('2d'), L = this.school.lesson;
+    ctx.fillStyle = '#fbfbf7'; ctx.fillRect(0, 0, 512, 256);
+    ctx.fillStyle = '#c0392b'; ctx.font = 'bold 30px "IBM Plex Sans Thai", sans-serif'; ctx.fillText(`วันนี้เรียน: ${L.name}`, 20, 44);
+    ctx.fillStyle = '#1f4fa8'; ctx.font = '34px "IBM Plex Sans Thai", sans-serif';
+    const n = Math.floor(progress * L.lines.length * 12);
+    L.lines.forEach((line, i) => { const shown = Math.max(0, Math.min(line.length, n - i * 12)); ctx.fillText(line.slice(0, shown), 28, 104 + i * 54); });
+    tex.needsUpdate = true;
+  }
+
+  startClass(source = 'manual') {
+    const sc = this.school; if (sc.active || this.bbq.active) return;
+    sc.active = true; sc.timeLeft = source === 'auto' ? 300 : 200; sc.phase = 0; sc.writeT = 0; sc.started = false;
+    sc.lesson = sc.lessons[sc.lessonIdx++ % sc.lessons.length];
+    this.drawBoard(0);
+    // พี่สาวเดินไปที่ศาลา
+    this.gen++;
+    const s = this.sis; s.w.locked = true; s.h.holding = false; s.task = 'ไปสอนหนังสือที่ศาลา';
+    s.w.go([[-18, 0, 27.5], [-25, 0, 30], [-25, 0.5, 28.4], [-25, 0.5, 23.9]], () => {
+      s.h.group.rotation.y = 0; s.h.teaching = true; s.task = `สอน${sc.lesson.name}`;
+    }, true);
+    // ลูกศิษย์ 8 คนเดินมาจากถนน (ชุดนักเรียนไทย เสื้อขาว กางเกง/กระโปรงกรมท่า)
+    const skins = ['#c68e62', '#d4a57c', '#b97a50', '#e0b48c'], bags = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#2ecc71', '#e67e22'];
+    sc.kids = [];
+    for (let i = 0; i < 8; i++) {
+      const girl = i % 2 === 1;
+      const h = makeHuman({ shirt: '#f6f6f2', pants: girl ? '#22305e' : '#1b2a4a', skin: skins[i % 4], longHair: girl });
+      box(0.26, 0.32, 0.12, new THREE.MeshStandardMaterial({ color: bags[i % bags.length] }), 0, 1.3, -0.22, h.group);
+      h.group.scale.setScalar(rand(0.58, 0.7));
+      h.group.position.set(-34 - i * 1.4, 0, 45.2 + (i % 2) * 0.6);
+      this.scene.add(h.group);
+      const w = new Walker(h, rand(1.25, 1.4));
+      const seat = sc.seats[i];
+      const kid = { h, w, seat, i, sitting: false };
+      w.go([[-2, 0, 45], [0, 0, 37], [-4, 0, 31], [-16, 0, 30.5], [-24.5 + (i % 3) * 0.4, 0, 30.2], [seat.x, 0.5, 28.6], [seat.x, 0.5, seat.z]], () => {
+        h.group.rotation.y = Math.PI; h.baseY = 0.5; h.sitting = true; kid.sitting = true;
+      });
+      const ent = { id: 'STU-' + (i + 1), type: 'human', label: 'นักเรียน', student: true, obj: h.group, h };
+      kid.ent = ent; this.entities.push(ent);
+      sc.kids.push(kid);
+    }
+    bus.emit('farm-event', `📚 นักเรียน 8 คนกำลังเดินมาเรียน${sc.lesson.name}กับพี่สาวที่ศาลา`);
+    bus.emit('class', { on: true, lesson: sc.lesson.name, kids: 8 });
+  }
+
+  endClass() {
+    const sc = this.school; if (!sc.active) return;
+    sc.active = false;
+    const s = this.sis; s.h.teaching = false; s.h.writing = false; s.w.locked = false; this.gen++;
+    s.task = 'เลิกสอน เดินกลับบ้าน';
+    const gen = this.gen;
+    s.w.go([[-25, 0.5, 28.4], [-25, 0, 30], [-18, 0, 27.5], [-3, 0, 11.5]], () => { s.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 20000); });
+    for (const k of sc.kids) {
+      k.h.sitting = false; k.h.handUp = 0;
+      k.w.wait = rand(0, 3);
+      k.w.go([[k.seat.x, 0.5, 28.6], [-25, 0, 30.4], [-16, 0, 30.8], [-4, 0, 31.5], [0, 0, 37], [-2, 0, 45.6], [-80, 0, 45.6]], () => {
+        this.scene.remove(k.h.group);
+        this.entities = this.entities.filter(e => e !== k.ent);
+        sc.kids = sc.kids.filter(x => x !== k);
+      });
+    }
+    bus.emit('farm-event', 'เลิกเรียนแล้ว เด็ก ๆ ไหว้ลาพี่สาวแล้วเดินกลับบ้าน');
+    bus.emit('class', { on: false });
+  }
+
+  updateSchool(dt, t) {
+    const sc = this.school;
+    sc.kids.forEach(k => k.w.update(dt));
+    // ตารางสอน: ทุกวัน 16:00–17:30 (เวลาในฉาก) หลังเลิกเรียนที่โรงเรียน
+    const day = new Date().toDateString();
+    if (!sc.active && !this.bbq.active && this.hour >= 16 && this.hour < 17.5 && sc.lastDay !== day) { sc.lastDay = day; this.startClass('auto'); }
+    if (!sc.active) return;
+    const seated = sc.kids.filter(k => k.sitting).length;
+    if (!sc.started && seated >= sc.kids.length) { sc.started = true; bus.emit('farm-event', `นักเรียนมาครบ ${seated} คน เริ่มเรียน${sc.lesson.name}`); }
+    if (sc.started) {
+      sc.timeLeft -= dt;
+      // สลับ เขียนกระดาน 5 วิ ↔ หันมาอธิบาย 6 วิ
+      sc.phase += dt;
+      const s = this.sis.h, writing = sc.phase % 11 < 5 && this.sis.h.teaching;
+      if (s.teaching) { s.writing = writing; s.group.rotation.y = lerp(s.group.rotation.y, writing ? Math.PI : 0, 0.08); }
+      if (writing) { sc.writeT += dt; this.drawBoardThrottle = (this.drawBoardThrottle || 0) - dt; if (this.drawBoardThrottle < 0) { this.drawBoardThrottle = 0.25; this.drawBoard(Math.min(1, sc.writeT / 30)); } }
+      if (!writing && Math.random() < dt * 0.6) { const k = sc.kids[Math.floor(Math.random() * sc.kids.length)]; if (k?.sitting) k.h.handUp = rand(1.5, 3); }
+    }
+    if (sc.timeLeft <= 0 || this.hour >= 18) this.endClass();
+  }
+
   updateCats(dt, t) {
     const onDeck = (x, z) => x > -10 && x < 2.4 && z > 5 && z < 8.9;
     for (const c of this.cats) {
@@ -1734,6 +1881,7 @@ export class Farm3D {
       <div class="st"><span>คนในพื้นที่</span><b>${people.length} คน</b></div>
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
       ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
+      ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>${this.school.lesson.name} · ${this.school.kids.length} คน</b></div>` : ''}
       <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
       <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>

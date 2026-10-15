@@ -38,6 +38,7 @@ export class Radar {
     setTimeout(() => this.renderFamily(), 6000);
     canvas.addEventListener('click', () => { this.range = this.range === 60 ? 120 : this.range === 120 ? 30 : 60; });
     bus.on('farm-event', msg => this.log(msg));
+    bus.on('class', c => { if (c.on && this.tg.ready) this.tg.sendText(`📚 นักเรียน ${c.kids} คนกำลังมาเรียน${c.lesson}กับพี่สาวที่ศาลา`).catch(() => {}); });
     this.strikes = [];
     bus.on('lightning', e => {
       this.strikes.push({ ...e, t: performance.now() });
@@ -322,7 +323,7 @@ export class Radar {
       if (e.type !== 'human') continue;
       present.add(e.id);
       let t = this.tracked.get(e.id);
-      if (!t) { t = { id: e.id, status: e.resident ? 'resident' : 'outside', personaId: e.persona?.id }; this.tracked.set(e.id, t); }
+      if (!t) { t = { id: e.id, status: e.resident ? 'resident' : e.student ? 'student' : 'outside', personaId: e.persona?.id }; this.tracked.set(e.id, t); }
       if (t.status === 'outside' && this.inside(e)) {
         const k = this.known.find(k => k.id === t.personaId);
         const tag = 'n' + Date.now() + Math.random().toString(16).slice(2, 6);
@@ -386,7 +387,7 @@ export class Radar {
       .slice(0, 24)
       .map(e => {
         const t = this.tracked.get(e.id);
-        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label})` : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
+        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label})` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
         const cls = e.type === 'human' ? (t?.status === 'threat' || t?.status === 'pending' ? 'target alert' : 'target human') : 'target';
         return `<div class="${cls}"><span>${e.id}</span><span>${e.type === 'human' ? '🧍 ' + st : e.type === 'vehicle' ? '🚗 ' + e.label : e.label}</span><span>${dist(e).toFixed(0)}m ${bearing(e).toFixed(0).padStart(3, '0')}°</span></div>`;
       });
@@ -480,7 +481,7 @@ export class Radar {
         c.fillStyle = col; c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill();
         if (bad) { const pr = 8 + ((now / 60) % 16); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 8) / 16})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
         c.fillStyle = col;
-        const lbl = t?.status === 'resident' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
+        const lbl = t?.status === 'resident' || t?.status === 'student' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
         c.fillText(lbl, x + 9, y - 8);
       } else if (bl.type === 'vehicle') {
         c.fillStyle = `rgba(255,170,60,${alpha})`; c.fillRect(x - 5, y - 3, 10, 6);

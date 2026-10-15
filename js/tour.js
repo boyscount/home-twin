@@ -79,6 +79,9 @@ export class Tour {
       { id: 'bbq', dur: 13, when: () => f.bbq.active, title: () => '🍖 หมูกะทะหน้าบ้าน',
         sub: () => { const n = f.cats.filter(c => c.group.position.distanceTo(f.bbq.center) < 3).length; return `พ่อ แม่ พี่สาว น้องสาว ล้อมวงกินหมูกะทะ${n ? ` · แมว ${n} ตัวมานั่งรอขอกิน` : ''}`; },
         ...this.orbit(V(2, 0.9, 15.5), 4.4, 2.5, 0.1) },
+      { id: 'class', dur: 13, when: () => f.school.active, title: () => '📚 พี่สาวสอนหนังสือ',
+        sub: () => { const sc = f.school, n = sc.kids.filter(k => k.sitting).length; return n < sc.kids.length ? `นักเรียนกำลังเดินมา (${n}/${sc.kids.length} คนนั่งแล้ว)` : `วิชา${sc.lesson.name} · นักเรียน ${n} คน${sc.kids.some(k => k.h.handUp > 0) ? ' · มีคนยกมือถาม' : ''}`; },
+        ...this.orbit(V(-25, 1.2, 25.6), 7, 3.6, 0.08) },
       { id: 'road', dur: 9, lerp: 5, when: () => !!this.pickCar(), // รถวิ่งเร็ว → กล้องต้องตามไวกว่าช็อตอื่น
         init: () => { this.car = this.pickCar(); },
         title: () => 'ถนนหน้าบ้าน', sub: () => `${this.car?.label || 'รถ'} กำลังขับผ่าน · วันนี้มีรถผ่านหน้าบ้านแล้ว ${f.carsToday} คัน`,
@@ -170,6 +173,8 @@ export class Tour {
     // เริ่มตั้งวงหมูกะทะ → ไปดูก่อนเลย
     if (this.f.bbq.active && !this.bbqShown && this.shot?.id !== 'visitor') { this.bbqShown = true; const k = this.shots.findIndex(x => x.id === 'bbq'); this.i = k - 1; this.next(); }
     if (!this.f.bbq.active) this.bbqShown = false;
+    if (this.f.school.active && !this.classShown && this.shot?.id !== 'visitor') { this.classShown = true; const k = this.shots.findIndex(x => x.id === 'class'); this.i = k - 1; this.next(); }
+    if (!this.f.school.active) this.classShown = false;
 
     this.t += dt;
     if (this.t > this.shot.dur) this.next();

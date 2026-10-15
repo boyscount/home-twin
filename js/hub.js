@@ -58,6 +58,7 @@ export class Hub {
     bus.on('alert', () => { this.security.alerts++; this.renderSecurity(); });
     bus.on('radar-known', () => { this.security.known++; this.renderSecurity(); });
     bus.on('vehicle-pass', v => { this.security.cars = v.total; this.renderSecurity(); });
+    bus.on('class', c => this.log(c.on ? `📚 พี่สาวเริ่มสอน${c.lesson} นักเรียน ${c.kids} คน` : 'เลิกเรียนที่ศาลา'));
     bus.on('bbq', on => this.log(on ? '🍖 ครอบครัวตั้งวงหมูกะทะหน้าบ้าน (เปิดไฟระย้า)' : 'เก็บวงหมูกะทะแล้ว'));
     bus.on('eggs-collected', n => { this.vals['chicken/eggs'] = Math.min(METRICS['chicken/eggs'][4], this.vals['chicken/eggs'] + n); this.render(); });
     bus.on('farm-event', msg => { if (msg.includes('เทอาหาร')) { this.vals['pig/feed'] = Math.max(0, this.vals['pig/feed'] - 6); this.render(); } });
