@@ -205,7 +205,7 @@ export class Radar {
     t.status = 'known'; t.name = name;
     if (res) res.innerHTML = `<span style="color:#1f9d55">✓ ${escapeHtml(by)} บันทึกเป็น “${escapeHtml(name)}” — ครั้งหน้าไม่ต้องถามอีก</span>`;
     this.log(`${by} ยืนยันว่ารู้จัก: ${name}`);
-    bus.emit('radar-known', { name });
+    bus.emit('radar-known', { name, id: t.id });
     this.tg.resolve(t.tag, `✅ ${by} ยืนยัน: รู้จัก — “${name}” (ครั้งหน้าระบบจะจำได้)`);
   }
 
@@ -346,7 +346,7 @@ export class Radar {
         bus.emit('alert', { id: e.id });
         const img = await this.capture(e);
         t.img = img;
-        bus.emit('alert-photo', { img, desc: e.persona?.desc, id: e.id });
+        bus.emit('alert-photo', { img, desc: e.persona?.desc, id: e.id, tag });
         this.log('ส่งภาพใบหน้าไปที่มือถือแล้ว · รอเจ้าของยืนยัน');
         this.phoneNotify({ tag, title: '⚠ ตรวจพบบุคคลที่หน้าบ้าน', body: `ระยะ ${dist(e).toFixed(1)} ม. · ${bearingName(bearing(e))} · คุณรู้จักคนนี้ไหม?`, img, ask: true });
         this.pushSystemNotification('⚠ ตรวจพบบุคคลที่หน้าบ้าน', 'คุณรู้จักคนนี้ไหม? แตะเพื่อตอบ', img, tag, true);

@@ -120,6 +120,20 @@
         <button type="button" data-zoom="auto" id="btnAutoRot" title="หมุนรอบอัตโนมัติช้า ๆ">🔄</button>
       </div>
       <button class="sim-fab" id="simFab" type="button">🎮 จำลอง</button>
+      <div class="alert-card" id="alertCard" hidden>
+        <img id="alertImg" alt="ภาพใบหน้าที่ถ่ายได้">
+        <div class="ac-body">
+          <div class="ac-title" id="alertTitle">⚠ คนแปลกหน้าที่หน้าบ้าน</div>
+          <div class="ac-sub" id="alertSub"></div>
+          <div class="ac-thumbs" id="alertThumbs" hidden></div>
+          <div class="ac-actions">
+            <button type="button" class="ac-radar" id="acRadar">📡 ไปแท็บเรดาร์</button>
+            <button type="button" class="ac-ok" id="acKnown">✅ รู้จัก</button>
+            <button type="button" class="ac-bad" id="acUnknown">🚨 ไม่รู้จัก</button>
+          </div>
+        </div>
+        <button type="button" class="ac-close" id="acClose" aria-label="ปิด">✕</button>
+      </div>
       <div class="sim-sheet" id="simSheet" hidden>
         <div class="sim-panel" role="dialog" aria-label="เมนูจำลองเหตุการณ์">
           <div class="sim-head">

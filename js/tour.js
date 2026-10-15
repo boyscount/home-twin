@@ -141,6 +141,14 @@ export class Tour {
     return { cam: fo.cam, init2: fo.init };
   }
 
+  // คนแปลกหน้าเข้ามา: ให้กล้องหันไปตามคนนั้นทันที (แม้ยังไม่ได้เปิดกล้องเล่าเรื่อง)
+  focusVisitor(id) {
+    const v = this.f.visitors.find(x => x.ent.id === id); if (!v) return;
+    if (!this.active) this.start();
+    this.seen.add(v);
+    this.next(this.visitorShot(v));
+  }
+
   // เลือกคันที่กำลังวิ่งเข้าหาหน้าบ้าน (ยังไม่ผ่าน และอยู่ไม่ไกลเกิน)
   pickCar() { return this.f.vehicles.find(v => !v.dead && v.dir * v.g.position.x < -30 && v.dir * v.g.position.x > -120); }
 

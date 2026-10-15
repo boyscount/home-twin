@@ -29,6 +29,7 @@ function showTab(name) {
   radar.setVisible(name === 'radar');
   try { localStorage.setItem('tab', name); } catch {}
   if (name === 'radar') document.getElementById('radarBadge').hidden = true;
+  bus.emit('tab-shown', name);
 }
 tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
 let startTab = 'farm';
@@ -181,6 +182,7 @@ document.querySelector('[data-tab=radar]').addEventListener('click', () => setTi
 
 // badge บนแท็บเรดาร์เมื่อมีคนแปลกหน้าแต่ผู้ใช้อยู่แท็บอื่น
 let unseen = 0;
+const kioskOn = () => document.body.classList.contains('kiosk');
 // แตะแจ้งเตือน → ไปแท็บเรดาร์และล็อกเป้าหมายที่คนนั้นให้เลย
 function openRadarFor(id) {
   tour.stop();
@@ -189,9 +191,52 @@ function openRadarFor(id) {
   unseen = 0; document.getElementById('radarBadge').hidden = true;
 }
 bus.on('open-radar', e => openRadarFor(e?.id));
+
+// การ์ดแจ้งเตือนในแท็บ 3D: กล้องตามคนแปลกหน้าให้เห็นตัว + ปุ่มไปแท็บเรดาร์ / ตอบรู้จัก-ไม่รู้จัก
+// มาหลายคนพร้อมกัน → เก็บเป็นคิว โชว์จำนวนคน + รูปย่อให้แตะสลับ ตอบทีละคน คนถัดไปขึ้นมาเอง
+const card = document.getElementById('alertCard');
+let queue = [], cur = 0, cardTimer;
+const curAlert = () => queue[cur];
+function renderCard(focus = true) {
+  queue = queue.filter(a => farm.visitors.some(v => v.ent.id === a.id)); // คนที่เดินออกไปแล้วไม่ต้องถาม
+  if (!queue.length) { card.hidden = true; clearTimeout(cardTimer); return; }
+  cur = Math.min(cur, queue.length - 1);
+  const a = curAlert();
+  document.getElementById('alertImg').src = a.img;
+  document.getElementById('alertTitle').textContent = queue.length > 1 ? `⚠ คนแปลกหน้า ${queue.length} คนที่หน้าบ้าน` : '⚠ คนแปลกหน้าที่หน้าบ้าน';
+  document.getElementById('alertSub').textContent = (queue.length > 1 ? `คนที่ ${cur + 1}/${queue.length}: ` : '') + (a.desc ? a.desc + ' · ' : '') + 'ส่งรูปเข้ามือถือแล้ว — รู้จักคนนี้ไหม?';
+  const th = document.getElementById('alertThumbs');
+  th.hidden = queue.length < 2;
+  th.innerHTML = '';
+  queue.forEach((q, k) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = k === cur ? 'on' : '';
+    b.innerHTML = `<img src="${q.img}" alt="คนที่ ${k + 1}">`; b.title = q.desc || `คนที่ ${k + 1}`;
+    b.onclick = () => { cur = k; renderCard(); };
+    th.appendChild(b);
+  });
+  card.hidden = false;
+  if (focus) tour.focusVisitor(a.id);
+}
+function dropAlert(id) { const k = queue.findIndex(a => a.id === id); if (k < 0) return; queue.splice(k, 1); if (cur > k) cur--; renderCard(); }
+function clearCard() { queue = []; renderCard(); }
+bus.on('alert-photo', a => {
+  if (document.querySelector('.tab.active').dataset.tab !== 'farm' || kioskOn()) return;
+  queue = queue.filter(q => q.id !== a.id); queue.push(a);
+  if (card.hidden) cur = queue.length - 1; // ถ้ากำลังดูคนแรกอยู่ ไม่ตัดกล้องหนี แค่เพิ่มรูปย่อ
+  renderCard(card.hidden || queue.length === 1);
+  clearTimeout(cardTimer); cardTimer = setTimeout(clearCard, 60000);
+});
+document.getElementById('acRadar').addEventListener('click', () => { const id = curAlert()?.id; card.hidden = true; openRadarFor(id); });
+document.getElementById('acKnown').addEventListener('click', () => { const a = curAlert(); if (!a) return; dropAlert(a.id); card.hidden = true; openRadarFor(a.id); setTimeout(() => radar.respond(a.tag, true), 150); });
+document.getElementById('acUnknown').addEventListener('click', () => { const a = curAlert(); if (!a) return; dropAlert(a.id); radar.respond(a.tag, false); });
+document.getElementById('acClose').addEventListener('click', clearCard);
+bus.on('radar-known', e => dropAlert(e.id));
+bus.on('radar-threat', e => dropAlert(e.id));
+bus.on('tab-shown', n => { if (n === 'farm') renderCard(false); }); // กลับมาแท็บ 3D แล้วยังมีคนรอตอบ → การ์ดขึ้นอีก
 bus.on('alert', e => {
   if (document.querySelector('.tab.active').dataset.tab === 'radar') { if (e?.id && radar.blips.has(e.id)) radar.selected = e.id; return; }
   const b = document.getElementById('radarBadge'); unseen++; b.textContent = unseen; b.hidden = false;
+  if (document.querySelector('.tab.active').dataset.tab === 'farm' && !kioskOn()) return; // แท็บ 3D ใช้การ์ดแจ้งเตือนแทน
   toast('⚠ ตรวจพบคนแปลกหน้าที่หน้าบ้าน — แตะเพื่อดูเรดาร์', 10000, () => openRadarFor(e?.id));
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
