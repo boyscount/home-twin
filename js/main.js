@@ -128,6 +128,10 @@ document.getElementById('fogToggle').addEventListener('change', e => farm.setFog
 document.getElementById('labelToggle').addEventListener('change', e => farm.setLabels(e.target.checked));
 document.getElementById('btnFeed').addEventListener('click', () => bus.emit('cmd', { device: 'pig-feeder', action: 'feed', source: '3D' }));
 document.getElementById('btnVisitor').addEventListener('click', () => farm.spawnVisitor());
+const btnBBQ = document.getElementById('btnBBQ');
+btnBBQ.addEventListener('click', () => (farm.bbq.active ? farm.endBBQ() : farm.startBBQ()));
+bus.on('bbq', on => { btnBBQ.textContent = on ? '🍖 เก็บวงหมูกะทะ' : '🍖 กินหมูกะทะ'; btnBBQ.classList.toggle('active', on); });
+document.getElementById('btnCar').addEventListener('click', () => { farm.spawnVehicle(); const v = farm.vehicles.at(-1); v.g.position.x = -v.dir * 90; });
 
 // ---------- กล้องเล่าเรื่อง ----------
 const btnTour = document.getElementById('btnTour');

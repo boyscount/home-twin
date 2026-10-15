@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { bus, store } from './bus.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
-const IDLE_SECONDS = 20;
+const IDLE_SECONDS = 30;
 
 export class Tour {
   constructor(farm) {
@@ -76,6 +76,13 @@ export class Tour {
     return [
       { id: 'intro', dur: 11, title: () => 'บ้านสวนของเรา', sub: () => `${hh()} · ${wx()} · ครอบครัว 4 คน กับสัตว์เลี้ยงอีกเต็มบ้าน`,
         ...this.orbit(V(2, 0, 2), 78, 40, 0.05) },
+      { id: 'bbq', dur: 13, when: () => f.bbq.active, title: () => '🍖 หมูกะทะหน้าบ้าน',
+        sub: () => { const n = f.cats.filter(c => c.group.position.distanceTo(f.bbq.center) < 3).length; return `พ่อ แม่ พี่สาว น้องสาว ล้อมวงกินหมูกะทะ${n ? ` · แมว ${n} ตัวมานั่งรอขอกิน` : ''}`; },
+        ...this.orbit(V(2, 0.9, 15.5), 4.4, 2.5, 0.1) },
+      { id: 'road', dur: 9, lerp: 5, when: () => !!this.pickCar(), // รถวิ่งเร็ว → กล้องต้องตามไวกว่าช็อตอื่น
+        init: () => { this.car = this.pickCar(); },
+        title: () => 'ถนนหน้าบ้าน', sub: () => `${this.car?.label || 'รถ'} กำลังขับผ่าน · วันนี้มีรถผ่านหน้าบ้านแล้ว ${f.carsToday} คัน`,
+        ...this.wrapFollow(() => (this.car && !this.car.dead ? this.car.g : null), 9, 3.2, 1.1, 1) },
       { id: 'house', dur: 11, title: () => 'บ้าน', sub: () => 'แม่อยู่ในบ้าน · ระเบียงไม้หน้าบ้านมีแมวชอบมานอน',
         ...this.dolly(V(-16, 3.2, 21), V(9, 3.6, 19), V(-6, 1.6, 4), V(-1, 1.6, 2), 11) },
       { id: 'dad', dur: 13, title: () => 'พ่อ', sub: () => f.fatherState, ...this.follow(() => f.dad.h.group, 6.5, 2.6, 0.9, 1.3) },
@@ -102,6 +109,9 @@ export class Tour {
     const fo = this.follow(getObj, dist, height, angle, lookUp);
     return { cam: fo.cam, init2: fo.init };
   }
+
+  // เลือกคันที่กำลังวิ่งเข้าหาหน้าบ้าน (ยังไม่ผ่าน และอยู่ไม่ไกลเกิน)
+  pickCar() { return this.f.vehicles.find(v => !v.dead && v.dir * v.g.position.x < -30 && v.dir * v.g.position.x > -120); }
 
   visitorShot(v) {
     return {
@@ -136,7 +146,12 @@ export class Tour {
 
   next(shot) {
     if (shot) this.shot = shot;
-    else { this.i = (this.i + 1) % this.shots.length; this.shot = this.shots[this.i]; }
+    else {
+      for (let n = 0; n < this.shots.length; n++) { // ข้ามช็อตที่ยังไม่มีเหตุการณ์ (เช่น ยังไม่มีรถผ่าน)
+        this.i = (this.i + 1) % this.shots.length; this.shot = this.shots[this.i];
+        if (!this.shot.when || this.shot.when()) break;
+      }
+    }
     this.t = 0;
     this.shot.init?.(); this.shot.init2?.();
     this.titleEl.textContent = this.shot.title();
@@ -152,12 +167,15 @@ export class Tour {
     // คนแปลกหน้าเข้ามา → ตัดไปดูทันที (ครั้งเดียวต่อคน)
     const v = this.f.visitors.find(v => v.h.group.position.z < 40 && !this.seen.has(v));
     if (v && this.shot?.id !== 'visitor') { this.seen.add(v); this.i = Math.max(-1, this.i - 1); this.next(this.visitorShot(v)); }
+    // เริ่มตั้งวงหมูกะทะ → ไปดูก่อนเลย
+    if (this.f.bbq.active && !this.bbqShown && this.shot?.id !== 'visitor') { this.bbqShown = true; const k = this.shots.findIndex(x => x.id === 'bbq'); this.i = k - 1; this.next(); }
+    if (!this.f.bbq.active) this.bbqShown = false;
 
     this.t += dt;
     if (this.t > this.shot.dur) this.next();
     const d = this.shot.cam(this.t, dt);
     if (!d) { this.next(); return; }
-    const k = 1 - Math.exp(-dt * 1.1);
+    const k = 1 - Math.exp(-dt * (this.shot.lerp || 1.1));
     this.f.camera.position.lerp(d.pos, k);
     this.f.controls.target.lerp(d.target, k);
 

@@ -388,7 +388,7 @@ export class Radar {
         const t = this.tracked.get(e.id);
         const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label})` : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
         const cls = e.type === 'human' ? (t?.status === 'threat' || t?.status === 'pending' ? 'target alert' : 'target human') : 'target';
-        return `<div class="${cls}"><span>${e.id}</span><span>${e.type === 'human' ? '🧍 ' + st : e.label}</span><span>${dist(e).toFixed(0)}m ${bearing(e).toFixed(0).padStart(3, '0')}°</span></div>`;
+        return `<div class="${cls}"><span>${e.id}</span><span>${e.type === 'human' ? '🧍 ' + st : e.type === 'vehicle' ? '🚗 ' + e.label : e.label}</span><span>${dist(e).toFixed(0)}m ${bearing(e).toFixed(0).padStart(3, '0')}°</span></div>`;
       });
     this.listEl.innerHTML = rows.join('') || '<div class="hud-dim">ไม่มีเป้าหมายในระยะ</div>';
   }
@@ -482,6 +482,9 @@ export class Radar {
         c.fillStyle = col;
         const lbl = t?.status === 'resident' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
         c.fillText(lbl, x + 9, y - 8);
+      } else if (bl.type === 'vehicle') {
+        c.fillStyle = `rgba(255,170,60,${alpha})`; c.fillRect(x - 5, y - 3, 10, 6);
+        c.fillText(bl.label, x + 8, y - 6);
       } else {
         c.fillStyle = `rgba(57,255,106,${alpha * 0.85})`; c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill();
       }

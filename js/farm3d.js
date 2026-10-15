@@ -208,6 +208,18 @@ function animateWalk(h, dt, speed) {
 }
 function animateIdle(h, dt) {
   h.phase += dt;
+  if (h.sitting) { // นั่งเก้าอี้ (ตอนกินหมูกะทะ)
+    h.legL.rotation.x = h.legR.rotation.x = -1.45;
+    h.group.position.y = (h.baseY || 0) - 0.47 * h.group.scale.y;
+    if (h.eating) {
+      const k = Math.sin(h.phase * 1.6 + (h.eatOffset || 0));
+      h.armR.rotation.x = -1.0 + k * 0.45; h.armL.rotation.x = -0.5;
+      h.head.rotation.x = 0.15 + Math.max(0, k) * 0.15;
+    }
+    h.head.rotation.y = Math.sin(h.phase * 0.35 + (h.eatOffset || 0)) * 0.6;
+    return;
+  }
+  h.head.rotation.x *= 0.9;
   h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85;
   if (!h.holding) { h.armL.rotation.x *= 0.85; h.armR.rotation.x *= 0.85; }
   h.group.position.y = h.baseY || 0;
@@ -217,7 +229,11 @@ function animateIdle(h, dt) {
 // เดินตามจุด waypoint
 class Walker {
   constructor(h, speed = 1.3) { this.h = h; this.speed = speed; this.path = []; this.cb = null; this.wait = 0; }
-  go(points, cb) { this.path = points.map(p => new THREE.Vector3(p[0], p[1] || 0, p[2])); this.cb = cb; }
+  // locked = ช่วงกิจกรรมพิเศษ (เช่น กินหมูกะทะ) — คำสั่งจากกิจวัตรปกติจะถูกเมิน ยกเว้น force
+  go(points, cb, force = false) {
+    if (this.locked && !force) return;
+    this.path = points.map(p => new THREE.Vector3(p[0], p[1] || 0, p[2])); this.cb = cb;
+  }
   get moving() { return this.path.length > 0; }
   update(dt) {
     const g = this.h.group;
@@ -446,6 +462,9 @@ export class Farm3D {
     this.buildBackdrop();
     this.buildCharacters();
     this.buildLabels();
+    this.gen = 0;
+    this.buildBBQ();
+    this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
     this.fogBase = 0.0065;
     this.wx = new WeatherFX(this);
@@ -648,6 +667,10 @@ export class Farm3D {
     }
     const hl = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff', emissiveIntensity: 0.3 });
     box(0.35, 0.12, 0.05, hl, -0.6, 0.8, 2.31, g); box(0.35, 0.12, 0.05, hl, 0.6, 0.8, 2.31, g);
+    const tl = new THREE.MeshStandardMaterial({ color: '#a11', emissive: '#f22', emissiveIntensity: 0.4 });
+    box(0.3, 0.1, 0.05, tl, -0.65, 0.85, -2.31, g); box(0.3, 0.1, 0.05, tl, 0.65, 0.85, -2.31, g);
+    g.userData = { hl, tl };
+    return g;
   }
 
   buildFenceAndGarden() {
@@ -1008,7 +1031,8 @@ export class Farm3D {
     setTimeout(() => this.feedPigs('auto'), 4000);
   }
 
-  sisLoop() {
+  sisLoop(gen = this.gen) {
+    if (gen !== this.gen) return;
     const s = this.sis, h = s.h;
     const tend = (cb) => {
       h.holding = true; h.armL.rotation.x = -0.9; h.armR.rotation.x = -0.9; h.head.rotation.x = 0.4; s.w.wait = 3;
@@ -1027,7 +1051,7 @@ export class Farm3D {
             s.task = 'เดินกลับบ้าน';
             s.w.go([[26.3, 0, 18], [24, 0, 12.6], [6, 0, 12.6], [-3, 0, 11.5]], () => {
               s.task = 'พักหน้าบ้าน'; h.group.rotation.y = 0; s.w.wait = 1;
-              setTimeout(() => this.sisLoop(), rand(40, 70) * 1000);
+              setTimeout(() => this.sisLoop(gen), rand(40, 70) * 1000);
             });
           });
         });
@@ -1035,9 +1059,10 @@ export class Farm3D {
     });
   }
 
-  kidLoop() {
+  kidLoop(gen = this.gen) {
+    if (gen !== this.gen) return;
     const k = this.kid, h = k.h;
-    const next = () => setTimeout(() => this.kidLoop(), rand(1, 4) * 1000);
+    const next = () => setTimeout(() => this.kidLoop(gen), rand(1, 4) * 1000);
     if (Math.random() < 0.35) {
       k.task = 'ไปให้อาหารปลา';
       k.w.go([[4, 0, 18], [8.7, 0, 22]], () => {
@@ -1059,8 +1084,10 @@ export class Farm3D {
   }
 
   momLoop() {
+    const gen = this.gen;
     const spots = [[-5.5, 0.65, -3.6], [-1.5, 0.65, -0.6], [1.5, 0.65, 3.8], [-4.2, 0.65, 0.6], [3, 0.65, -3.6]];
     const go = () => {
+      if (gen !== this.gen) return;
       const p = spots[Math.floor(Math.random() * spots.length)];
       this.mom.w.go([[p[0] - 2, p[1], p[2]]], () => { this.mom.w.wait = rand(3, 8); setTimeout(go, 100); });
     };
@@ -1303,6 +1330,8 @@ export class Farm3D {
     this.updateFish(dt, t);
     this.updateDog(dt, t);
     this.sis.w.update(dt); this.kid.w.update(dt);
+    this.updateBBQ(dt, t);
+    this.updateTraffic(dt);
     this.updateCats(dt, t);
     this.updateBubbles(dt);
     this.fan.rotation.y += dt * 6;
@@ -1430,6 +1459,7 @@ export class Farm3D {
     const d = this.dog, g = d.group;
     // ถ้ามีผู้มาเยือนเข้าเขตบ้าน หมาจะวิ่งไปหา
     const v = this.visitors.find(v => v.h.group.position.z < 36);
+    if (!v && this.bbq.active && d.wait <= 0) { d.target = this.bbq.center.clone().add(new THREE.Vector3(rand(-1.6, 1.6), 0, rand(1.2, 1.8))); d.wait = rand(6, 12); }
     if (v) d.target = v.h.group.position.clone().add(new THREE.Vector3(1.2, 0, 1.2));
     d.wait -= dt;
     if (!v && d.wait <= 0 && (!d.target || g.position.distanceTo(d.target) < 0.3)) {
@@ -1449,6 +1479,195 @@ export class Farm3D {
     d.tail.rotation.z = Math.sin(t * (v ? 18 : 6)) * 0.5;
   }
 
+  // ---------------------------------------------------------------- หมูกะทะหน้าบ้าน
+  buildBBQ() {
+    const center = new THREE.Vector3(2, 0, 15.5);
+    const g = new THREE.Group(); g.position.copy(center); g.visible = false; this.scene.add(g);
+    const steel = new THREE.MeshStandardMaterial({ color: '#c9ccd0', metalness: 0.8, roughness: 0.35 });
+    box(1.7, 0.04, 1.0, steel, 0, 0.72, 0, g);
+    for (const [x, z] of [[-0.8, -0.45], [0.8, -0.45], [-0.8, 0.45], [0.8, 0.45]]) cyl(0.025, 0.025, 0.7, steel, x, 0.35, z, g, 6);
+    const seats = [[-1.05, 0], [1.05, 0], [0, -0.8], [0, 0.8]];
+    const stoolCols = ['#d63b3b', '#2f6fd6', '#d63b3b', '#2f6fd6'];
+    seats.forEach(([x, z], i) => cyl(0.17, 0.2, 0.45, new THREE.MeshStandardMaterial({ color: stoolCols[i], roughness: 0.6 }), x, 0.225, z, g, 12));
+    // เตาถ่าน + กระทะหมูกะทะ (โดมย่างตรงกลาง ขอบรอบเป็นน้ำซุป)
+    cyl(0.2, 0.15, 0.24, new THREE.MeshStandardMaterial({ color: '#9c5a3c', roughness: 1 }), 0, 0.86, 0, g, 16);
+    const coal = new THREE.MeshStandardMaterial({ color: '#ff6a1a', emissive: '#ff4a0a', emissiveIntensity: 2 });
+    cyl(0.17, 0.17, 0.02, coal, 0, 0.985, 0, g, 16);
+    const pan = new THREE.MeshStandardMaterial({ color: '#2b2b2b', metalness: 0.6, roughness: 0.4 });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), pan); dome.position.y = 0.98; g.add(dome);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.045, 8, 24), pan); rim.rotation.x = Math.PI / 2; rim.position.y = 1.0; g.add(rim);
+    const soup = new THREE.Mesh(new THREE.RingGeometry(0.19, 0.28, 24), new THREE.MeshStandardMaterial({ color: '#c98b4a', roughness: 0.2 })); soup.rotation.x = -Math.PI / 2; soup.position.y = 1.02; g.add(soup);
+    const meat = [];
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2, r = i % 3 === 0 ? 0.05 : 0.12;
+      const m = box(0.08, 0.015, 0.05, new THREE.MeshStandardMaterial({ color: '#e89a9a', roughness: 0.7 }), Math.cos(a) * r, 1.13 - r * 0.6, Math.sin(a) * r, g);
+      m.rotation.set(rand(-0.4, 0.4), a, rand(-0.4, 0.4)); m.castShadow = false;
+      meat.push({ m, t: Math.random() });
+    }
+    // จานผัก จานหมู น้ำจิ้ม น้ำแข็ง
+    const plate = new THREE.MeshStandardMaterial({ color: '#f4f4f0' });
+    [[-0.55, 0.28, '#4caf50'], [0.55, -0.28, '#e8a0a0'], [0.55, 0.3, '#4caf50'], [-0.55, -0.3, '#e8a0a0']].forEach(([x, z, c]) => {
+      cyl(0.13, 0.11, 0.02, plate, x, 0.75, z, g, 14);
+      const pile = sph(0.08, new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }), x, 0.78, z, g, 8); pile.scale.y = 0.4;
+    });
+    cyl(0.12, 0.1, 0.22, new THREE.MeshStandardMaterial({ color: '#d0e8f5', transparent: true, opacity: 0.7 }), -0.7, 0.85, 0, g, 12);
+    for (let i = 0; i < 4; i++) cyl(0.03, 0.03, 0.11, new THREE.MeshStandardMaterial({ color: ['#c0392b', '#27ae60', '#f1c40f', '#2980b9'][i] }), 0.3 - i * 0.2, 0.8, 0.38, g, 8);
+    // ไฟระย้าเหนือโต๊ะ (ติดเองตอนค่ำ)
+    for (const x of [-2.4, 2.4]) cyl(0.04, 0.05, 2.6, M.frame, x, 1.3, -1.2, g, 6);
+    for (let i = 0; i <= 14; i++) {
+      const k = i / 14, x = -2.4 + k * 4.8, y = 2.55 - Math.sin(k * Math.PI) * 0.45;
+      const b = sph(0.045, M.warm, x, y, -1.2 + Math.sin(k * Math.PI) * 1.2, g, 6); b.castShadow = false;
+    }
+    // ควันจากเตา
+    const N = 60, pos = new Float32Array(N * 3), smokeData = [];
+    for (let i = 0; i < N; i++) smokeData.push({ life: Math.random(), x: 0, z: 0 });
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const smoke = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#d8d8d8', size: 0.22, transparent: true, opacity: 0.35, depthWrite: false }));
+    g.add(smoke);
+    // ไฟติดกับฉากตลอด (แค่ปรับความสว่าง) จะได้ไม่ต้องคอมไพล์ shader ใหม่ตอนเริ่มกิจกรรม
+    const light = new THREE.PointLight('#ff8a3c', 0, 7, 1.6); light.position.set(center.x, 1.3, center.z); this.scene.add(light);
+    this.bbq = { group: g, center, seats: seats.map(([x, z]) => center.clone().add(new THREE.Vector3(x, 0, z))), meat, smoke, smokeData, light, active: false, timeLeft: 0, lastDay: null };
+  }
+
+  startBBQ(source = 'manual') {
+    const b = this.bbq; if (b.active) return;
+    b.active = true; b.group.visible = true; b.timeLeft = source === 'auto' ? 300 : 180;
+    b.light.intensity = 3;
+    this.gen++; // หยุดกิจวัตรเดิมของทุกคน
+    const d = this.dad; d.busy = false; d.bucket.visible = false; d.h.holding = false; d.bucket.rotation.x = 0;
+    this.fatherState = 'ไปกินหมูกะทะ'; this.sis.task = 'ไปกินหมูกะทะ'; this.kid.task = 'ไปกินหมูกะทะ';
+    const people = [[this.dad, 2], [this.mom, 0], [this.sis, 1], [this.kid, 3]];
+    for (const [who, seat] of people) {
+      const w = who.w, h = who.h, p = h.group.position, s = b.seats[seat];
+      w.locked = true; h.holding = false; w.wait = 0;
+      let path;
+      if (who === this.mom) path = [[-0.75, 0.65, 3.5], [-0.75, 0.65, 7.2], [3.2, 0.65, 7.6], [3.2, 0, 10]];
+      else if (p.x > 22) path = [[24, 0, 12.6], [8, 0, 12.6]];
+      else if (p.x < -18) path = [[-18, 0, 18.5], [-6, 0, 13]];
+      else path = [];
+      w.go([...path, [s.x, 0, s.z]], () => {
+        h.group.rotation.y = Math.atan2(b.center.x - s.x, b.center.z - s.z);
+        h.baseY = 0; h.sitting = true; h.eating = true; h.eatOffset = seat * 1.7;
+        if (who === this.dad) this.fatherState = 'กินหมูกะทะกับครอบครัว';
+        if (who === this.sis) this.sis.task = 'กินหมูกะทะ';
+        if (who === this.kid) this.kid.task = 'กินหมูกะทะ (แอบป้อนแมว)';
+      }, true);
+    }
+    bus.emit('farm-event', '🍖 ครอบครัวกำลังตั้งวงกินหมูกะทะหน้าบ้าน');
+    bus.emit('bbq', true);
+  }
+
+  endBBQ() {
+    const b = this.bbq; if (!b.active) return;
+    b.active = false; b.light.intensity = 0;
+    setTimeout(() => { if (!b.active) b.group.visible = false; }, 8000); // เก็บโต๊ะทีหลัง
+    this.gen++;
+    for (const who of [this.dad, this.mom, this.sis, this.kid]) { who.h.sitting = false; who.h.eating = false; who.w.locked = false; }
+    this.mom.w.go([[3.2, 0, 10], [3.2, 0.65, 7.6], [-0.75, 0.65, 7.2], [-0.75, 0.65, 3.5]], () => this.momLoop());
+    this.dad.w.go([[4, 0, 10.5]], () => { this.fatherState = 'พักผ่อนหน้าบ้าน'; this.dad.h.group.rotation.y = 0.3; });
+    this.fatherState = 'เก็บโต๊ะ เดินกลับหน้าบ้าน';
+    this.sis.task = 'เก็บจานล้างจาน';
+    const gen = this.gen;
+    this.sis.w.go([[3.2, 0, 10], [-3, 0, 11.5]], () => { this.sis.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 30000); });
+    this.kidLoop();
+    bus.emit('farm-event', 'กินหมูกะทะเสร็จแล้ว อิ่มกันทั้งบ้าน');
+    bus.emit('bbq', false);
+  }
+
+  updateBBQ(dt, t) {
+    const b = this.bbq;
+    // ช่วงเย็น 18:00–20:30 ตั้งวงเองวันละครั้ง
+    const day = new Date().toDateString();
+    if (!b.active && this.hour >= 18 && this.hour < 20.5 && b.lastDay !== day) { b.lastDay = day; this.startBBQ('auto'); }
+    if (!b.active) return;
+    b.timeLeft -= dt;
+    if (b.timeLeft <= 0 || this.hour >= 21.5) { this.endBBQ(); return; }
+    b.light.intensity = 2.6 + Math.sin(t * 13) * 0.4 + Math.sin(t * 7.3) * 0.3;
+    for (const m of b.meat) { // หมูสุกจากชมพู → น้ำตาล แล้วถูกคีบไปกิน ใส่ชิ้นใหม่
+      m.t += dt * 0.06;
+      if (m.t > 1) m.t = 0;
+      m.m.material.color.setRGB(lerp(0.91, 0.45, m.t), lerp(0.6, 0.27, m.t), lerp(0.6, 0.15, m.t));
+      m.m.visible = m.t < 0.92;
+    }
+    const pos = b.smoke.geometry.attributes.position;
+    b.smokeData.forEach((s, i) => {
+      s.life += dt * 0.35;
+      if (s.life > 1) { s.life = 0; s.x = rand(-0.1, 0.1); s.z = rand(-0.1, 0.1); }
+      pos.setXYZ(i, s.x + s.life * 0.6 * (this.wx?.cur.wind || 1) * 0.2, 1.1 + s.life * 2.2, s.z + Math.sin(s.life * 6 + i) * 0.15);
+    });
+    pos.needsUpdate = true;
+  }
+
+  // ---------------------------------------------------------------- รถวิ่งผ่านหน้าบ้าน
+  spawnVehicle() {
+    const r = Math.random();
+    const type = r < 0.32 ? 'sedan' : r < 0.6 ? 'pickup' : r < 0.86 ? 'moto' : 'truck';
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const laneZ = dir > 0 ? 44.3 : 47.7; // ขับชิดซ้ายแบบไทย
+    const colors = ['#c0392b', '#ecf0f1', '#2c3e50', '#7f8c8d', '#2980b9', '#d4ac0d', '#1e1e1e', '#8e44ad'];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    let g, label, speed;
+    if (type === 'sedan' || type === 'pickup') {
+      g = this.makeCar(this.scene, 0, 0, color, type === 'pickup');
+      label = type === 'pickup' ? 'รถกระบะ' : 'รถเก๋ง'; speed = rand(10, 17);
+    } else if (type === 'truck') {
+      g = new THREE.Group(); this.scene.add(g);
+      const cab = new THREE.MeshStandardMaterial({ color: '#2f6f9f', roughness: 0.5 });
+      box(2.1, 1.7, 1.7, cab, 0, 1.45, 2.2, g);
+      box(1.9, 0.6, 0.05, new THREE.MeshStandardMaterial({ color: '#1a222a', metalness: 0.6, roughness: 0.1 }), 0, 1.8, 3.06, g);
+      box(2.2, 0.25, 4.4, M.wood, 0, 0.75, -0.9, g);
+      for (const x of [-1.05, 1.05]) box(0.08, 0.7, 4.4, M.wood, x, 1.2, -0.9, g);
+      for (let i = 0; i < 6; i++) cyl(0.28, 0.28, 0.8, new THREE.MeshStandardMaterial({ color: '#e6e6e6' }), -0.45 + (i % 2) * 0.9, 1.3, -2.4 + Math.floor(i / 2) * 1.2, g, 12);
+      for (const [wx, wz] of [[-0.95, 2.2], [0.95, 2.2], [-0.95, -1.6], [0.95, -1.6], [-0.95, -2.6], [0.95, -2.6]]) { const w = cyl(0.45, 0.45, 0.3, M.black, wx, 0.45, wz, g, 14); w.rotation.z = Math.PI / 2; }
+      const hl = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff', emissiveIntensity: 0.3 });
+      box(0.3, 0.15, 0.05, hl, -0.75, 0.9, 3.06, g); box(0.3, 0.15, 0.05, hl, 0.75, 0.9, 3.06, g);
+      const tl = new THREE.MeshStandardMaterial({ color: '#a11', emissive: '#f22', emissiveIntensity: 0.4 });
+      box(0.25, 0.12, 0.05, tl, -0.9, 0.8, -3.12, g); box(0.25, 0.12, 0.05, tl, 0.9, 0.8, -3.12, g);
+      g.userData = { hl, tl };
+      label = 'รถบรรทุกน้ำยาง'; speed = rand(7, 11);
+    } else {
+      g = new THREE.Group(); this.scene.add(g);
+      const frame = new THREE.MeshStandardMaterial({ color, metalness: 0.4, roughness: 0.4 });
+      box(0.28, 0.35, 1.2, frame, 0, 0.6, 0, g);
+      box(0.3, 0.12, 0.6, M.black, 0, 0.82, -0.2, g);
+      for (const z of [0.62, -0.62]) { const w = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.08, 8, 16), M.black); w.rotation.y = Math.PI / 2; w.position.set(0, 0.32, z); w.castShadow = true; g.add(w); }
+      const bar = box(0.7, 0.04, 0.04, M.frame, 0, 1.05, 0.5, g); void bar;
+      const hl = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#fff', emissiveIntensity: 0.3 });
+      box(0.14, 0.12, 0.05, hl, 0, 0.9, 0.62, g);
+      const tl = new THREE.MeshStandardMaterial({ color: '#a11', emissive: '#f22', emissiveIntensity: 0.4 });
+      box(0.12, 0.08, 0.05, tl, 0, 0.85, -0.62, g);
+      const rider = makeHuman({ hat: 'helmet', hatColor: ['#111', '#c0392b', '#f1f1f1', '#2980b9'][Math.floor(Math.random() * 4)], shirt: colors[Math.floor(Math.random() * colors.length)] });
+      rider.legL.rotation.x = rider.legR.rotation.x = -1.2; rider.armL.rotation.x = rider.armR.rotation.x = -1.15;
+      rider.group.position.set(0, -0.12, -0.15); rider.group.rotation.x = 0.12; g.add(rider.group);
+      g.userData = { hl, tl };
+      label = 'มอเตอร์ไซค์'; speed = rand(10, 14);
+    }
+    g.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    g.position.set(-dir * 300, 0, laneZ);
+    const id = 'CAR-' + (++this.carSeq);
+    const ent = { id, type: 'vehicle', label, obj: g };
+    this.vehicles.push({ g, dir, speed, label, ent, passed: false });
+    this.entities.push(ent);
+  }
+
+  updateTraffic(dt) {
+    this.nextCar -= dt;
+    if (this.nextCar < 0) { this.spawnVehicle(); this.nextCar = this.nightFactor > 0.6 ? rand(14, 35) : rand(5, 16); }
+    const night = this.nightFactor > 0.4 || (this.wxState?.rain || 0) > 0.5;
+    for (const v of this.vehicles) {
+      v.g.position.x += v.dir * v.speed * dt;
+      v.g.userData.hl.emissiveIntensity = night ? 4 : 0.3;
+      v.g.userData.tl.emissiveIntensity = night ? 2.5 : 0.4;
+      if (!v.passed && v.dir * v.g.position.x > 0) { v.passed = true; this.carsToday++; bus.emit('vehicle-pass', { label: v.label, total: this.carsToday }); }
+      if (Math.abs(v.g.position.x) > 310) {
+        v.dead = true; this.scene.remove(v.g);
+        v.g.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } });
+        this.entities = this.entities.filter(e => e !== v.ent);
+      }
+    }
+    this.vehicles = this.vehicles.filter(v => !v.dead);
+  }
+
   updateCats(dt, t) {
     const onDeck = (x, z) => x > -10 && x < 2.4 && z > 5 && z < 8.9;
     for (const c of this.cats) {
@@ -1465,8 +1684,9 @@ export class Farm3D {
       c.wait -= dt;
       if (!c.target && c.wait <= 0) {
         const r = Math.random();
-        if (r < 0.15) { c.sleep = rand(15, 40); continue; }
-        if (r < 0.4) c.target = new THREE.Vector3(rand(-9, 1.5), 0, rand(5.6, 8.4)); // ระเบียง
+        if (this.bbq.active && r < 0.5) { const a = rand(0, Math.PI * 2); c.target = this.bbq.center.clone().add(new THREE.Vector3(Math.cos(a) * 1.7, 0, Math.sin(a) * 1.7)); c.begging = true; }
+        else if (r < 0.15) { c.sleep = rand(15, 40); continue; }
+        else if (r < 0.4) c.target = new THREE.Vector3(rand(-9, 1.5), 0, rand(5.6, 8.4)); // ระเบียง
         else if (r < 0.55) { const a = rand(Math.PI * 0.6, Math.PI * 1.4); c.target = new THREE.Vector3(14 + Math.cos(a) * 5.4, 0, 22 + Math.sin(a) * 5.4); c.watchPond = true; } // ขอบบ่อปลา
         else if (r < 0.7 && this.kid) c.target = this.kid.h.group.position.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
         else { do { c.target = new THREE.Vector3(rand(-10, 9), 0, rand(10, 32)); } while (Math.hypot(c.target.x - 14, c.target.z - 22) < 5.5); }
@@ -1482,6 +1702,7 @@ export class Farm3D {
         } else {
           c.target = null; c.wait = rand(3, 12);
           if (c.watchPond) { g.rotation.y = Math.atan2(14 - g.position.x, 22 - g.position.z); c.watchPond = false; }
+          if (c.begging) { g.rotation.y = Math.atan2(this.bbq.center.x - g.position.x, this.bbq.center.z - g.position.z); c.begging = false; c.wait = rand(8, 15); }
         }
       }
       g.position.y = lerp(g.position.y, onDeck(g.position.x, g.position.z) ? 0.68 : 0, 0.25);
@@ -1512,6 +1733,7 @@ export class Farm3D {
       <div class="st"><span>เวลาในฉาก</span><b>${hh} ${this.nightFactor > 0.5 ? '🌙' : '☀️'}</b></div>
       <div class="st"><span>คนในพื้นที่</span><b>${people.length} คน</b></div>
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
+      ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
       <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
       <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>

@@ -48,7 +48,7 @@ export class Hub {
   constructor() {
     this.vals = {}; this.hist = {}; this.live = {}; this.lastSeen = {};
     for (const [k, m] of Object.entries(METRICS)) { this.vals[k] = m[2]; this.hist[k] = Array.from({ length: 40 }, () => m[2]); }
-    this.security = { people: 0, alerts: 0, known: 0 };
+    this.security = { people: 0, alerts: 0, known: 0, cars: 0 };
     this.grid = document.getElementById('hubGrid');
     this.logEl = document.getElementById('hubLog');
     this.build();
@@ -57,6 +57,8 @@ export class Hub {
     bus.on('cmd', c => this.onCmd(c));
     bus.on('alert', () => { this.security.alerts++; this.renderSecurity(); });
     bus.on('radar-known', () => { this.security.known++; this.renderSecurity(); });
+    bus.on('vehicle-pass', v => { this.security.cars = v.total; this.renderSecurity(); });
+    bus.on('bbq', on => this.log(on ? '🍖 ครอบครัวตั้งวงหมูกะทะหน้าบ้าน (เปิดไฟระย้า)' : 'เก็บวงหมูกะทะแล้ว'));
     bus.on('eggs-collected', n => { this.vals['chicken/eggs'] = Math.min(METRICS['chicken/eggs'][4], this.vals['chicken/eggs'] + n); this.render(); });
     bus.on('farm-event', msg => { if (msg.includes('เทอาหาร')) { this.vals['pig/feed'] = Math.max(0, this.vals['pig/feed'] - 6); this.render(); } });
     document.getElementById('mqttForm').addEventListener('submit', e => { e.preventDefault(); this.connectMqtt(); });
@@ -73,7 +75,7 @@ export class Hub {
       (cd.metrics || []).forEach(k => { html += `<div class="metric"><span>${METRICS[k][0]}</span><span><b data-m="${k}">-</b><small>${METRICS[k][1]}</small></span></div>`; });
       if (cd.bar) html += `<div class="metric"><span>${METRICS[cd.bar][0]}</span><span><b data-m="${cd.bar}">-</b><small>%</small></span></div><div class="bar"><i data-bar="${cd.bar}"></i></div>`;
       if (cd.extra === 'tap') html += `<div class="metric"><span>เหมาะกรีดยางคืนนี้?</span><b data-tap style="font-size:15px">-</b></div><div class="metric"><span>จำนวนต้นที่กรีดได้</span><b>400</b></div>`;
-      if (cd.extra === 'security') html += `<div class="metric"><span>คนในเขตบ้าน</span><b data-sec="people">0</b></div><div class="metric"><span>แจ้งเตือนวันนี้</span><b data-sec="alerts">0</b></div><div class="metric"><span>หน้าที่จดจำได้</span><b data-sec="known">0</b></div>`;
+      if (cd.extra === 'security') html += `<div class="metric"><span>คนในเขตบ้าน</span><b data-sec="people">0</b></div><div class="metric"><span>แจ้งเตือนวันนี้</span><b data-sec="alerts">0</b></div><div class="metric"><span>หน้าที่จดจำได้</span><b data-sec="known">0</b></div><div class="metric"><span>รถผ่านหน้าบ้านวันนี้</span><b data-sec="cars">0</b></div>`;
       for (const t of [cd.toggle, cd.toggle2].filter(Boolean)) html += `<div class="toggle-row"><span>${t[1]}</span><label class="switch"><input type="checkbox" data-dev="${t[0]}" ${t[2] ? 'checked' : ''}><span></span></label></div>`;
       if (cd.action) html += `<button class="act" data-act="${ci}">${cd.action[2]}</button>`;
       card.innerHTML = html;
@@ -136,7 +138,7 @@ export class Hub {
   }
 
   renderSecurity() {
-    for (const k of ['people', 'alerts', 'known']) { const b = this.grid.querySelector(`[data-sec="${k}"]`); if (b) b.textContent = this.security[k]; }
+    for (const k of ['people', 'alerts', 'known', 'cars']) { const b = this.grid.querySelector(`[data-sec="${k}"]`); if (b) b.textContent = this.security[k]; }
   }
 
   spark(cv, data) {
