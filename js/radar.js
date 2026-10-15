@@ -324,7 +324,7 @@ export class Radar {
       if (e.type !== 'human') continue;
       present.add(e.id);
       let t = this.tracked.get(e.id);
-      if (!t) { t = { id: e.id, status: e.resident ? 'resident' : e.student ? 'student' : 'outside', personaId: e.persona?.id }; this.tracked.set(e.id, t); }
+      if (!t) { t = { id: e.id, status: e.resident ? 'resident' : e.student ? 'student' : e.villager ? 'villager' : 'outside', personaId: e.persona?.id }; this.tracked.set(e.id, t); }
       if (t.status === 'outside' && this.inside(e)) {
         const k = this.known.find(k => k.id === t.personaId);
         const tag = 'n' + Date.now() + Math.random().toString(16).slice(2, 6);
@@ -393,7 +393,7 @@ export class Radar {
       .slice(0, 24)
       .map(e => {
         const t = this.tracked.get(e.id);
-        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label}${this.farm.sleepers?.size && this.farm.isInside?.({ position: { x: e.x, y: 1, z: e.z } }) && !this.farm.entities.find(x => x.id === e.id)?.obj.visible ? ' 💤' : ''})` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
+        const st = e.type !== 'human' ? '' : t?.status === 'resident' ? `คนในบ้าน(${e.label}${this.farm.sleepers?.size && this.farm.isInside?.({ position: { x: e.x, y: 1, z: e.z } }) && !this.farm.entities.find(x => x.id === e.id)?.obj.visible ? ' 💤' : ''})` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'villager' ? 'ชาวบ้านปักเบ็ด' : t?.status === 'known' ? t.name : t?.status === 'threat' ? 'ไม่รู้จัก!' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
         const cls = e.type === 'human' ? (t?.status === 'threat' || t?.status === 'pending' ? 'target alert' : 'target human') : 'target';
         return `<div class="${cls}"><span>${e.id}</span><span>${e.type === 'human' ? '🧍 ' + st : e.type === 'vehicle' ? '🚗 ' + e.label : e.label}</span><span>${dist(e).toFixed(0)}m ${bearing(e).toFixed(0).padStart(3, '0')}°</span></div>`;
       });
@@ -564,7 +564,7 @@ export class Radar {
         else { c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 6, y); c.lineTo(x, y + 6); c.lineTo(x - 6, y); c.closePath(); c.fill(); }
         c.shadowBlur = 0;
         if (bad) { const pr = 9 + ((now / 55) % 18); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 9) / 18})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
-        const name = bl.type === 'vehicle' ? bl.label : t?.status === 'resident' || t?.status === 'student' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
+        const name = bl.type === 'vehicle' ? bl.label : t?.status === 'resident' || t?.status === 'student' || t?.status === 'villager' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
         tags.push({ x, y, rgb, alpha, name, sub: `${bl.d.toFixed(0)}m ${bl.b.toFixed(0).padStart(3, '0')}°`, bad });
       } else {
         c.fillStyle = `rgba(57,255,106,${alpha * 0.8})`; c.beginPath(); c.arc(x, y, 2.6, 0, Math.PI * 2); c.fill();
@@ -632,7 +632,7 @@ export class Radar {
       c.fillText(sel ? 'TARGET LOCK' : 'NEAREST TARGET', x0, y0);
       if (info) {
         const t = tracked.get(info.id);
-        const status = info.type !== 'human' ? info.label : t?.status === 'resident' ? `คนในบ้าน · ${info.label}` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'known' ? `รู้จัก · ${t.name}` : t?.status === 'threat' ? 'ไม่รู้จัก !' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
+        const status = info.type !== 'human' ? info.label : t?.status === 'resident' ? `คนในบ้าน · ${info.label}` : t?.status === 'student' ? 'นักเรียน' : t?.status === 'villager' ? 'ชาวบ้านปักเบ็ด' : t?.status === 'known' ? `รู้จัก · ${t.name}` : t?.status === 'threat' ? 'ไม่รู้จัก !' : t?.status === 'pending' ? 'รอยืนยัน' : 'นอกรั้ว';
         const trail = this.trails.get(info.id) || [];
         let speed = 0; if (trail.length > 1) { const a = trail[trail.length - 2], b = trail[trail.length - 1]; speed = Math.hypot(b.x - a.x, b.z - a.z) / Math.max(0.5, (b.t - a.t) / 1000); }
         const lines = [info.id, `X ${info.x.toFixed(1)}  Z ${info.z.toFixed(1)}`, `BRG ${info.b.toFixed(0).padStart(3, '0')}°  RNG ${info.d.toFixed(1)}m`, `SPD ${speed.toFixed(1)} m/s`];

@@ -10,10 +10,12 @@ import { Ambient } from './ambient.js';
 import { DailySummary } from './summary.js';
 import { Kiosk } from './kiosk.js';
 import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
+import { Fishermen } from './fishermen.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
 const festivals = farm.festivals = new Festivals(farm);
+farm.fishers = new Fishermen(farm);
 const radar = new Radar(document.getElementById('radarCanvas'), farm);
 const hub = new Hub();
 
@@ -162,6 +164,23 @@ btnTour.addEventListener('click', () => {
 });
 document.getElementById('tourStop').addEventListener('click', () => tour.stop());
 bus.on('tour', on => { btnTour.classList.toggle('active', on); btnTour.textContent = on ? '⏹ หยุดเล่าเรื่อง' : '🎬 เล่าเรื่องอัตโนมัติ'; });
+
+// favicon เรดาร์: เปลี่ยนเป็นสีแดงพร้อมจุดเตือนเมื่อมีคนแปลกหน้า (เห็นได้แม้เปิดแท็บเบราว์เซอร์อื่นอยู่)
+const favicon = document.getElementById('favicon');
+const baseTitle = document.title;
+let alertIcon = null;
+fetch('icon.svg').then(r => r.text()).then(svg => {
+  const red = svg.replaceAll('#39ff6a', '#ff4d4d').replaceAll('#b6ffc9', '#ffc9c9').replaceAll('#0c3a19', '#3a0c0c').replaceAll('#03130a', '#130303').replaceAll('#06150c', '#150606')
+    .replace('</svg>', '<circle cx="52" cy="12" r="10" fill="#ff2d2d" stroke="#fff" stroke-width="3"/></svg>');
+  alertIcon = 'data:image/svg+xml,' + encodeURIComponent(red);
+}).catch(() => {});
+function setAlertFavicon(on) {
+  if (on && alertIcon) { favicon.href = alertIcon; document.title = '⚠ คนแปลกหน้า · ' + baseTitle; }
+  else { favicon.href = 'icon.svg'; document.title = baseTitle; }
+}
+bus.on('alert', () => setAlertFavicon(true));
+bus.on('radar-known', () => setAlertFavicon(false));
+document.querySelector('[data-tab=radar]').addEventListener('click', () => setTimeout(() => setAlertFavicon(false), 4000));
 
 // badge บนแท็บเรดาร์เมื่อมีคนแปลกหน้าแต่ผู้ใช้อยู่แท็บอื่น
 let unseen = 0;

@@ -1666,7 +1666,7 @@ export class Farm3D {
   // ---------------------------------------------------------------- API ให้เรดาร์
   getEntities() {
     return this.entities.map(e => ({
-      id: e.id, type: e.type, label: e.label, resident: !!e.resident, student: !!e.student, persona: e.persona || null,
+      id: e.id, type: e.type, label: e.label, resident: !!e.resident, student: !!e.student, villager: !!e.villager, persona: e.persona || null,
       x: e.obj.position.x, z: e.obj.position.z, heading: e.obj.rotation.y,
     }));
   }
@@ -1726,6 +1726,7 @@ export class Farm3D {
     if (this.schedTimer < 0) { this.schedTimer = 0.5; this.updateSchedule(); }
     this.updateTraffic(dt);
     this.updateCats(dt, t);
+    this.fishers?.update(dt, t);
     this.updateBubbles(dt);
     this.fan.rotation.y += dt * 6;
     const gust = 0.03 + (this.wx.cur.wind || 0) * 0.012;
@@ -2490,9 +2491,13 @@ export class Farm3D {
       ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
       ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>English · ${this.school.lesson.topic} · ${this.school.kids.length} คน</b></div>` : ''}
       ${this.festival ? `<div class="st"><span>${this.festival.emoji} เทศกาล</span><b>${this.festival.name}</b></div>` : ''}
+      ${this.fishers?.statusRow() || ''}
       <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
       <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>
       <div class="st"><span>ปั๊มไฮโดร / เติมอากาศบ่อ</span><b>${this.devices.pump ? '🟢' : '⚪'} / ${this.devices.aerator ? '🟢' : '⚪'}</b></div>`;
   }
 }
+
+// ให้โมดูลอื่น (เช่น ชาวบ้านปักเบ็ด) สร้างตัวละคร/วัตถุแบบเดียวกันได้
+export { makeHuman, Walker, box, cyl, sph, M };

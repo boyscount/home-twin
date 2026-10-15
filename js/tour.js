@@ -86,6 +86,10 @@ export class Tour {
       { id: 'class', dur: 13, when: () => f.school.active, title: () => '📚 พี่สาวสอนภาษาอังกฤษ',
         sub: () => { const sc = f.school, n = sc.kids.filter(k => k.sitting).length; return n < sc.kids.length ? `นักเรียนกำลังเดินมา (${n}/${sc.kids.length} คนนั่งแล้ว)` : `English Class: ${sc.lesson.topic} · นักเรียน ${n} คน${sc.kids.some(k => k.h.handUp > 0) ? ' · มีคนยกมือถาม' : ''}`; },
         ...this.orbit(V(-25, 1.2, 25.6), 7, 3.6, 0.08) },
+      { id: 'fishing', dur: 11, when: () => !!f.fishers?.present().length,
+        init: () => { const ps = f.fishers.present(); this.fisher = ps[Math.floor(Math.random() * ps.length)]; },
+        title: () => '🎣 ชาวบ้านปักเบ็ดในทุ่งนา', sub: () => `${this.fisher?.name || ''} · ${this.fisher?.task || ''}`,
+        ...this.wrapFollow(() => (this.fisher?.present ? this.fisher.h.group : null), 5, 2.2, 0.8, 1) },
       { id: 'road', dur: 9, lerp: 5, when: () => !!this.pickCar(), // รถวิ่งเร็ว → กล้องต้องตามไวกว่าช็อตอื่น
         init: () => { this.car = this.pickCar(); },
         title: () => 'ถนนหน้าบ้าน', sub: () => `${this.car?.label || 'รถ'} กำลังขับผ่าน · วันนี้มีรถผ่านหน้าบ้านแล้ว ${f.carsToday} คัน`,
@@ -189,7 +193,7 @@ export class Tour {
     if (!d) { this.next(); return; }
     // กลางคืน: เปิดไฟฉายติดกล้องตอนเข้าไปในที่มืด (สวนยาง, โรงเรือน, ตามพ่อไปกรีดยาง)
     const dark = (this.f.nightFactor || 0) > 0.3;
-    const deep = this.shot.id === 'rubber' || this.shot.id === 'hydro' || (this.shot.id === 'dad' && this.f.dad.h.group.position.z < -14);
+    const deep = this.shot.id === 'rubber' || this.shot.id === 'hydro' || this.shot.id === 'fishing' || (this.shot.id === 'dad' && this.f.dad.h.group.position.z < -14);
     this.f.setCamLight((dark && deep) || this.f.camLightManual);
     const k = 1 - Math.exp(-dt * (this.shot.lerp || 1.1));
     this.f.camera.position.lerp(d.pos, k);
