@@ -55,7 +55,12 @@ export class Hub {
     this.build();
     this.buildDevices();
     setInterval(() => this.simulate(), 2000);
-    bus.on('cmd', c => this.onCmd(c));
+    bus.on('cmd', c => { this.onCmd(c); if (c.device === 'aerator' && c.value) this.live['pond/do'] = 0; });
+    // ฉาก 3D แก้ปัญหาเสร็จ (เช่น พี่สาวปรับ pH) → ค่าในการ์ดกลับมาปกติ
+    bus.on('sensor-fix', fx => {
+      for (const [k, v] of Object.entries(fx)) { this.vals[k] = v; this.live[k] = 0; this.hist[k].push(v); this.hist[k].shift(); }
+      this.render();
+    });
     bus.on('alert', () => { this.security.alerts++; this.renderSecurity(); });
     bus.on('radar-known', () => { this.security.known++; this.renderSecurity(); });
     bus.on('vehicle-pass', v => { this.security.cars = v.total; this.renderSecurity(); });
@@ -85,6 +90,21 @@ export class Hub {
       card.innerHTML = html;
       this.grid.appendChild(card);
     });
+    // การ์ดทดสอบเหตุการณ์: บังคับค่าผิดปกติ เพื่อดูว่าฉาก 3D ตอบสนองอย่างไร
+    const test = document.createElement('div'); test.className = 'card';
+    test.innerHTML = `<div class="card-h"><span><span class="ico">🧪</span> ทดสอบเหตุการณ์</span><span class="pill sim">DEMO</span></div>
+      <div class="dim small" style="margin-bottom:6px">บังคับค่าผิดปกติ แล้วไปดูในแท็บ 3D ว่าใครจะไปแก้</div>
+      <button class="act" data-force='{"hydro/ph":7.4}'>pH ผักสูงเกิน 7.4 → พี่สาวไปปรับ</button>
+      <button class="act" data-force='{"pond/do":2.6}'>ออกซิเจนบ่อต่ำ → ปลาลอยหัว</button>
+      <button class="act" data-force='{"pig/feed":9}'>อาหารหมูเหลือ 9% → พ่อไปเติม</button>
+      <button class="act" data-force='{"pig/temp":35.5}'>คอกหมูร้อน 35°C → สปริงเกอร์</button>`;
+    this.grid.appendChild(test);
+    test.querySelectorAll('[data-force]').forEach(b => b.addEventListener('click', () => {
+      const fx = JSON.parse(b.dataset.force);
+      for (const [k, v] of Object.entries(fx)) { this.vals[k] = v; this.live[k] = Date.now() + (k === 'pig/temp' ? 40000 : 10 * 60000); }
+      this.log('🧪 ทดสอบ: ' + b.textContent);
+      this.render(); bus.emit('sensors', this.vals);
+    }));
     this.grid.querySelectorAll('[data-dev]').forEach(inp => inp.addEventListener('change', () => {
       bus.emit('cmd', { device: inp.dataset.dev, value: inp.checked, source: 'Hub' });
     }));
@@ -116,12 +136,14 @@ export class Hub {
       if (m[5]) v += (Math.random() - 0.5) * m[5] * 2;
       if (k === 'weather/light' && app) { const h = app.farm.hour; v = Math.max(0, Math.sin((h - 6) / 12 * Math.PI)) * 80000 + Math.random() * 2000; }
       if (k === 'energy/solar') v = this.vals['weather/light'] / 16 + Math.random() * 60;
-      if (k === 'pond/do' && app?.farm.devices.aerator) v += 0.08;
+      if (k === 'pig/temp' && app?.farm.sprinklerOn) v -= 0.3; // สปริงเกอร์ช่วยลดอุณหภูมิคอก
+      if (k === 'pond/do' && app?.farm.devices.aerator) v += v < 5 ? 0.35 : 0.05; // เครื่องเติมอากาศดัน DO ขึ้น
       if (k === 'hydro/level' && app?.farm.devices.pump) v -= 0.05;
       this.vals[k] = Math.min(m[4], Math.max(m[3], v));
       this.hist[k].push(this.vals[k]); this.hist[k].shift();
     }
     if (Math.random() < 0.04) this.vals['chicken/eggs'] = Math.min(12, this.vals['chicken/eggs'] + 1);
+    bus.emit('sensors', this.vals);
     if (app) this.security.people = app.farm.getEntities().filter(e => e.type === 'human' && e.z < 36 && e.z > -24 && Math.abs(e.x) < 47).length;
     this.render();
   }

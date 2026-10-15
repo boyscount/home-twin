@@ -132,6 +132,7 @@ function makeMaterials() {
   M.tank = std({ color: '#2f6fb0', roughness: 0.5 });
   M.ledOff = std({ color: '#333', emissive: '#000' });
   M.ledOn = std({ color: '#3f3', emissive: '#3f3', emissiveIntensity: 2 });
+  M.ledBad = std({ color: '#f33', emissive: '#f22', emissiveIntensity: 2.5 });
 }
 
 function box(w, h, d, mat, x = 0, y = 0, z = 0, parent) {
@@ -482,6 +483,8 @@ export class Farm3D {
     this.gen = 0;
     this.buildBBQ();
     this.buildSchool();
+    this.buildSprinkler();
+    bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
     this.fogBase = 0.0065;
@@ -1056,8 +1059,9 @@ export class Farm3D {
     setTimeout(() => { if (this.dadAct === 'free') this.feedPigs('auto'); }, 4000);
   }
 
-  sisLoop(gen = this.gen) {
-    if (gen !== this.gen) return;
+  sisToken() { return `${this.gen}.${this.sisGen || 0}`; }
+  sisLoop(gen = this.sisToken()) {
+    if (gen !== this.sisToken()) return;
     const s = this.sis, h = s.h;
     const tend = (cb) => {
       h.holding = true; h.armL.rotation.x = -0.9; h.armR.rotation.x = -0.9; h.head.rotation.x = 0.4; s.w.wait = 3;
@@ -1358,6 +1362,7 @@ export class Farm3D {
     this.sis.w.update(dt); this.kid.w.update(dt);
     this.updateBBQ(dt, t);
     this.updateSchool(dt, t);
+    this.updateSprinkler(dt);
     this.schedTimer = (this.schedTimer || 0) - dt;
     if (this.schedTimer < 0) { this.schedTimer = 0.5; this.updateSchedule(); }
     this.updateTraffic(dt);
@@ -1476,6 +1481,7 @@ export class Farm3D {
       f.a += f.sp * dt * (this.devices.aerator ? 1.6 : 1);
       const x = Math.cos(f.a) * f.r, z = Math.sin(f.a) * f.r;
       let y = -0.12 - f.depth;
+      if (this.fishGasp) { y = -0.15 + Math.sin(t * 5 + f.r * 3) * 0.025; f.a -= f.sp * dt * 0.6; } // ออกซิเจนต่ำ → ลอยหัวที่ผิวน้ำ
       if (f.jump < 0 && Math.random() < dt * 0.02) f.jump = 0;
       if (f.jump >= 0) { f.jump += dt * 1.6; y = -0.12 + Math.sin(f.jump * Math.PI) * 0.7 - (f.jump > 1 ? 1 : 0); if (f.jump > 1) f.jump = -1; }
       f.group.position.set(x, y, z);
@@ -1601,7 +1607,7 @@ export class Farm3D {
     this.dad.w.go([[4, 0, 10.5]], () => { this.fatherState = 'พักผ่อนหน้าบ้าน'; this.dad.h.group.rotation.y = 0.3; });
     this.fatherState = 'เก็บโต๊ะ เดินกลับหน้าบ้าน';
     this.sis.task = 'เก็บจานล้างจาน';
-    const gen = this.gen;
+    const gen = this.sisToken();
     this.sis.w.go([[3.2, 0, 10], [-3, 0, 11.5]], () => { this.sis.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 30000); });
     this.kidLoop();
     bus.emit('farm-event', 'กินหมูกะทะเสร็จแล้ว อิ่มกันทั้งบ้าน');
@@ -1722,6 +1728,7 @@ export class Farm3D {
     const famSleep = h >= 21.75 || h < 5.75;
     if (famSleep && !this.familyAsleep && !this.school.active) this.sleepFamily();
     if (!famSleep && this.familyAsleep) this.wakeFamily();
+    if (this.dadTask) return; // กำลังทำงานด่วน (เช่น เติมอาหารหมู)
     const plan = this.dadPlan(h);
     if (plan !== this.dadAct && !(this.dadAct === 'free-after-bbq' && plan === 'free')) this.setDadActivity(plan);
   }
@@ -1812,6 +1819,106 @@ export class Farm3D {
     this.sis.w.go([...this.pathOut(), [-3, 0, 11.5]], () => { this.sis.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 15000); });
     this.kid.w.go([...this.pathOut(), [0, 0, 16]], () => this.kidLoop());
     bus.emit('farm-event', '☀️ เช้าแล้ว ครอบครัวตื่นนอน');
+  }
+
+  // ---------------------------------------------------------------- ค่าเซนเซอร์จาก Hub → สิ่งที่เกิดขึ้นในฉาก
+  onSensors(v) {
+    // ไฮโดรโปนิกส์: pH / EC / ระดับน้ำ ผิดปกติ → ไฟปั๊มแดง + พี่สาวไปแก้
+    const probs = [];
+    if (v['hydro/ph'] < 5.5 || v['hydro/ph'] > 6.5) probs.push(`pH ${v['hydro/ph'].toFixed(1)}`);
+    if (v['hydro/ec'] < 1.2) probs.push(`EC ต่ำ ${v['hydro/ec'].toFixed(2)}`);
+    if (v['hydro/level'] < 30) probs.push(`น้ำในถังเหลือ ${Math.round(v['hydro/level'])}%`);
+    this.pumpLed.material = probs.length ? M.ledBad : this.devices.pump ? M.ledOn : M.ledOff;
+    if (probs.length) this.sisFixHydro(probs.join(', '));
+    // บ่อปลา: ออกซิเจนต่ำ → ปลาลอยหัว + เปิดเครื่องเติมอากาศอัตโนมัติ
+    const gasp = v['pond/do'] < 4;
+    if (gasp && !this.fishGasp) {
+      bus.emit('farm-event', `⚠ ออกซิเจนในบ่อต่ำ (${v['pond/do'].toFixed(1)} mg/L) — ปลาลอยหัว`);
+      if (!this.devices.aerator) bus.emit('cmd', { device: 'aerator', value: true, source: 'ระบบอัตโนมัติ (DO ต่ำ)' });
+    }
+    if (!gasp && this.fishGasp) bus.emit('farm-event', '✅ ออกซิเจนในบ่อกลับมาปกติ ปลาว่ายลงไปแล้ว');
+    this.fishGasp = gasp;
+    // คอกหมู: อาหารใกล้หมด → พ่อไปขนมาเติม · ร้อนเกิน → สปริงเกอร์
+    if (v['pig/feed'] < 15) this.dadRefill();
+    const hot = v['pig/temp'] > 33;
+    if (hot !== this.sprinklerOn) {
+      this.sprinklerOn = hot;
+      bus.emit('farm-event', hot ? `🌡 คอกหมูร้อน ${v['pig/temp'].toFixed(1)}°C — เปิดสปริงเกอร์พ่นละอองน้ำอัตโนมัติ` : 'คอกหมูเย็นลงแล้ว ปิดสปริงเกอร์');
+      if (hot) bus.emit('sprinkler', true);
+    }
+  }
+
+  sisFixHydro(problem) {
+    if (this.sisBusy || this.school.active || this.bbq.active || this.sleepers.has('sis')) return false;
+    this.sisBusy = true; this.sisGen = (this.sisGen || 0) + 1;
+    const s = this.sis, h = s.h;
+    s.w.locked = true; h.holding = false; h.teaching = false; h.sitting = false; s.w.wait = 0;
+    s.task = `รีบไปแก้ ${problem}`;
+    bus.emit('farm-event', `⚠ ไฮโดรโปนิกส์: ${problem} — พี่สาวกำลังไปแก้`);
+    const p = h.group.position, via = p.x > -18 ? [[-6, 0, 13], [-18, 0, 18.5]] : [];
+    s.w.go([...via, [-27.1, 0, 18], [-29.6, 0, 15.6]], () => {
+      h.group.rotation.y = -2.2; h.holding = true; h.armL.rotation.x = -1.1; h.armR.rotation.x = -1.3;
+      s.task = 'ปรับสารละลาย A/B และเติมน้ำในถัง';
+      setTimeout(() => {
+        h.holding = false;
+        bus.emit('sensor-fix', { 'hydro/ph': 6.0, 'hydro/ec': 1.6, 'hydro/level': 92 });
+        bus.emit('farm-event', '✅ พี่สาวปรับ pH เป็น 6.0, EC 1.6 และเติมน้ำเต็มถังแล้ว');
+        this.sisBusy = false; s.w.locked = false; s.task = 'กลับบ้าน';
+        const tok = this.sisToken();
+        s.w.go([[-27.1, 0, 18], [-18, 0, 18.5], [-3, 0, 11.5]], () => { s.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(tok), 10000); });
+      }, 5000);
+    }, true);
+    return true;
+  }
+
+  dadRefill() {
+    const d = this.dad;
+    if (this.dadTask || d.busy || this.bbq.active || !['free', 'free-after-bbq'].includes(this.dadAct)) return false;
+    this.dadTask = 'refill'; this.dadActId++;
+    d.w.locked = true; d.h.sitting = false;
+    if (!this.feedSack) { this.feedSack = box(0.55, 0.3, 0.35, new THREE.MeshStandardMaterial({ color: '#e5ddc5' }), 0, 1.75, -0.05, d.h.group); }
+    this.fatherState = 'อาหารหมูใกล้หมด — ไปขนกระสอบอาหาร';
+    bus.emit('farm-event', '⚠ อาหารในไซโลหมูเหลือน้อย — พ่อไปขนกระสอบอาหารมาเติม');
+    d.w.go([[12, 0, 11.5], [21, 0, 10.5], [37, 0, 4.5], [37, 0, -7]], () => {
+      this.fatherState = 'แบกกระสอบอาหารหมู';
+      setTimeout(() => {
+        this.feedSack.visible = true; d.h.holding = true; d.h.armL.rotation.x = d.h.armR.rotation.x = -2.6;
+        d.w.go([[37, 0, -3], [36.8, 0, 2.6]], () => {
+          this.fatherState = 'เทอาหารเติมไซโล';
+          setTimeout(() => {
+            this.feedSack.visible = false; d.h.holding = false;
+            bus.emit('sensor-fix', { 'pig/feed': 95 });
+            bus.emit('farm-event', '✅ พ่อเติมอาหารหมูเต็มไซโลแล้ว (95%)');
+            this.dadTask = null; this.dadAct = 'free'; d.w.locked = false;
+            this.fatherState = 'เดินกลับบ้าน';
+            d.w.go([[24, 0, 6], [20, 0, 10.5], [12, 0, 11.5], [4, 0, 10.5]], () => { this.fatherState = 'พักผ่อนหน้าบ้าน'; d.h.group.rotation.y = 0.3; });
+          }, 2500);
+        }, true);
+      }, 2000);
+    }, true);
+    return true;
+  }
+
+  buildSprinkler() {
+    const N = 260, pos = new Float32Array(N * 3);
+    this.sprayData = Array.from({ length: N }, () => ({ x: rand(24.5, 35.5), y: rand(0, 2.4), z: rand(-5.5, 1.5) }));
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.spray = new THREE.Points(g, new THREE.PointsMaterial({ color: '#dff4ff', size: 0.06, transparent: true, opacity: 0.7, depthWrite: false }));
+    this.spray.visible = false; this.spray.frustumCulled = false; this.scene.add(this.spray);
+    for (const x of [26, 30, 34]) { const n = cyl(0.04, 0.04, 0.12, M.metal, x, 2.55, -2, this.scene, 6); n.castShadow = false; }
+    this.sprinklerOn = false;
+  }
+
+  updateSprinkler(dt) {
+    this.spray.visible = !!this.sprinklerOn;
+    if (!this.sprinklerOn) return;
+    const pos = this.spray.geometry.attributes.position;
+    this.sprayData.forEach((d, i) => {
+      d.y -= dt * 2.2;
+      if (d.y < 0.1) { d.y = 2.4; d.x = rand(24.5, 35.5); d.z = rand(-5.5, 1.5); }
+      pos.setXYZ(i, d.x, d.y, d.z);
+    });
+    pos.needsUpdate = true;
   }
 
   // ---------------------------------------------------------------- พี่สาวสอนหนังสือเด็ก ๆ ที่ศาลา
@@ -1914,7 +2021,7 @@ export class Farm3D {
     sc.active = false;
     const s = this.sis; s.h.teaching = false; s.h.writing = false; s.w.locked = false; this.gen++;
     s.task = 'เลิกสอน เดินกลับบ้าน';
-    const gen = this.gen;
+    const gen = this.sisToken();
     s.w.go([[-25, 0.5, 28.4], [-25, 0, 30], [-18, 0, 27.5], [-3, 0, 11.5]], () => { s.task = 'พักหน้าบ้าน'; setTimeout(() => this.sisLoop(gen), 20000); });
     for (const k of sc.kids) {
       k.h.sitting = false; k.h.handUp = 0;
