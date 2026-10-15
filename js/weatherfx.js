@@ -35,9 +35,88 @@ export class WeatherFX {
     this.drops = new Float32Array(this.N * 3);
     for (let i = 0; i < this.N; i++) { this.drops[i * 3] = rand(-50, 50); this.drops[i * 3 + 1] = rand(0, 40); this.drops[i * 3 + 2] = rand(-50, 50); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    this.rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#b8cde0', transparent: true, opacity: 0.5, depthWrite: false }));
+    const top = new Float32Array(this.N * 2); for (let i = 0; i < this.N; i++) top[i * 2 + 1] = 1;
+    g.setAttribute('top', new THREE.BufferAttribute(top, 1));
+    // เม็ดฝนสว่างตามแสงรอบตัว: กลางวันเป็นเส้นเทาอ่อน กลางคืนแทบมองไม่เห็น ยกเว้นตอนผ่านแสงไฟ → ระยิบระยับรอบโคมไฟ
+    const NL = 16;
+    this.rainU = {
+      lp: { value: Array.from({ length: NL }, () => new THREE.Vector3(0, -999, 0)) },
+      lc: { value: Array.from({ length: NL }, () => new THREE.Color(0, 0, 0)) },
+      ambient: { value: 1 }, opacity: { value: 0.5 }, flash: { value: 0 },
+    };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.rainU, transparent: true, depthWrite: false, fog: false,
+      vertexShader: `attribute float top; varying vec3 vW; varying float vTop;
+        void main() { vTop = top; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      fragmentShader: `uniform vec3 lp[${NL}]; uniform vec3 lc[${NL}]; uniform float ambient, opacity, flash; varying vec3 vW; varying float vTop;
+        void main() {
+          vec3 col = vec3(0.62, 0.7, 0.82) * ambient;
+          float glow = 0.0;
+          for (int i = 0; i < ${NL}; i++) { vec3 d = lp[i] - vW; float k = 5.0 / (1.0 + dot(d, d) * 0.45); col += lc[i] * k; glow += k * (lc[i].r + lc[i].g + lc[i].b); }
+          col += flash * vec3(0.8, 0.85, 1.0);
+          float a = opacity * mix(0.15, 1.0, vTop) * clamp(ambient * 1.2 + glow * 0.35 + flash, 0.0, 1.0);
+          gl_FragColor = vec4(col, a);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.rain = new THREE.LineSegments(g, mat);
     this.rain.frustumCulled = false; this.rain.visible = false;
     this.farm.scene.add(this.rain);
+    this.buildWet();
+  }
+
+  // พื้นเปียก: แสงไฟสะท้อนเป็นวงบนพื้น + ระลอกน้ำในบ่อ + ละอองกระเด็นบนพื้น
+  buildWet() {
+    const f = this.farm, s = f.scene;
+    s.updateMatrixWorld(true); // ให้ getWorldPosition ของไฟที่อยู่ในกลุ่ม (เช่น ไฟระเบียง) ถูกต้อง
+    this.wet = 0;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const ctx = c.getContext('2d'), g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c);
+    this.pools = f.nightLights.map(n => {
+      const p = new THREE.Vector3(); n.l.getWorldPosition(p);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, color: n.l.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set(p.x, 0.07, p.z); m.scale.setScalar(Math.min(9, n.l.distance * 0.55)); m.renderOrder = 2;
+      s.add(m); return { m, n };
+    });
+    // ระลอกฝนในบ่อปลา
+    const ringGeo = new THREE.RingGeometry(0.8, 1, 24); ringGeo.rotateX(-Math.PI / 2);
+    this.ripples = Array.from({ length: 28 }, () => {
+      const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#cfe6ff', transparent: true, opacity: 0, depthWrite: false }));
+      f.pond.add(m); m.position.y = -0.1; return { m, life: Math.random(), on: false };
+    });
+    // ละอองฝนกระเด็นบนพื้นรอบจุดที่กล้องมอง
+    const N = 400, pos = new Float32Array(N * 3), sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.splash = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#dbe8f5', size: 0.09, transparent: true, opacity: 0.6, depthWrite: false }));
+    this.splash.frustumCulled = false; this.splash.visible = false; s.add(this.splash);
+  }
+
+  updateWet(dt, rain, ambient) {
+    const f = this.farm;
+    this.wet += ((rain > 0.05 ? 1 : 0) - this.wet) * Math.min(1, dt * (rain > 0.05 ? 0.5 : 0.03)); // เปียกเร็ว แห้งช้า
+    const night = f.nightFactor || 0;
+    for (const p of this.pools) p.m.material.opacity = this.wet * Math.min(1, p.n.l.intensity / p.n.max) * 0.55 * (0.4 + night * 0.6);
+    for (const r of this.ripples) {
+      r.life += dt * 1.6;
+      if (r.life > 1) { r.life = 0; r.on = Math.random() < rain * 1.2; const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * 4.2; r.m.position.set(Math.cos(a) * d, -0.1, Math.sin(a) * d); }
+      r.m.visible = r.on; if (!r.on) continue;
+      r.m.scale.setScalar(0.05 + r.life * 0.45); r.m.material.opacity = (1 - r.life) * 0.7 * Math.max(0.25, ambient);
+    }
+    this.splash.visible = rain > 0.15;
+    if (this.splash.visible) {
+      const pos = this.splash.geometry.attributes.position, t = f.controls.target;
+      const n = Math.floor(400 * rain);
+      for (let i = 0; i < 400; i++) {
+        if (i < n && Math.random() < 0.35) pos.setXYZ(i, t.x + rand(-18, 18), 0.06 + Math.random() * 0.08, t.z + rand(-18, 18));
+        else if (i >= n) pos.setXYZ(i, 0, -50, 0);
+      }
+      pos.needsUpdate = true;
+      this.splash.material.opacity = 0.15 + ambient * 0.5;
+    }
   }
 
   buildClouds() {
@@ -125,8 +204,19 @@ export class WeatherFX {
       }
       this.rain.geometry.setDrawRange(0, n * 2);
       this.rain.geometry.attributes.position.needsUpdate = true;
-      this.rain.material.opacity = 0.25 + 0.35 * c.rain;
+      // แสงรอบเม็ดฝน: ไฟที่เปิดอยู่ใกล้ ๆ
+      const u = this.rainU, lights = f.nightLights;
+      for (let i = 0; i < u.lp.value.length; i++) {
+        const n = lights[i];
+        if (n && n.l.intensity > 0) { n.l.getWorldPosition(u.lp.value[i]); u.lc.value[i].copy(n.l.color).multiplyScalar(Math.min(1.2, n.l.intensity / n.max)); }
+        else u.lc.value[i].setRGB(0, 0, 0);
+      }
+      u.opacity.value = 0.3 + 0.4 * c.rain;
     }
+    const ambient = Math.max(0.04, 1 - (f.nightFactor || 0)) * (1 - 0.35 * c.clouds);
+    this.rainU.ambient.value = ambient;
+    this.rainU.flash.value = Math.max(0, this.flash) * 1.5;
+    this.updateWet(dt, c.rain, ambient);
 
     // เมฆ
     const dayLight = 1 - (f.nightFactor || 0);

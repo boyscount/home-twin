@@ -1389,7 +1389,7 @@ export class Farm3D {
     this.sun.intensity = day * 3.2 * (1 - 0.85 * cl);
     const warm = clamp(1 - elev / 30, 0, 1);
     this.sun.color.setRGB(1, lerp(0.97, 0.72, warm), lerp(0.92, 0.5, warm));
-    this.hemi.intensity = lerp(0.12, 0.85, day) * (1 - 0.3 * cl - 0.2 * rn);
+    this.hemi.intensity = Math.max(lerp(0.12, 0.85, day) * (1 - 0.3 * cl - 0.2 * rn), 0.13 + rn * 0.05 * night);
     this.hemi.color.setHSL(0.6, 0.5 * (1 - cl), lerp(0.25, 0.85, day));
     this.hemiBase = this.hemi.intensity;
     this.renderer.toneMappingExposure = lerp(0.9, 0.5, day) * (1 - 0.2 * cl - 0.2 * rn);
@@ -1398,7 +1398,8 @@ export class Farm3D {
     const fogC = new THREE.Color(0.58, 0.7, 0.86)
       .lerp(new THREE.Color(0.95, 0.62, 0.42), warm * sunUp * 0.75)
       .lerp(new THREE.Color(0.025, 0.035, 0.07), night)
-      .lerp(new THREE.Color(0.5, 0.53, 0.57).multiplyScalar(Math.max(0.06, day)), Math.min(1, cl * 0.8 + rn * 0.2));
+      .lerp(new THREE.Color(0.5, 0.53, 0.57).multiplyScalar(Math.max(0.06, day)), Math.min(1, cl * 0.8 + rn * 0.2))
+      .lerp(new THREE.Color(0.085, 0.075, 0.085), night * cl * 0.55); // คืนฟ้าครึ้ม: ใต้เมฆมีแสงเรืองจาง ๆ จากหมู่บ้านไกล ๆ
     this.scene.fog.color.copy(fogC);
     this.fogColor = fogC.clone();
     // หมอกยามเช้าหนาเฉพาะช่วงเช้ามืด–สาย กลางวันโปร่งขึ้นจึงมองเห็นไกลและมีมิติ
