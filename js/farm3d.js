@@ -1382,6 +1382,7 @@ export class Farm3D {
     this.statusTimer -= dt;
     if (this.statusTimer < 0) { this.statusTimer = 0.5; this.renderStatus(); }
     this.tour?.update(dt);
+    this.festivals?.update(dt, t);
 
     if (!this.visible) return;
     if (this.flying) this.flying(performance.now());
@@ -2125,6 +2126,7 @@ export class Farm3D {
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
       ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
       ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>English · ${this.school.lesson.topic} · ${this.school.kids.length} คน</b></div>` : ''}
+      ${this.festival ? `<div class="st"><span>${this.festival.emoji} เทศกาล</span><b>${this.festival.name}</b></div>` : ''}
       <div class="st"><span>พี่สาว / น้องสาว</span><b>${this.sis.task} / ${this.kid.task}</b></div>
       <div class="st"><span>หมู / ไก่ / ปลา / แมว</span><b>${this.pigs.length} / ${this.chickens.length} / ${this.fish.length} / ${this.cats.length}</b></div>
       <div class="st"><span>สวนยางพารา</span><b>${this.rubberCount} ต้น</b></div>

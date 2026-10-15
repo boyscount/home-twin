@@ -9,9 +9,11 @@ import { Tour } from './tour.js';
 import { Ambient } from './ambient.js';
 import { DailySummary } from './summary.js';
 import { Kiosk } from './kiosk.js';
+import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
+const festivals = farm.festivals = new Festivals(farm);
 const radar = new Radar(document.getElementById('radarCanvas'), farm);
 const hub = new Hub();
 
@@ -164,4 +166,13 @@ bus.on('alert', () => {
 });
 document.querySelector('[data-tab=radar]').addEventListener('click', () => { unseen = 0; });
 
-window.app = { farm, radar, hub, bus, sound, ambient, tour, summary, kiosk };
+// ---------- เทศกาล ----------
+const festSel = document.getElementById('festivalSel');
+const todayFest = festivalFor();
+festSel.innerHTML = `<option value="auto">อัตโนมัติตามวันที่${todayFest ? ` (วันนี้: ${FESTIVALS[todayFest].name})` : ' (วันนี้ไม่มีเทศกาล)'}</option>`
+  + Object.entries(FESTIVALS).map(([id, f]) => `<option value="${id}">ดูตัวอย่าง: ${f.emoji} ${f.name}</option>`).join('')
+  + '<option value="off">ปิด</option>';
+festSel.value = festivals.mode;
+festSel.addEventListener('change', () => festivals.setMode(festSel.value));
+
+window.app = { farm, radar, hub, bus, sound, ambient, tour, summary, kiosk, festivals };

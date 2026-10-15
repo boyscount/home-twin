@@ -77,6 +77,9 @@ export class Tour {
     return [
       { id: 'intro', dur: 11, title: () => 'บ้านสวนของเรา', sub: () => `${hh()} · ${wx()} · ครอบครัว 4 คน กับสัตว์เลี้ยงอีกเต็มบ้าน`,
         ...this.orbit(V(2, 0, 2), 78, 40, 0.05) },
+      { id: 'festival', dur: 12, when: () => !!f.festival, title: () => `${f.festival.emoji} ${f.festival.name}`, sub: () => f.festival.desc,
+        init: () => { const id = f.festival?.id; this.festCam = id === 'newyear' ? [V(0, 0, 10), 60, 22, 0.04] : id === 'loykrathong' ? [V(14, 0, 22), 8, 3.5, 0.1] : id === 'childrensday' ? [V(-25, 1.5, 26), 9, 4, 0.08] : [V(0, 1.5, 30), 10, 4.5, 0.08]; this.festOrbit = this.orbit(...this.festCam); this.festOrbit.init(); },
+        cam: (t) => this.festOrbit.cam(t) },
       { id: 'bbq', dur: 13, when: () => f.bbq.active, title: () => '🍖 หมูกะทะหน้าบ้าน',
         sub: () => { const n = f.cats.filter(c => c.group.position.distanceTo(f.bbq.center) < 3).length; return `พ่อ แม่ พี่สาว น้องสาว ล้อมวงกินหมูกะทะ${n ? ` · แมว ${n} ตัวมานั่งรอขอกิน` : ''}`; },
         ...this.orbit(V(2, 0.9, 15.5), 4.4, 2.5, 0.1) },

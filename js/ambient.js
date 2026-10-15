@@ -13,6 +13,7 @@ export class Ambient {
     bus.on('vehicle-pass', v => this.whoosh(v.label));
     bus.on('farm-event', msg => { if (msg.includes('เทอาหารหมู')) this.oinks(4); if (msg.includes('Goodbye')) this.kidsChatter(); });
     bus.on('bbq', on => this.sizzle(on));
+    bus.on('firework', fw => this.boom(fw));
   }
 
   get ok() { return this.sound.enabled && this.sound.ctx && this.sound.ctx.state === 'running'; }
@@ -104,6 +105,13 @@ export class Ambient {
       src.connect(f).connect(g).connect(this.sound.master); src.start();
       this._sizzle = { src, g };
     } else if (!on && this._sizzle) { this._sizzle.src.stop(); this._sizzle = null; }
+  }
+
+  boom(fw) { // พลุ: แสงมาก่อน เสียงตามมาทีหลังตามระยะ
+    if (!this.ok) return;
+    const c = this.farm.camera.position, d = Math.hypot(c.x - fw.x, c.z - fw.z, 55), at = Math.min(d / 343, 0.6);
+    this.noise({ dur: 1.2, gain: Math.min(0.35, 25 / d), type: 'lowpass', f0: 900, f1: 120, attack: 0.01, at });
+    for (let i = 0; i < 6; i++) this.noise({ dur: 0.05, gain: 0.04, f0: 3000, q: 2, at: at + 0.3 + i * rand(0.05, 0.12) });
   }
 
   // เรียกทุก 0.25 วินาที
