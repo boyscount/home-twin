@@ -160,13 +160,25 @@
     if (m === 'video' && !vidOK) m = 'radar';
     mode = m; modeT = m === 'video' ? VIDEO_SEC : RADAR_SEC;
     if (m === 'video') {
-      var h = hourNow(), src = (h < 6 || h >= 18.5) ? 'media/tv-night.mp4' : 'media/tv-day.mp4';
+      var src = 'media/' + pickClip() + '.mp4';
       if (src !== vidSrc) { vidSrc = src; vid.src = src; }
       vid.style.display = 'block';
       try { var p = vid.play(); if (p && p.catch) p.catch(function () { vidOK = false; setMode('radar'); }); } catch (e) { vidOK = false; setMode('radar'); return; }
     } else { vid.style.display = 'none'; try { vid.pause(); } catch (e) {} }
   }
   if (/[?&]start=video/.test(location.search)) setTimeout(function () { setMode('video'); }, 300); // สำหรับทดสอบ
+  // คลิปวนตามช่วงเวลา (สลับไม่ซ้ำทุกรอบ) · ฝนตกจริงที่บ้านสวน → เลือกคลิปฝนก่อน
+  var PLAYLIST = {
+    morning: ['tv-mist', 'tv-day'],          // 05:30–09:00
+    day: ['tv-day', 'tv-rain'],              // 09:00–18:30
+    night: ['tv-night', 'tv-dadtap']         // 18:30–05:30
+  }, turn = {};
+  function pickClip() {
+    var h = hourNow(), period = (h >= 5.5 && h < 9) ? 'morning' : (h >= 9 && h < 18.5) ? 'day' : 'night';
+    if (period === 'day' && /ฝน|พายุ/.test(wx) && !turn.rainShown) { turn.rainShown = true; return 'tv-rain'; }
+    var list = PLAYLIST[period], i = turn[period] || 0; turn[period] = i + 1;
+    return list[i % list.length];
+  }
   function tickMode(dt) {
     if (alertT > 0 && mode === 'video') setMode('radar');
     modeT -= dt;
