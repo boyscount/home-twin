@@ -464,6 +464,8 @@ export class Farm3D {
     this.wx = new WeatherFX(this);
 
     this.setTime(this.hour);
+    // env map ต้องมีตั้งแต่แรก (ถ้ามาทีหลัง shader ทุกตัวต้องคอมไพล์ใหม่อีกรอบ)
+    clearTimeout(this.envTimer); this.envRT = this.pmrem.fromScene(this.envScene, 0.04); this.scene.environment = this.envRT.texture;
 
     bus.on('cmd', c => this.onCommand(c));
 
@@ -475,7 +477,18 @@ export class Farm3D {
     // วาดเฟรมแรก (คอมไพล์ shader) ตอนหน้าโหลดยังแสดงอยู่ แล้วค่อยซ่อนหน้าโหลดเมื่อเห็นภาพจริง
     // หมายเหตุ: ลอง compileAsync แล้วเฟรมแรกกลับช้าลงมาก จึงใช้การวาดตรง ๆ
     performance.mark('farm-built');
-    const start = () => {
+    const start = async () => {
+      // คอมไพล์ shader ทั้งฉากแบบขนานระหว่างหน้าโหลด (จอไม่ค้าง) — ตั้ง render target แบบเดียวกับตอนวาดจริง
+      this.splash(85, 'กำลังเตรียมกราฟิก… (ครั้งแรกอาจใช้เวลาสักครู่)');
+      document.getElementById('splashBar')?.classList.add('busy');
+      try {
+        const post = QUALITY[this.quality].post;
+        if (post) r.setRenderTarget(this.composer.renderTarget1);
+        await Promise.race([r.compileAsync(this.scene, this.camera), new Promise(res => setTimeout(res, 15000))]);
+        r.setRenderTarget(null);
+      } catch { r.setRenderTarget(null); }
+      performance.mark('farm-compiled');
+      document.getElementById('splashBar')?.classList.remove('busy');
       this.tick();
       performance.mark('farm-first-frame'); // ใช้วัดความเร็วเปิดเว็บ (DevTools → Performance)
       this.splash(100, 'พร้อมแล้ว');
@@ -1620,14 +1633,12 @@ export class Farm3D {
     const cam = this.topCam || (this.topCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 800));
     cam.left = -range; cam.right = range; cam.top = range; cam.bottom = -range; cam.updateProjectionMatrix();
     cam.position.set(center.x, 400, center.z); cam.up.set(0, 0, -1); cam.lookAt(center.x, 0, center.z);
-    const fog = this.scene.fog; this.scene.fog = null; this.skyDome.mesh.visible = false;
+    // ปิดหมอกด้วยการตั้งความหนาเป็น 0 (ถ้าเอาหมอกออก shader ทุกตัวต้องคอมไพล์ใหม่)
+    const fd = this.scene.fog.density; this.scene.fog.density = 0; this.skyDome.mesh.visible = false;
     const labels = this.labels.map(l => l.visible); this.labels.forEach(l => (l.visible = false));
-    r.setScissorTest(true); r.setViewport(0, 0, S, S); r.setScissor(0, 0, S, S);
-    r.render(this.scene, cam);
-    const c = document.createElement('canvas'); c.width = c.height = S * pr;
-    c.getContext('2d').drawImage(r.domElement, 0, r.domElement.height - S * pr, S * pr, S * pr, 0, 0, S * pr, S * pr);
-    r.setScissorTest(false); r.setViewport(0, 0, sizeVec.x, sizeVec.y);
-    this.scene.fog = fog; this.skyDome.mesh.visible = true; this.labels.forEach((l, i) => (l.visible = labels[i]));
+    void pr;
+    const c = this.snapshot(cam, S, S);
+    this.scene.fog.density = fd; this.skyDome.mesh.visible = true; this.labels.forEach((l, i) => (l.visible = labels[i]));
     return c;
   }
 
@@ -1761,17 +1772,11 @@ export class Farm3D {
     this.snapCam.position.copy(head).addScaledVector(front, 1.7).add(new THREE.Vector3(0.25, 0.25, 0));
     this.snapCam.lookAt(head.x, head.y - 0.15, head.z);
     this.snapCam.updateProjectionMatrix();
-    const r = this.renderer;
-    r.setScissorTest(true);
-    r.setViewport(0, 0, W / pr, H / pr); r.setScissor(0, 0, W / pr, H / pr);
+    void pr;
     this.skyDome.mesh.position.copy(this.snapCam.position);
-    r.render(this.scene, this.snapCam);
+    const c = this.snapshot(this.snapCam, W, H);
     this.skyDome.mesh.position.copy(this.camera.position);
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d');
-    ctx.drawImage(r.domElement, 0, r.domElement.height - H, W, H, 0, 0, W, H);
-    r.setScissorTest(false);
-    const size = new THREE.Vector2(); r.getSize(size); r.setViewport(0, 0, size.x, size.y);
     // โหมด IR ตอนกลางคืน
     if (this.nightFactor > 0.5) {
       const img = ctx.getImageData(0, 0, W, H);
@@ -1781,6 +1786,30 @@ export class Farm3D {
       }
       ctx.putImageData(img, 0, 0);
     }
+    return c;
+  }
+
+  // ถ่ายภาพจากกล้องอื่นลงแคนวาส: เรนเดอร์ลง render target แบบเดียวกับภาพหลัก (shader ชุดเดิม ไม่ต้องคอมไพล์ใหม่)
+  // แล้วทำ tone mapping + แปลงสี sRGB เองใน JS
+  snapshot(cam, W, H) {
+    const r = this.renderer;
+    const rt = this.snapRT || (this.snapRT = new THREE.WebGLRenderTarget(W, H));
+    if (rt.width !== W || rt.height !== H) rt.setSize(W, H);
+    const prev = r.getRenderTarget();
+    r.setRenderTarget(rt); r.render(this.scene, cam); r.setRenderTarget(prev);
+    const buf = new Uint8Array(W * H * 4); r.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(W, H), ex = r.toneMappingExposure;
+    const lut = new Uint8ClampedArray(256);
+    for (let i = 0; i < 256; i++) { // ACES (ประมาณ) + gamma sRGB
+      const x = (i / 255) * ex * 1.6, a = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+      lut[i] = Math.pow(Math.min(1, Math.max(0, a)), 1 / 2.2) * 255;
+    }
+    for (let y = 0; y < H; y++) {
+      const src = (H - 1 - y) * W * 4, dst = y * W * 4;
+      for (let x = 0; x < W * 4; x += 4) { img.data[dst + x] = lut[buf[src + x]]; img.data[dst + x + 1] = lut[buf[src + x + 1]]; img.data[dst + x + 2] = lut[buf[src + x + 2]]; img.data[dst + x + 3] = 255; }
+    }
+    ctx.putImageData(img, 0, 0);
     return c;
   }
 

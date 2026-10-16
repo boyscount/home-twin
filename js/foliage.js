@@ -63,19 +63,20 @@ export function makeFoliageTextures() {
 // วัสดุใบไม้ + ลมพัด (ปลายบนไหวมากกว่า) ใช้ได้ทั้ง mesh ปกติและ InstancedMesh
 export function leafMaterial(map, color = '#ffffff', sway = 1) {
   const m = new THREE.MeshStandardMaterial({ map, color, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85 });
+  const uSway = { value: sway };
   m.onBeforeCompile = sh => {
-    sh.uniforms.uTime = windU.time; sh.uniforms.uWind = windU.wind;
-    sh.vertexShader = 'uniform float uTime; uniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.uniforms.uTime = windU.time; sh.uniforms.uWind = windU.wind; sh.uniforms.uSway = uSway;
+    sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uSway;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       vec4 lwp = vec4(transformed, 1.0);
       #ifdef USE_INSTANCING
         lwp = instanceMatrix * lwp;
       #endif
       lwp = modelMatrix * lwp;
-      float sw = ${sway.toFixed(2)} * uWind * 0.06 * (0.6 + 0.4 * sin(uTime * 0.7 + lwp.x * 0.11));
+      float sw = uSway * uWind * 0.06 * (0.6 + 0.4 * sin(uTime * 0.7 + lwp.x * 0.11));
       transformed.x += sin(uTime * 1.9 + lwp.x * 0.35 + lwp.z * 0.21 + lwp.y) * sw;
       transformed.z += cos(uTime * 1.6 + lwp.z * 0.33 + lwp.y * 1.3) * sw * 0.8;`);
   };
-  m.customProgramCacheKey = () => 'leaf' + sway;
+  m.customProgramCacheKey = () => 'leaf'; // ทุกใบใช้ shader ชุดเดียวกัน (คอมไพล์ครั้งเดียว)
   return m;
 }
 

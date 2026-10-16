@@ -404,6 +404,9 @@ body.kiosk .sim-fab { display: none; }
 .splash-sub { font-size: 13px; color: var(--dim); }
 .splash-bar { width: min(260px, 70vw); height: 6px; border-radius: 99px; background: #1d2b23; overflow: hidden; margin-top: 14px; }
 .splash-bar i { display: block; height: 100%; width: 12%; background: linear-gradient(90deg, #39ff6a, #7bd88f); border-radius: 99px; transition: width .35s ease; }
+/* ระหว่างคอมไพล์กราฟิก (ไม่รู้ % ที่แน่นอน) ให้แถบมีแสงวิ่ง จะได้รู้ว่าไม่ได้ค้าง */
+.splash-bar i.busy { background: linear-gradient(90deg, #2bbf52 0%, #39ff6a 35%, #d6ffe0 50%, #39ff6a 65%, #2bbf52 100%); background-size: 200% 100%; animation: splashShine 1.1s linear infinite; }
+@keyframes splashShine { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .splash-step { font-size: 13px; color: var(--dim); min-height: 18px; }
 .loading { z-index: 8; } /* คลุมปุ่มลอยทั้งหมดจนกว่าภาพแรกจะพร้อม */
 

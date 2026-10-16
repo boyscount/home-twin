@@ -47,12 +47,14 @@ export class Fishermen {
       const bundle = new THREE.Group(); bundle.position.set(-0.15, 1.5, -0.1); bundle.rotation.z = 0.9; h.group.add(bundle);
       for (let i = 0; i < 6; i++) cyl(0.012, 0.012, 1.3, bamboo, rand(-0.05, 0.05), 0, rand(-0.05, 0.05), bundle, 4);
       h.group.visible = false; this.scene.add(h.group);
+      // ไฟฉายคาดหัวอยู่ในฉากตลอด (ตามตำแหน่งหัวทุกเฟรม) — จำนวนไฟในฉากต้องคงที่ ไม่งั้น shader ทั้งฉากจะคอมไพล์ใหม่จนจอค้าง
+      const rig = new THREE.Group(); rig.matrixAutoUpdate = false; this.scene.add(rig);
       const lamp = new THREE.SpotLight('#fff1d0', 0, 20, 0.5, 0.6, 1.3); lamp.position.set(0, 0.06, 0.15);
-      const lt = new THREE.Object3D(); lt.position.set(0, -0.9, 4); h.head.add(lamp, lt); lamp.target = lt;
+      const lt = new THREE.Object3D(); lt.position.set(0, -0.9, 4); rig.add(lamp, lt); lamp.target = lt;
       const w = new Walker(h, 1.0);
       const ent = { id: 'VIL-' + (idx + 1), type: 'human', label: `ชาวบ้านปักเบ็ด (${p.name})`, villager: true, obj: h.group, h };
       void basket;
-      return { ...p, h, w, rods, bundle, lamp, ent, act: 'away', actId: 0, task: '', present: false, done: {} };
+      return { ...p, h, w, rods, bundle, lamp, rig, ent, act: 'away', actId: 0, task: '', present: false, done: {} };
     });
     this.applyInitialRods();
     bus.on('time', () => this.schedule());
@@ -157,6 +159,7 @@ export class Fishermen {
   }
 
   update(dt, t) {
+    for (const p of this.people) { p.rig.matrix.copy(p.h.head.matrixWorld); p.rig.matrixWorldNeedsUpdate = true; if (!p.present) p.lamp.intensity = 0; }
     for (const p of this.people) {
       if (p.present) p.w.update(dt);
       p.lamp.intensity = p.present && (this.farm.nightFactor || 0) > 0.3 ? 7 : 0; // ไฟฉายคาดหัวตอนมืด
