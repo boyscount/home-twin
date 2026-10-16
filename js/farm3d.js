@@ -7,10 +7,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { SkyDome } from './sky.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
+import { freezeStatic } from './freeze.js';
+import { FOL, windU, makeFoliageTextures, leafMaterial, canopyGeometry, frondGeometry } from './foliage.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -34,6 +37,39 @@ function noise(ctx, w, h, base, amp, n = 6000, size = 2) {
     ctx.fillStyle = v > 0 ? `rgba(255,255,255,${v})` : `rgba(0,0,0,${-v})`;
     ctx.fillRect(Math.random() * w, Math.random() * h, size, size);
   }
+}
+// สร้าง normal map จากความสว่างของลายบนแคนวาส (ร่องไม้ รอยต่ออิฐ ลอนหลังคา) → ผิวมีมิติรับแสงจริง
+function normalTex(src, strength = 2) {
+  const s = src.image, w = s.width, h = s.height, d = s.getContext('2d').getImageData(0, 0, w, h).data;
+  const L = (x, y) => { const i = (((y + h) % h) * w + ((x + w) % w)) * 4; return (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255; };
+  const t = canvasTex(w, h, c => {
+    const img = c.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = (L(x + 1, y) - L(x - 1, y)) * strength, dy = (L(x, y + 1) - L(x, y - 1)) * strength;
+      const n = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+      img.data[i] = (-dx / n * 0.5 + 0.5) * 255; img.data[i + 1] = (dy / n * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / n * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+    }
+    c.putImageData(img, 0, 0);
+  });
+  t.colorSpace = THREE.NoColorSpace; t.repeat.copy(src.repeat);
+  return t;
+}
+// เงาซอกมุมแบบถูก ๆ: ผนัง/เสาที่ตั้งบนพื้นจะเข้มลงตรงโคน (แทน AO จริงในคุณภาพปกติ เกือบไม่กินเครื่อง)
+function groundAO(mat, strength = 0.42, height = 0.9) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.vertexShader = 'varying float vGY; varying float vGN;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      vec4 gwp = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        gwp = instanceMatrix * gwp;
+      #endif
+      gwp = modelMatrix * gwp; vGY = gwp.y;
+      vGN = abs(normalize(mat3(modelMatrix) * objectNormal).y);`);
+    sh.fragmentShader = 'varying float vGY; varying float vGN;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      diffuseColor.rgb *= mix(1.0 - ${strength.toFixed(2)} * (1.0 - smoothstep(0.0, ${height.toFixed(2)}, vGY)), 1.0, smoothstep(0.35, 0.8, vGN));`);
+  };
+  mat.customProgramCacheKey = () => 'gao' + strength + height + (prev ? 'p' : '');
 }
 const TEX = {};
 function makeTextures() {
@@ -103,6 +139,7 @@ function makeTextures() {
     c.putImageData(img, 0, 0);
   }, [3, 3]);
   TEX.waterN.colorSpace = THREE.NoColorSpace;
+  for (const [k, s] of [['concrete', 1.2], ['asphalt', 1.5], ['wood', 3], ['deck', 4], ['roof', 5], ['brick', 4], ['bark', 3]]) TEX[k + 'N'] = normalTex(TEX[k], s);
 }
 
 // ---------------------------------------------------------------- materials
@@ -123,12 +160,13 @@ function makeMaterials() {
   };
   patchy(M.grass, '1.12, 1.04, 0.80', '0.86, 0.94, 0.86', [0.09, 0.075, 0.23, 0.17, 0.55, 0.41]);
   patchy(M.rice, '1.10, 1.02, 0.78', '0.88, 0.96, 0.9', [0.012, 0.017, 0.031, 0.027, 0.07, 0.06]);
-  M.concrete = std({ map: TEX.concrete, roughness: 0.9 });
-  M.asphalt = std({ map: TEX.asphalt, roughness: 0.95 });
-  M.wood = std({ map: TEX.wood, roughness: 0.7 });
-  M.deck = std({ map: TEX.deck, roughness: 0.6 });
-  M.roof = std({ map: TEX.roof, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide });
-  M.wall = std({ color: '#9fa19e', map: TEX.concrete, roughness: 0.85 });
+  const nrm = (k, s = 1) => ({ normalMap: TEX[k + 'N'], normalScale: new THREE.Vector2(s, s) });
+  M.concrete = std({ map: TEX.concrete, roughness: 0.9, ...nrm('concrete', 0.6) });
+  M.asphalt = std({ map: TEX.asphalt, roughness: 0.95, ...nrm('asphalt', 0.8) });
+  M.wood = std({ map: TEX.wood, roughness: 0.7, ...nrm('wood') });
+  M.deck = std({ map: TEX.deck, roughness: 0.6, ...nrm('deck') });
+  M.roof = std({ map: TEX.roof, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide, ...nrm('roof') });
+  M.wall = std({ color: '#9fa19e', map: TEX.concrete, roughness: 0.85, ...nrm('concrete', 0.5) });
   M.wallDark = std({ color: '#5d3a2a', roughness: 0.8 });
   M.frame = std({ color: '#1c1c1c', roughness: 0.5, metalness: 0.6 });
   M.glass = new THREE.MeshPhysicalMaterial({ color: '#2b3a36', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.32, envMapIntensity: 1.5 });
@@ -141,8 +179,8 @@ function makeMaterials() {
   // ต้นไม้แต่ละต้นสีไม่เท่ากัน: เขียวเข้ม, เขียวมะกอก, เขียวอมเหลือง, เขียวอมฟ้า
   M.foliage = ['#38542b', '#4a5f2f', '#56693a', '#2f4a30', '#5b6e3c', '#425a35'].map(c => std({ color: c, roughness: 0.92 }));
   M.trunk = std({ color: '#5a4636', roughness: 1 });
-  M.bark = std({ map: TEX.bark, roughness: 1 });
-  M.brick = std({ map: TEX.brick, roughness: 0.95 });
+  M.bark = std({ map: TEX.bark, roughness: 1, ...nrm('bark') });
+  M.brick = std({ map: TEX.brick, roughness: 0.95, ...nrm('brick') });
   M.metal = std({ color: '#9aa3a7', roughness: 0.4, metalness: 0.8 });
   M.water = new THREE.MeshPhysicalMaterial({ color: '#2e5f58', roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.78, normalMap: TEX.waterN, normalScale: new THREE.Vector2(0.4, 0.4) });
   M.mud = std({ color: '#3b3324', roughness: 1 });
@@ -155,6 +193,21 @@ function makeMaterials() {
   M.ledOff = std({ color: '#333', emissive: '#000' });
   M.ledOn = std({ color: '#3f3', emissive: '#3f3', emissiveIntensity: 2 });
   M.ledBad = std({ color: '#f33', emissive: '#f22', emissiveIntensity: 2.5 });
+  for (const k of ['wall', 'wallDark', 'wood', 'brick', 'concrete', 'white', 'trunk', 'bark', 'frame']) groundAO(M[k]);
+  // ใบไม้จริง (แผ่นใบโปร่งใส) แต่ละต้นสีต่างกันเล็กน้อย
+  M.leaves = ['#ffffff', '#e6efcf', '#d2dcc0', '#f2e7c6', '#c9d8c4'].map(c => leafMaterial(FOL.broad, c));
+  M.palmLeaf = ['#ffffff', '#e9e3c4', '#d8e2c2'].map(c => leafMaterial(FOL.palm, c, 1.6));
+  M.palmDead = leafMaterial(FOL.palm, '#a07850', 0.6);
+  M.bananaLeaf = leafMaterial(FOL.banana, '#c8d6a8', 1.2);
+}
+// รูปทรงพุ่มใช้ร่วมกัน (สุ่มไว้หลายแบบ ต้นไม้แต่ละต้นจะได้ไม่ซ้ำกันเป๊ะ)
+const GEO = {};
+function makeSharedGeo() {
+  GEO.canopy = [0, 1, 2, 3].map(() => canopyGeometry(36, 1.7, 1.25, 1.7, 1.3));
+  GEO.shrub = [0, 1].map(() => canopyGeometry(14, 0.6, 0.45, 0.6, 0.55));
+  GEO.palmFrond = frondGeometry(1.6, 4.2, 1.9, 0.3);
+  GEO.palmDead = frondGeometry(1.2, 3.2, 3.6, 0.15);
+  GEO.bananaLeaf = frondGeometry(0.75, 2.3, 1.7, 0.08);
 }
 
 function box(w, h, d, mat, x = 0, y = 0, z = 0, parent) {
@@ -420,7 +473,9 @@ const PERSONAS = [
 // ระดับคุณภาพภาพ — มือถือเริ่มที่ 'medium' เพื่อไม่ให้หน่วง/ร้อน
 export const QUALITY = {
   // shadowEvery = วาดเงาใหม่ทุกกี่เฟรม (เงาคือส่วนที่กินเครื่องที่สุด)
-  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 2, grass: 10000 },
+  // ao = เงาตามซอกมุม/รอยต่อแบบคำนวณจริง (GTAO) — สวยแต่กินการ์ดจอมาก จึงมีเฉพาะระดับสูงสุดสำหรับคอมแรง ๆ
+  ultra: { label: 'สูงสุด (คอมการ์ดจอแรง)', post: true, ao: true, shadow: 4096, shadowEvery: 1, pr: 2, grass: 14000 },
+  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 1.75, grass: 10000 },
   medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, grass: 4500 },
   low: { label: 'ต่ำ (ประหยัดแบต)', post: false, shadow: 1024, shadowEvery: 4, pr: 1, grass: 0 },
 };
@@ -488,7 +543,7 @@ export class Farm3D {
 
   init() {
     this.splash(35, 'กำลังสร้างบ้านสวน…');
-    makeTextures(); makeMaterials();
+    makeTextures(); makeFoliageTextures(); makeMaterials(); makeSharedGeo();
     const [w, h] = this.size();
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.touchDevice = matchMedia('(pointer: coarse)').matches;
@@ -549,8 +604,16 @@ export class Farm3D {
     this.pmrem = new THREE.PMREMGenerator(r);
     this.envScene = new THREE.Scene(); this.envScene.add(this.skyDome.envMesh);
     // post-processing: bloom ให้ไฟ/ดวงอาทิตย์เรือง + เกรดสี
-    this.composer = new EffectComposer(r);
+    // render target แบบ MSAA 4x — ไม่งั้นขอบภาพจะหยัก (antialias ของ renderer ไม่มีผลตอนใช้ post-processing)
+    const pr0 = r.getPixelRatio();
+    this.composer = new EffectComposer(r, new THREE.WebGLRenderTarget(w * pr0, h * pr0, { type: THREE.HalfFloatType, samples: 4 }));
     this.composer.addPass(new RenderPass(s, this.camera));
+    this.gtao = new GTAOPass(s, this.camera, w, h);
+    this.gtao.output = GTAOPass.OUTPUT.Default; this.gtao.blendIntensity = 0.9;
+    this.gtao.updateGtaoMaterial({ radius: 1.1, distanceExponent: 1.6, thickness: 1.5, scale: 1.2, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
+    this.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 12 });
+    this.gtao.enabled = !!QUALITY[this.quality].ao;
+    this.composer.addPass(this.gtao);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.55, 2.0);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -606,7 +669,7 @@ export class Farm3D {
       }, 120));
       // งานที่ไม่จำเป็นต่อภาพแรก ทำตอนเครื่องว่าง
       const idle = window.requestIdleCallback ? fn => requestIdleCallback(fn, { timeout: 2500 }) : fn => setTimeout(fn, 400);
-      idle(() => { if (this.grassPending) { this.grassPending = false; this.buildGrass(); this.renderer.shadowMap.needsUpdate = true; } });
+      idle(() => { if (this.grassPending) { this.grassPending = false; this.buildGrass(); this.renderer.shadowMap.needsUpdate = true; } this.freeze(); });
     };
     // ให้หน้าโหลดได้วาดข้อความ/แถบความคืบหน้าก่อน (rAF เดียว ไม่ใช้ setTimeout ที่โดนหน่วงในแท็บพื้นหลัง)
     requestAnimationFrame(start);
@@ -851,7 +914,8 @@ export class Farm3D {
     for (let i = 0; i < 40; i++) {
       const x = rand(-12, 2), z = rand(12, 33);
       if (x > -4.5 && x < 3.5) continue;
-      const b = sph(rand(0.3, 0.7), M.foliage[Math.floor(Math.random() * M.foliage.length)], x, 0.3, z, s, 8); b.scale.y = 0.8;
+      const b = new THREE.Mesh(GEO.shrub[i % 2], M.leaves[i % M.leaves.length]); b.position.set(x, 0.4, z);
+      b.scale.setScalar(rand(0.6, 1.3)); b.rotation.y = rand(0, 6); b.castShadow = true; s.add(b);
     }
     // เสาไฟ
     for (const [x, z] of [[-4.5, 37.5], [4.5, 37.5], [-2, 26]]) {
@@ -863,12 +927,21 @@ export class Farm3D {
 
   makeTree(x, z, sc = 1) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(sc); this.scene.add(g);
-    cyl(0.18, 0.3, 3.5, M.trunk, 0, 1.75, 0, g, 8);
-    for (let i = 0; i < 6; i++) {
-      const fm = g.userData.fm || (g.userData.fm = M.foliage[Math.floor(Math.random() * M.foliage.length)]);
-      const b = sph(rand(1.4, 2.2), i % 3 === 0 ? M.leafDark : fm, rand(-1.6, 1.6), rand(3.6, 5.5), rand(-1.6, 1.6), g, 9);
-      b.scale.y = 0.8;
+    cyl(0.16, 0.3, 3.6, M.bark, 0, 1.8, 0, g, 8);
+    const lm = M.leaves[Math.floor(Math.random() * M.leaves.length)];
+    // กิ่งแตกออกจากลำต้น แล้วมีพุ่มใบที่ปลายกิ่งแต่ละกิ่ง + พุ่มกลางยอด
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rand(-0.4, 0.4), tilt = rand(0.5, 0.9), len = rand(1.6, 2.3);
+      const br = cyl(0.06, 0.11, len, M.bark, 0, 0, 0, g, 6);
+      br.position.set(Math.sin(a) * Math.sin(tilt) * len / 2, 3.2 + Math.cos(tilt) * len / 2, Math.cos(a) * Math.sin(tilt) * len / 2);
+      br.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
+      const c = new THREE.Mesh(GEO.canopy[(i + Math.floor(x)) & 3], lm); c.castShadow = true; c.receiveShadow = true;
+      c.position.set(Math.sin(a) * Math.sin(tilt) * len, 3.3 + Math.cos(tilt) * len + 0.5, Math.cos(a) * Math.sin(tilt) * len);
+      c.scale.setScalar(rand(0.85, 1.15)); c.rotation.y = rand(0, 6); g.add(c);
     }
+    const top = new THREE.Mesh(GEO.canopy[Math.floor(z) & 3], lm); top.castShadow = true; top.receiveShadow = true;
+    top.position.set(0, 5.6, 0); top.scale.set(1.15, 1, 1.15); g.add(top);
     return g;
   }
 
@@ -878,19 +951,18 @@ export class Farm3D {
     const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(lean * 0.4, h * 0.5, lean2 * 0.4), new THREE.Vector3(lean, h, lean2)]);
     const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.2, 7), M.bark); trunk.castShadow = true; g.add(trunk);
     const top = new THREE.Group(); top.position.set(lean, h, lean2); g.add(top);
-    const frondGeo = new THREE.PlaneGeometry(0.9, 4, 1, 8);
-    const p = frondGeo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const y = p.getY(i) + 2; // 0..4
-      p.setX(i, p.getX(i) * Math.sin((y / 4) * Math.PI) * 1.1);
-      p.setZ(i, -Math.pow(y / 4, 2) * 1.8);
+    const frondM = M.palmLeaf[Math.floor(Math.random() * M.palmLeaf.length)];
+    // ทางมะพร้าว 2 ชั้น (ชั้นบนชี้ขึ้น ชั้นล่างกางออก) + ทางแห้งห้อยลงสีน้ำตาล
+    for (let i = 0; i < 14; i++) {
+      const upper = i % 2 === 0;
+      const f = new THREE.Mesh(GEO.palmFrond, frondM); f.castShadow = true;
+      const holder = new THREE.Group(); holder.rotation.y = (i / 14) * Math.PI * 2 + rand(-0.15, 0.15); top.add(holder);
+      f.rotation.x = upper ? rand(0.55, 0.9) : rand(1.15, 1.45); f.scale.setScalar(upper ? rand(0.8, 0.95) : rand(0.95, 1.1)); holder.add(f);
     }
-    frondGeo.translate(0, 2, 0); frondGeo.computeVertexNormals();
-    const frondM = new THREE.MeshStandardMaterial({ color: ['#55703a', '#4d6935', '#60773f'][Math.floor(Math.random() * 3)], side: THREE.DoubleSide, roughness: 0.8 });
-    for (let i = 0; i < 11; i++) {
-      const f = new THREE.Mesh(frondGeo, frondM); f.castShadow = true;
-      const holder = new THREE.Group(); holder.rotation.y = (i / 11) * Math.PI * 2 + rand(-0.2, 0.2); top.add(holder);
-      f.rotation.x = rand(0.9, 1.4); holder.add(f);
+    for (let i = 0; i < 3; i++) {
+      const f = new THREE.Mesh(GEO.palmDead, M.palmDead);
+      const holder = new THREE.Group(); holder.position.y = -0.3; holder.rotation.y = rand(0, 6.3); top.add(holder);
+      f.rotation.x = rand(2.2, 2.6); holder.add(f);
     }
     for (let i = 0; i < 5; i++) sph(0.16, new THREE.MeshStandardMaterial({ color: '#5b6b25' }), rand(-0.25, 0.25), -0.2, rand(-0.25, 0.25), top, 6);
     this.palms = this.palms || []; this.palms.push(top);
@@ -898,14 +970,11 @@ export class Farm3D {
 
   makeBanana(x, z) {
     const g = new THREE.Group(); g.position.set(x, 0, z); this.scene.add(g);
-    cyl(0.12, 0.16, 2, new THREE.MeshStandardMaterial({ color: '#7a8a4a' }), 0, 1, 0, g, 7);
-    const leafGeo = new THREE.PlaneGeometry(0.7, 2.2, 1, 4); leafGeo.translate(0, 1.1, 0);
-    const lp = leafGeo.attributes.position;
-    for (let i = 0; i < lp.count; i++) lp.setZ(i, -Math.pow(lp.getY(i) / 2.2, 2) * 0.9);
-    leafGeo.computeVertexNormals();
-    for (let i = 0; i < 6; i++) {
-      const l = new THREE.Mesh(leafGeo, M.leafLight); l.castShadow = true;
-      const h = new THREE.Group(); h.position.y = 2; h.rotation.y = i * 1.05; h.add(l); l.rotation.x = rand(0.5, 1.1); g.add(h);
+    cyl(0.13, 0.18, 2, new THREE.MeshStandardMaterial({ color: '#6b6a45', roughness: 0.9 }), 0, 1, 0, g, 7);
+    for (let i = 0; i < 7; i++) {
+      const l = new THREE.Mesh(GEO.bananaLeaf, M.bananaLeaf); l.castShadow = true;
+      const h = new THREE.Group(); h.position.y = 1.9 + i * 0.03; h.rotation.y = i * 2.4 + rand(-0.3, 0.3); h.add(l);
+      l.rotation.x = i < 2 ? rand(0.45, 0.7) : rand(0.9, 1.35); l.scale.setScalar(rand(0.85, 1.1)); g.add(h);
     }
   }
 
@@ -1072,10 +1141,10 @@ export class Farm3D {
     ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0.03, -88); ground.receiveShadow = true; s.add(ground);
     const rows = 20, perRow = 20, total = rows * perRow;
     const trunkGeo = new THREE.CylinderGeometry(0.14, 0.2, 7, 7); trunkGeo.translate(0, 3.5, 0);
-    const canopyGeo = new THREE.IcosahedronGeometry(1.6, 1);
+    const canopyGeo = canopyGeometry(26, 1.6, 1.1, 1.9, 1.35);
     const cupGeo = new THREE.CylinderGeometry(0.08, 0.06, 0.12, 6); cupGeo.translate(0, 1.0, 0.2);
     const trunks = new THREE.InstancedMesh(trunkGeo, M.bark, total);
-    const canopy = new THREE.InstancedMesh(canopyGeo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), total * 3);
+    const canopy = new THREE.InstancedMesh(canopyGeo, leafMaterial(FOL.rubber, '#ffffff', 0.8), total * 3);
     const cups = new THREE.InstancedMesh(cupGeo, M.white, total);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
     let ci = 0, i = 0;
@@ -1087,7 +1156,7 @@ export class Farm3D {
       for (let c = 0; c < 3; c++) {
         const cs = rand(0.8, 1.25);
         m4.compose(new THREE.Vector3(x + rand(-0.9, 0.9), 7 * sc + rand(-0.6, 1.4), z + rand(-1.6, 1.6)), q, new THREE.Vector3(cs, cs * 0.8, cs * 1.3));
-        canopy.setMatrixAt(ci, m4); canopy.setColorAt(ci, col.setHSL(rand(0.22, 0.3), rand(0.22, 0.34), rand(0.2, 0.29))); ci++;
+        canopy.setMatrixAt(ci, m4); canopy.setColorAt(ci, col.setHSL(rand(0.14, 0.24), rand(0.15, 0.35), rand(0.72, 0.95))); ci++;
       }
       i++;
     }
@@ -1198,6 +1267,23 @@ export class Farm3D {
     this.renderer.shadowMap.needsUpdate = true;
   }
 
+  // รวมชิ้นส่วนนิ่งเป็นก้อนเดียว (ดู freeze.js) — เดินฉากล่วงหน้า 3 วิแบบไม่วาดภาพ เพื่อดูว่าอะไรขยับบ้าง
+  freeze() {
+    if (this.frozen) return; this.frozen = true;
+    const clk = this.clock, vis = this.visible, auto = this.autoTime, nv = this.nextVisitor, tourIdle = this.tour?.idle;
+    let et = clk.elapsedTime;
+    this.clock = { elapsedTime: et, getDelta() { et += 0.05; this.elapsedTime = et; return 0.05; } };
+    this.visible = false; this.autoTime = false; this.nextVisitor = 1e9;
+    const t0 = performance.now();
+    try { this.frozenInfo = freezeStatic(this, () => { for (let i = 0; i < 60; i++) this.tick(); }, [this.house, this.pond]); }
+    finally {
+      this.clock = clk; clk.getDelta(); this.visible = vis; this.autoTime = auto; this.nextVisitor = nv;
+      if (this.tour) this.tour.idle = tourIdle;
+    }
+    this.frozenInfo.ms = Math.round(performance.now() - t0);
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
   setQuality(q) {
     if (!QUALITY[q]) return;
     this.quality = q; const Q = QUALITY[q];
@@ -1206,6 +1292,7 @@ export class Farm3D {
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
     if (this.grass) { this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn; }
+    this.gtao.enabled = !!Q.ao;
     this.renderer.shadowMap.needsUpdate = true;
     this.resize();
   }
@@ -1782,6 +1869,7 @@ export class Farm3D {
     this.festivals?.update(dt, t);
 
     this.skyDome.u.time.value = t;
+    windU.time.value = t; windU.wind.value = 0.7 + (this.wx?.cur.wind || 1.5) * 0.18;
     if (this.grassU) { this.grassU.time.value = t; this.grassU.wind.value = 0.6 + (this.wx?.cur.wind || 1.5) * 0.12; }
     if (!this.visible) return;
     if (this.flying) this.flying(performance.now());
