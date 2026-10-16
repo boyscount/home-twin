@@ -48,7 +48,8 @@ export class Radar {
     this.log('ระบบเรดาร์เริ่มทำงาน · รัศมีตรวจจับ ' + this.range + ' ม.');
     this.last = performance.now();
     this.listTimer = 0;
-    const loop = (now) => { this.update(now); requestAnimationFrame(loop); };
+    // ขอเฟรมถัดไปก่อน แล้วค่อยอัปเดต — ถ้าเฟรมไหน error เรดาร์ก็ยังทำงานต่อ
+    const loop = (now) => { requestAnimationFrame(loop); try { this.update(now); } catch (e) { if (!this.errShown) { this.errShown = true; bus.emit('app-error', { where: 'เรดาร์', error: e, count: 1 }); } } };
     requestAnimationFrame(loop);
   }
 

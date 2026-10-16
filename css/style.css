@@ -512,3 +512,8 @@ body.kiosk .mini-radar:not(.big) { top: auto; bottom: calc(7% + 72px); right: 32
   body.kiosk .mini-radar:not(.big) { height: 170px; }
 }
 @media (max-width: 760px) { @supports not (aspect-ratio: 1) { .mini-radar { height: 88px; } .mini-radar.big { width: 56vh; height: 56vh; } } }
+
+/* ---------- แจ้ง error บนจอ (ช่วยหาสาเหตุบนทีวี/มือถือที่เปิด DevTools ไม่ได้) ---------- */
+.err-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60; background: rgba(120,10,10,.94); color: #fff; border: 2px solid #ff6b6b; border-radius: 12px;
+  padding: 10px 14px; font: 14px/1.5 "Share Tech Mono", "IBM Plex Sans Thai", monospace; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.dbg { position: fixed; left: 8px; top: 8px; z-index: 61; background: rgba(0,0,0,.72); color: #39ff6a; font: 13px/1.45 "Share Tech Mono", monospace; padding: 6px 10px; border-radius: 8px; pointer-events: none; white-space: pre; }

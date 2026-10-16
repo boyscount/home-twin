@@ -294,3 +294,26 @@ const setHour = h => {
 const sim = new Simulator({ farm, hub, radar, tour, festivals, setWx: setWxMode, setHour, showTab });
 
 window.app = { farm, radar, hub, bus, sound, ambient, tour, summary, kiosk, festivals, sim };
+
+// ---------- แจ้ง error บนจอ + โหมดตรวจ (?debug=1 แสดง FPS / เวลาต่อเฟรม / การ์ดจอ)
+const errBox = document.getElementById('errBanner');
+const showErr = (where, e, count) => {
+  const msg = (e && (e.stack || e.message)) || String(e);
+  errBox.hidden = false;
+  errBox.textContent = `⚠ เกิดข้อผิดพลาด (${where}${count > 1 ? ` · ${count} ครั้ง` : ''}) — ถ่ายรูปส่งทีมงานได้เลย\n${msg.split('\n').slice(0, 4).join('\n')}\n${navigator.userAgent}`;
+};
+bus.on('app-error', d => showErr(d.where, d.error, d.count));
+window.addEventListener('error', e => { if (!/cloudflareinsights|ResizeObserver loop/.test((e.filename || '') + e.message)) showErr('สคริปต์', e.error || e.message, 1); });
+window.addEventListener('unhandledrejection', e => showErr('งานเบื้องหลัง', e.reason, 1));
+errBox.addEventListener('click', () => (errBox.hidden = true));
+if (new URLSearchParams(location.search).get('debug') === '1') {
+  const dbg = document.getElementById('dbg'); dbg.hidden = false;
+  const gl = farm.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  let frames = 0, last = performance.now();
+  const loop = now => { frames++; requestAnimationFrame(loop); if (now - last < 1000) return;
+    const fps = frames * 1000 / (now - last); frames = 0; last = now;
+    const [w, h] = [farm.renderer.domElement.width, farm.renderer.domElement.height];
+    dbg.textContent = `FPS ${fps.toFixed(0)} · เฟรมละ ${(farm.frameMs || 0).toFixed(0)} ms\nคุณภาพ ${farm.quality} · ${w}×${h} px · DPR ${devicePixelRatio}\nWebGL ${farm.renderer.capabilities.isWebGL2 ? 2 : 1} · ${gpu}\nerror ในเฟรม: ${farm.tickErrors || 0}`; };
+  requestAnimationFrame(loop);
+}

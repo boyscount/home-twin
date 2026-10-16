@@ -514,7 +514,7 @@ export class Farm3D {
       this.tick();
       performance.mark('farm-first-frame'); // ใช้วัดความเร็วเปิดเว็บ (DevTools → Performance)
       this.splash(100, 'พร้อมแล้ว');
-      r.setAnimationLoop(() => this.tick());
+      r.setAnimationLoop(() => this.safeTick());
       requestAnimationFrame(() => setTimeout(() => {
         const l = document.getElementById('farmLoading'); if (l) { l.style.opacity = 0; setTimeout(() => l.remove(), 700); }
         bus.emit('farm-ready');
@@ -2074,6 +2074,18 @@ export class Farm3D {
     }
     ctx.putImageData(img, 0, 0);
     return c;
+  }
+
+  // วนวาดภาพแบบกันพัง: ถ้าเฟรมไหน error (เช่น เบราว์เซอร์ทีวีไม่รู้จักคำสั่งบางตัว) ลูปยังวิ่งต่อ + แจ้ง error บนจอ
+  // (ถ้าปล่อยให้ throw ออกไป three.js จะไม่ขอเฟรมถัดไป ภาพจะนิ่งไปเลย)
+  safeTick() {
+    const t0 = performance.now();
+    try { this.tick(); }
+    catch (e) {
+      this.tickErrors = (this.tickErrors || 0) + 1;
+      if (this.tickErrors === 1 || this.tickErrors % 600 === 0) bus.emit('app-error', { where: 'ภาพ 3D', error: e, count: this.tickErrors });
+    }
+    this.frameMs = performance.now() - t0;
   }
 
   // ---------------------------------------------------------------- loop
