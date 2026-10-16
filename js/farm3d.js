@@ -1549,7 +1549,14 @@ export class Farm3D {
     const lampBox = box(0.08, 0.05, 0.05, lampM, 0, 0.06, 0.14, dad.head); lampBox.castShadow = false;
     const lamp = new THREE.SpotLight('#fff3c8', 0, 22, 0.45, 0.6, 1.4); lamp.position.set(0, 0.06, 0.15);
     const lampTarget = new THREE.Object3D(); lampTarget.position.set(0, -0.6, 4); dad.head.add(lamp, lampTarget); lamp.target = lampTarget;
-    this.headlamp = { light: lamp, mat: lampM };
+    // ลำแสงไฟฉายที่มองเห็นได้ (กรวยโปร่งแสงจางลงตามระยะ) — ให้เห็นชัดว่าพ่อคาดไฟฉาย แม้กล้องอยู่ไกล
+    const bc = document.createElement('canvas'); bc.width = 4; bc.height = 64;
+    const bg = bc.getContext('2d').createLinearGradient(0, 0, 0, 64); bg.addColorStop(0, '#fff'); bg.addColorStop(1, '#000');
+    const bctx = bc.getContext('2d'); bctx.fillStyle = bg; bctx.fillRect(0, 0, 4, 64);
+    const beamGeo = new THREE.ConeGeometry(1.5, 8, 18, 1, true); beamGeo.translate(0, -4, 0); beamGeo.rotateX(-Math.PI / 2); beamGeo.rotateX(0.32);
+    const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: '#fff1c4', alphaMap: new THREE.CanvasTexture(bc), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.set(0, 0.06, 0.16); beam.renderOrder = 3; beam.castShadow = false; dad.head.add(beam);
+    this.headlamp = { light: lamp, mat: lampM, beam };
     this.dadAct = 'free'; this.dadActId = 0; this.tapState = { col: 9, row: 0, tapped: 0, latex: 0 }; this.familyAsleep = false; this.sleepers = new Set();
     this.entities.push({ id: 'H-DAD', type: 'human', label: 'พ่อ', resident: true, obj: dad.group, h: dad });
     // แม่ในบ้าน
@@ -2493,7 +2500,7 @@ export class Farm3D {
     if (plan !== this.dadAct && !(this.dadAct === 'free-after-bbq' && plan === 'free')) this.setDadActivity(plan);
   }
 
-  setHeadlamp(on) { this.headlamp.light.intensity = on ? 9 : 0; this.headlamp.mat.emissiveIntensity = on ? 3 : 0; }
+  setHeadlamp(on) { this.headlamp.light.intensity = on ? 38 : 0; this.headlamp.mat.emissiveIntensity = on ? 3 : 0; this.headlamp.beam.material.opacity = on ? 0.16 : 0; }
 
   // เส้นทางออกจากในบ้าน (ทางประตูกระจกหน้า → ระเบียง → บันได)
   pathOut() { return [[-0.75, 0.65, 3.5], [-0.75, 0.65, 7.2], [3.2, 0.65, 7.6], [3.2, 0, 10]]; }
@@ -2551,7 +2558,7 @@ export class Farm3D {
           }, tapping ? 1600 : 900);
         }, true);
       };
-      d.w.go([...out, [6.5, 0, 10.5], [7, 0, -7], [-28.5 + 3 * ts.col + 1.5, 0, -15]], step, true);
+      d.w.go([...out, [7.6, 0, 10.5], [7.6, 0, -7], [-28.5 + 3 * ts.col + 1.5, 0, -15]], step, true); // เดินผ่านข้างบ้าน (เลี่ยงบันไดดาดฟ้า)
     }
   }
 

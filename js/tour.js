@@ -145,6 +145,13 @@ export class Tour {
     ];
   }
 
+  // ตามพ่อไปกรีดยางตอนกลางคืน: กล้องอยู่ข้างหลังเยื้องไหล่ เห็นลำแสงไฟฉายคาดหัวส่องต้นยางข้างหน้า
+  dadTapShot() {
+    const f = this.f;
+    return { id: 'dadtap', dur: 45, title: () => '🔦 พ่อไปกรีดยางตอนตีสอง', sub: () => f.fatherState + (f.headlamp?.light.intensity > 0 ? ' · คาดไฟฉาย' : ''),
+      ...this.follow(() => f.dad.h.group, 4.6, 2.1, Math.PI - 0.45, 1.5), lerp: 2 };
+  }
+
   wrapFollow(getObj, dist, height, angle, lookUp) {
     const fo = this.follow(getObj, dist, height, angle, lookUp);
     return { cam: fo.cam, init2: fo.init };

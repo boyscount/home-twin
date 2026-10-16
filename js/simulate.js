@@ -72,7 +72,12 @@ export class Simulator {
         { icon: '🌇', label: 'ตะวันตกดิน 17:45', cam: 'overview', run: () => this.setHour(17.75) },
         { icon: '🌙', label: 'ค่ำ 20:30', cam: 'house', run: () => this.setHour(20.5) },
         { icon: '💤', label: 'ดึก ทุกคนหลับ 23:00', cam: 'house', run: () => this.setHour(23) },
-        { icon: '🔦', label: 'ตีสอง พ่อไปกรีดยาง', cam: 'rubber', run: () => this.setHour(2.4) },
+        { icon: '🔦', label: 'ตีสอง พ่อไปกรีดยาง', noCam: true, run: () => {
+          this.setHour(2.4); f.setDadActivity('tap');
+          // กล้องตามหลังพ่อตั้งแต่ออกจากบ้าน เห็นไฟฉายส่องทางเข้าสวนยาง
+          setTimeout(() => { this.tour.start(); this.tour.next(this.tour.dadTapShot()); }, 250);
+          return '🔦 ตีสอง — พ่อคาดไฟฉายเดินไปกรีดยาง (แตะจอเพื่อควบคุมกล้องเอง)';
+        } },
       ] },
       { title: '⚠️ เซนเซอร์ผิดปกติ', items: [
         { icon: '🥬', label: 'pH ผักสูงเกิน', cam: 'hydro', run: () => force({ 'hydro/ph': 7.4 }) },
