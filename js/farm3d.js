@@ -986,6 +986,25 @@ export class Farm3D {
     };
     const lines = {}; tops.forEach(t => (lines[`${t.z}|${t.low ? 1 : 0}`] ||= []).push(t));
     for (const L of Object.values(lines)) for (let i = 0; i < L.length - 1; i++) sagWire(L[i], L[i + 1], L[i].low ? 0.9 : 0.65);
+    // ฝั่งตรงข้ามถนน: เสาเตี้ยกว่า (ไฟแรงต่ำ + สายสื่อสาร) — ไฟถนนสลับฝั่งกับฝั่งบ้าน ทุก 40 ม. มีไฟฝั่งใดฝั่งหนึ่ง
+    const OZ = 52.9, OH = 7.6, otops = [];
+    xs.forEach((x, k) => {
+      const g = new THREE.Group(); g.position.set(x, 0, OZ); s.add(g);
+      const p = cyl(0.09, 0.14, OH, poleM, 0, OH / 2, 0, g, 8); p.scale.z = 0.8;
+      box(0.08, 0.08, 1.2, steel, 0, OH - 0.3, -0.15, g);
+      for (const dz of [-0.6, 0.3]) { cyl(0.04, 0.05, 0.13, insul, 0, OH - 0.2, dz, g, 6); otops.push({ x, y: OH - 0.12, z: OZ + dz }); }
+      otops.push({ x, y: OH - 1.3, z: OZ - 0.12, low: true }); // สายสื่อสาร
+      if (k % 2 === 1) {
+        const arm = box(0.07, 0.07, 2.0, steel, 0, OH - 1.0, -1.0, g); arm.rotation.x = 0.18;
+        box(0.3, 0.12, 0.58, steel, 0, OH - 0.85, -2.05, g);
+        const lens = box(0.24, 0.03, 0.46, this.streetLampMat, 0, OH - 0.93, -2.05, g); lens.castShadow = false;
+        const pl = new THREE.Mesh(poolGeo, this.lampPoolMat); pl.position.set(x, 0.07, OZ - 4.4); pl.renderOrder = 2; s.add(pl);
+      }
+    });
+    const olines = {}; otops.forEach(t => (olines[`${t.z}|${t.low ? 1 : 0}`] ||= []).push(t));
+    for (const L of Object.values(olines)) for (let i = 0; i < L.length - 1; i++) sagWire(L[i], L[i + 1], L[i].low ? 0.8 : 0.6);
+    // สายแรงต่ำข้ามถนนเป็นช่วง ๆ (จากหม้อแปลงฝั่งบ้านไปเลี้ยงฝั่งตรงข้าม)
+    sagWire({ x: 8, y: H - 2.5, z: PZ - 0.5 }, { x: 8, y: OH - 0.15, z: OZ - 0.6 }, 0.7, 0.012);
     // เสามิเตอร์หน้าบ้าน (ในรั้ว ข้างประตู) + สายเมนจากหม้อแปลงลงมา + สายเข้าบ้าน
     const mg = new THREE.Group(); mg.position.set(5.6, 0, 34.2); s.add(mg);
     cyl(0.09, 0.13, 6.2, poleM, 0, 3.1, 0, mg, 8);
