@@ -1802,8 +1802,11 @@ export class Farm3D {
     // กลางคืน: แสงจันทร์สีฟ้าอ่อน ๆ (ใช้ไฟดวงเดียวกับดวงอาทิตย์)
     if (night > 0.5) {
       this.sun.position.copy(this.skyDome.u.moonDir.value).multiplyScalar(150).add(this.sun.target.position);
-      this.sun.color.set('#9fb6ff'); this.sun.intensity = 0.45 * (1 - 0.8 * cl) * night;
-    }
+      this.sun.color.set('#a8c0ff'); this.sun.intensity = 1.4 * (1 - 0.8 * cl) * night;
+      // แสงสะท้อนฟ้ากลางคืนสีฟ้าอมม่วงอ่อน ๆ ให้เห็นรูปทรงในที่ร่ม (เช่น ใต้ทรงพุ่มสวนยาง) โดยยังดูเป็นกลางคืน
+      this.hemi.color.setRGB(0.42, 0.5, 0.78); this.hemi.groundColor.setRGB(0.1, 0.12, 0.1);
+      this.hemi.intensity = Math.max(this.hemi.intensity, 0.78 * (1 - 0.55 * cl) * night); this.hemiBase = this.hemi.intensity;
+    } else this.hemi.groundColor.set('#4a5a30');
     if (this.mountainMat) { this.mountainMat.uniforms.fogColor.value.copy(fogC); this.mountainMat.uniforms.night.value = night; }
     this.bloom.threshold = lerp(2.2, 0.75, night); this.bloom.strength = lerp(0.28, 0.85, night);
     this.grade.uniforms.warmth.value = warm * day;
