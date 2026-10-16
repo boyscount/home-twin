@@ -1,6 +1,8 @@
 // เรดาร์จิ๋วมุมขวาบนของแท็บ 3D — วาดวงเรดาร์ชุดเดียวกับแท็บเรดาร์ (radar.drawScope)
-// แตะ = เปิดแท็บเรดาร์ (ล็อกเป้าให้) · เจอคนแปลกหน้า = ขยายใหญ่กลางจอ ~4 วิ แล้วหดกลับมุม (ขอบแดงจนกว่าจะตอบ)
+// แตะ = เปิดแท็บเรดาร์ (ล็อกเป้าให้) · เจอคนแปลกหน้า = ขยายใหญ่กลางจอ ~10 วิ แล้วหดกลับมุม (ขอบแดงจนกว่าจะตอบ)
 import { bus } from './bus.js';
+
+const BIG_MS = 10000; // เด้งใหญ่ค้างไว้กี่มิลลิวินาทีก่อนหดกลับมุมจอ
 
 export class MiniRadar {
   constructor({ radar, farm, open }) {
@@ -27,10 +29,15 @@ export class MiniRadar {
     if (!id || id === 'dog') return;
     this.lockId = id; this.radar.selected = id;
     this.el.classList.add('big');
-    clearTimeout(this.bigT); this.bigT = setTimeout(() => this.el.classList.remove('big'), 4000);
+    clearTimeout(this.bigT); this.bigT = setTimeout(() => this.el.classList.remove('big'), BIG_MS);
   }
 
-  check() { this.el.classList.toggle('threat', !!this.threatId()); }
+  // มีคนตอบแล้ว (ในเว็บ / Telegram / แจ้งเตือนมือถือ) → ไม่ต้องค้างวงใหญ่ต่อ
+  check() {
+    const t = !!this.threatId();
+    this.el.classList.toggle('threat', t);
+    if (!t) { clearTimeout(this.bigT); this.el.classList.remove('big'); }
+  }
 
   draw(now) {
     const el = this.el, size = el.clientWidth; if (!size) return;
