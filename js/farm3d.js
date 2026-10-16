@@ -456,6 +456,7 @@ export class Farm3D {
     this.buildCarport();
     this.scene.updateMatrixWorld(true); this.momCarSetup();
     this.buildFenceAndGarden();
+    this.buildPoles();
     this.buildPond();
     this.buildPigPen();
     this.buildChickenCoop();
@@ -936,6 +937,73 @@ export class Farm3D {
       if (!this.entities.some(e => e.h === m.h)) this.entities.push({ id: 'H-MOM', type: 'human', label: 'แม่', resident: true, obj: m.h.group, h: m.h });
       this.momState = 'home'; this.momTask = 'อยู่บ้าน'; this.momLoop();
     }
+  }
+
+  // ---------------------------------------------------------------- เสาไฟฟ้า + สายไฟ + ไฟถนน
+  // เสาคอนกรีตริมถนนทุก ~40 ม. คอนสายเหล็ก ลูกถ้วย สายไฟหย่อนตามจริง · ไฟถนนเว้นต้น
+  // หม้อแปลงที่เสาใกล้บ้าน → สายเมนลงเสามิเตอร์หน้าบ้าน → เข้าบ้าน
+  // ไฟถนนกลางคืนใช้วัสดุเรืองแสง + แผ่นแสงบนพื้น (ไม่เพิ่มดวงไฟจริง เพื่อไม่ให้ shader คอมไพล์ใหม่/เครื่องหนัก)
+  buildPoles() {
+    const s = this.scene, PZ = 39.4, H = 9.2;
+    const poleM = new THREE.MeshStandardMaterial({ color: '#b9b7af', roughness: 0.9 });
+    const steel = new THREE.MeshStandardMaterial({ color: '#6c7074', roughness: 0.5, metalness: 0.6 });
+    const insul = new THREE.MeshStandardMaterial({ color: '#e9e6dc', roughness: 0.3 });
+    const wireM = new THREE.MeshStandardMaterial({ color: '#1b1b1b', roughness: 0.6 });
+    this.streetLampMat = new THREE.MeshStandardMaterial({ color: '#fff6e0', emissive: '#ffe7b0', emissiveIntensity: 0.05 });
+    const pool = document.createElement('canvas'); pool.width = pool.height = 128;
+    const pc = pool.getContext('2d'), rg = pc.createRadialGradient(64, 64, 0, 64, 64, 64);
+    rg.addColorStop(0, 'rgba(255,225,170,.55)'); rg.addColorStop(0.45, 'rgba(255,210,150,.22)'); rg.addColorStop(1, 'rgba(255,200,140,0)');
+    pc.fillStyle = rg; pc.fillRect(0, 0, 128, 128);
+    this.lampPoolMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(pool), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 });
+    const poolGeo = new THREE.PlaneGeometry(13, 13); poolGeo.rotateX(-Math.PI / 2);
+    const xs = []; for (let x = -272; x <= 290; x += 40) xs.push(x); // มีต้นหนึ่งที่ x = 8 (ใกล้ประตูบ้าน)
+    const tops = [];
+    xs.forEach((x, k) => {
+      const g = new THREE.Group(); g.position.set(x, 0, PZ); s.add(g);
+      const p = cyl(0.11, 0.17, H, poleM, 0, H / 2, 0, g, 8); p.scale.z = 0.8; // เสาคอนกรีตเรียวขึ้น
+      box(0.1, 0.1, 2.4, steel, 0, H - 0.35, 0.25, g); // คอนสาย (ขวางถนน)
+      for (const dz of [-0.75, 0.25, 1.25]) { cyl(0.05, 0.06, 0.16, insul, 0, H - 0.22, dz, g, 8); tops.push({ x, y: H - 0.12, z: PZ + dz }); }
+      box(0.08, 0.08, 1.3, steel, 0, H - 1.5, 0.1, g); // คอนสายล่าง (สายสื่อสาร)
+      tops.push({ x, y: H - 1.42, z: PZ + 0.6, low: true });
+      // ไฟถนนเว้นต้น: แขนยื่นเข้าถนน + โคม
+      if (k % 2 === 0) {
+        const arm = box(0.07, 0.07, 2.2, steel, 0, H - 2.3, 1.1, g); arm.rotation.x = -0.18;
+        const head = box(0.32, 0.12, 0.62, steel, 0, H - 2.12, 2.25, g);
+        const lens = box(0.26, 0.03, 0.5, this.streetLampMat, 0, H - 2.2, 2.25, g); lens.castShadow = false; void head;
+        const pl = new THREE.Mesh(poolGeo, this.lampPoolMat); pl.position.set(x, 0.07, PZ + 4.2); pl.renderOrder = 2; s.add(pl);
+      }
+      // หม้อแปลงไฟฟ้าที่ต้นใกล้บ้าน
+      if (x === 8) {
+        box(0.12, 0.12, 1.4, steel, 0, H - 3.4, -0.35, g);
+        cyl(0.36, 0.36, 0.95, new THREE.MeshStandardMaterial({ color: '#8a9096', roughness: 0.5, metalness: 0.4 }), 0, H - 2.85, -0.62, g, 14);
+        for (const dx of [-0.16, 0, 0.16]) cyl(0.035, 0.035, 0.22, insul, dx, H - 2.27, -0.62, g, 6);
+      }
+    });
+    // สายไฟหย่อนระหว่างเสา (catenary)
+    const sagWire = (a, b, sag, r = 0.013) => {
+      const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new THREE.Vector3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - sag * 4 * t * (1 - t), a.z + (b.z - a.z) * t)); }
+      const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, r, 3), wireM); m.castShadow = false; s.add(m);
+    };
+    const lines = {}; tops.forEach(t => (lines[`${t.z}|${t.low ? 1 : 0}`] ||= []).push(t));
+    for (const L of Object.values(lines)) for (let i = 0; i < L.length - 1; i++) sagWire(L[i], L[i + 1], L[i].low ? 0.9 : 0.65);
+    // เสามิเตอร์หน้าบ้าน (ในรั้ว ข้างประตู) + สายเมนจากหม้อแปลงลงมา + สายเข้าบ้าน
+    const mg = new THREE.Group(); mg.position.set(5.6, 0, 34.2); s.add(mg);
+    cyl(0.09, 0.13, 6.2, poleM, 0, 3.1, 0, mg, 8);
+    box(0.36, 0.5, 0.18, new THREE.MeshStandardMaterial({ color: '#d9d9d2', roughness: 0.6 }), 0, 1.7, 0.14, mg); // ตู้มิเตอร์
+    box(0.22, 0.22, 0.04, new THREE.MeshStandardMaterial({ color: '#30383c', roughness: 0.2, metalness: 0.3 }), 0, 1.75, 0.24, mg);
+    cyl(0.04, 0.05, 0.12, insul, 0, 6.05, 0, mg, 6);
+    sagWire({ x: 8, y: H - 2.4, z: PZ - 0.62 }, { x: 5.6, y: 6.1, z: 34.2 }, 0.35, 0.018);
+    sagWire({ x: 5.6, y: 1.5, z: 34.25 }, { x: 5.6, y: 0.05, z: 34.25 }, 0, 0.02); // ท่อสายลงดิน
+    sagWire({ x: 5.6, y: 6.0, z: 34.2 }, { x: 4.15, y: 3.55, z: 5.2 }, 1.1, 0.016); // สายเข้าบ้าน (ผนังขวาด้านหน้า)
+    cyl(0.03, 0.03, 0.14, insul, 4.2, 3.55, 5.2, s, 6).rotation.z = Math.PI / 2;
+  }
+  updatePoles() {
+    const night = (this.nightFactor || 0) > 0.45;
+    const k = night ? 1 : 0;
+    if (this.lampOn === k) return;
+    this.lampOn = k;
+    this.streetLampMat.emissiveIntensity = night ? 3.2 : 0.05;
+    this.lampPoolMat.opacity = night ? 0.85 : 0;
   }
 
   glassPane(parent, x, y, z, w, h, side = false) {
@@ -1997,6 +2065,7 @@ export class Farm3D {
     this.updateBedroom(dt, t);
     this.updateRooftop(dt, t);
     this.updateMomCar(dt);
+    this.updatePoles();
     if (this.coopDoor) this.coopDoor.rotation.x = lerp(this.coopDoor.rotation.x, this.devices.chickenDoor ? 1.4 : 0, 0.05);
     this.gates.forEach(g => (g.pivot.rotation.y = lerp(g.pivot.rotation.y, this.devices.gateClosed ? 0 : g.side * 1.3, 0.04)));
 
