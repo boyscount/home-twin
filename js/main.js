@@ -9,6 +9,7 @@ import { Tour } from './tour.js';
 import { Ambient } from './ambient.js';
 import { DailySummary } from './summary.js';
 import { Kiosk } from './kiosk.js';
+import { MiniRadar } from './miniradar.js';
 import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 import { Fishermen } from './fishermen.js';
 import { Simulator } from './simulate.js';
@@ -195,6 +196,7 @@ function openRadarFor(id) {
   unseen = 0; document.getElementById('radarBadge').hidden = true;
 }
 bus.on('open-radar', e => openRadarFor(e?.id));
+const miniRadar = new MiniRadar({ radar, farm, open: id => openRadarFor(id) });
 
 // การ์ดแจ้งเตือนในแท็บ 3D: กล้องตามคนแปลกหน้าให้เห็นตัว + ปุ่มไปแท็บเรดาร์ / ตอบรู้จัก-ไม่รู้จัก
 // มาหลายคนพร้อมกัน → เก็บเป็นคิว โชว์จำนวนคน + รูปย่อให้แตะสลับ ตอบทีละคน คนถัดไปขึ้นมาเอง

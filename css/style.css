@@ -459,3 +459,48 @@ body.kiosk .sim-fab { display: none; }
   .sim-fab { left: calc(16px + 248px + 14px); }
   .tour-on .sim-fab { left: 16px; }
 }
+
+/* ---------- เรดาร์จิ๋วมุมขวาบน (แท็บ 3D) ---------- */
+.mini-radar { position: absolute; z-index: 6; top: 16px; right: 16px; width: 136px; aspect-ratio: 1; padding: 0; border-radius: 50%; overflow: hidden;
+  background: #020a05; border: 2px solid rgba(57,255,106,.6); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(57,255,106,.22);
+  transition: width .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), right .55s cubic-bezier(.2,.8,.2,1), transform .55s cubic-bezier(.2,.8,.2,1), border-color .3s; }
+.mini-radar canvas { display: block; width: 100%; height: 100%; }
+.mr-tag { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); font: 10px "Share Tech Mono", monospace; letter-spacing: .5px; color: rgba(140,255,170,.9); background: rgba(0,0,0,.5); padding: 1px 6px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+.mr-alert { position: absolute; left: 50%; top: 11%; transform: translateX(-50%); font: 700 clamp(14px, 2.4vw, 20px) "IBM Plex Sans Thai", sans-serif; color: #fff; background: rgba(170,20,20,.82); padding: 3px 12px; border-radius: 8px; white-space: nowrap; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.mini-radar.threat { border-color: #ff4b4b; animation: mrPulse 1s ease-in-out infinite; }
+.mini-radar.threat .mr-tag { color: #ffb3b3; }
+@keyframes mrPulse { 50% { box-shadow: 0 0 0 6px rgba(255,60,60,.22), 0 0 30px rgba(255,60,60,.65); } }
+/* เจอคนแปลกหน้า: ขยายเป็นวงใหญ่กลางจอ */
+.mini-radar.big { width: min(84%, 62vh); top: 9%; right: 50%; transform: translateX(50%); border-width: 3px; }
+.mini-radar.big .mr-alert { opacity: 1; }
+.mini-radar.big .mr-tag { font-size: 13px; }
+#view-farm:has(.mini-radar.big) .alert-card { opacity: 0; pointer-events: none; }
+.alert-card { transition: opacity .35s; }
+.mini-radar:not(.big) { right: 70px; } /* อยู่ข้างแถวปุ่มซูม ไม่ดันปุ่มลง */
+.tour-on .mini-radar:not(.big) { top: calc(7% + 54px); }
+body.kiosk .mini-radar:not(.big) { top: auto; bottom: calc(7% + 72px); right: 32px; width: 170px; }
+@media (max-width: 760px) {
+  .mini-radar { top: 10px; right: 12px; width: 88px; }
+  .mini-radar .mr-tag { font-size: 8px; bottom: 10%; }
+  .mini-radar.big { width: min(92%, 56vh); top: 7%; }
+  #view-farm:has(.farm-panel.open) .mini-radar { display: none; }
+}
+@media (max-width: 760px) {
+  .zoom-ctl { gap: 4px; }
+  .zoom-ctl button { width: 42px; height: 42px; font-size: 20px; border-radius: 12px; }
+  .zoom-ctl button[data-zoom="left"] { margin-top: 4px; }
+}
+/* มือถือ: เรดาร์จิ๋วอยู่ข้าง ๆ แถวปุ่มซูม (ไม่ดันปุ่มลงไปชนแผงสถานะ) */
+@media (max-width: 760px) {
+  .mini-radar:not(.big) { right: 62px; top: 10px; }
+  .zoom-ctl { top: 58px; }
+  .tour-on .mini-radar:not(.big) { right: 12px; top: calc(7% + 54px); }
+}
+/* มีการ์ดแจ้งเตือนอยู่ → เลื่อนเรดาร์จิ๋วลงมาไว้ใต้การ์ด (ไม่ซ้อนกัน) */
+@media (max-width: 900px) {
+  #view-farm:has(.alert-card:not([hidden])) .mini-radar:not(.big) { top: 170px; right: 76px; }
+  .tour-on#view-farm:has(.alert-card:not([hidden])) .mini-radar:not(.big), #view-farm.tour-on:has(.alert-card:not([hidden])) .mini-radar:not(.big) { top: calc(7% + 230px); right: 12px; }
+}
+@media (max-width: 760px) {
+  #view-farm:has(.alert-card:not([hidden])) .mini-radar:not(.big) { top: 150px; right: 62px; }
+}

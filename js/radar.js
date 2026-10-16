@@ -452,6 +452,128 @@ export class Radar {
     const im = this.imgCache.get(src); return im.complete ? im : null;
   }
 
+  // วาดเฉพาะ "วงเรดาร์" (พื้นหลัง แผนที่ วงระยะ เขตรั้ว เส้นกวาด เป้าหมาย) ลงบน canvas ใดก็ได้
+  // ใช้ทั้งจอเรดาร์เต็ม (แท็บเรดาร์) และเรดาร์จิ๋วมุมจอในแท็บ 3D (o.mini = ไม่วาดตัวหนังสือระยะ/ชื่อโซน/ป้ายเป้า ยกเว้น o.labels)
+  drawScope(c, cx, cy, R, now, o = {}) {
+    const mini = !!o.mini;
+    const G = '#39ff6a', GD = 'rgba(57,255,106,0.28)', GDD = 'rgba(57,255,106,0.1)';
+    const k = R / this.range;
+    const toXY = (x, z) => [cx + (x - CENTER.x) * k, cy + (z - CENTER.z) * k];
+    const tracked = this.tracked;
+    const threats = [...tracked.values()].filter(t => t.status === 'threat' || t.status === 'pending');
+    void G;
+    // ---- ภายในวงเรดาร์
+    c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
+    const bg = c.createRadialGradient(cx, cy, 0, cx, cy, R);
+    bg.addColorStop(0, 'rgba(6,40,16,.95)'); bg.addColorStop(1, 'rgba(1,10,4,.98)');
+    c.fillStyle = bg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    // แผนที่จริง (ย้อมเขียว)
+    if (this.mapImg) {
+      const s = R * (this.mapRange / this.range);
+      c.globalAlpha = 0.5; c.filter = 'grayscale(1) brightness(1.5) contrast(1.25) sepia(1) hue-rotate(65deg) saturate(2.6)';
+      c.drawImage(this.mapImg, cx - s, cy - s, s * 2, s * 2);
+      c.filter = 'none'; c.globalAlpha = 1;
+    }
+    // ตาราง
+    c.strokeStyle = GDD; c.lineWidth = 1;
+    for (let a = 0; a < 360; a += 30) { const t = rad(a); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.sin(t) * R, cy - Math.cos(t) * R); c.stroke(); }
+    c.strokeStyle = GD;
+    for (let i = 1; i <= 4; i++) { c.beginPath(); c.arc(cx, cy, R * i / 4, 0, Math.PI * 2); c.stroke(); }
+    if (!mini) {
+      c.fillStyle = 'rgba(57,255,106,.55)'; c.font = '10px "Share Tech Mono", monospace';
+      for (let i = 1; i <= 4; i++) c.fillText(`${Math.round(this.range * i / 4)}m`, cx + 4, cy - R * i / 4 + 9);
+    }
+    // เขตรั้ว (กะพริบแดงเมื่อมีภัย)
+    let [a1, b1] = toXY(PERIMETER.x0, PERIMETER.z0), [a2, b2] = toXY(PERIMETER.x1, PERIMETER.z1);
+    c.setLineDash([6, 5]); c.lineWidth = 1.5;
+    c.strokeStyle = threats.length ? `rgba(255,80,80,${0.5 + 0.5 * Math.sin(now / 150)})` : 'rgba(255,224,102,.55)';
+    c.strokeRect(a1, b1, a2 - a1, b2 - b1); c.setLineDash([]); c.lineWidth = 1;
+    c.fillStyle = 'rgba(160,255,190,.55)'; c.font = '10px "IBM Plex Sans Thai"';
+    if (!mini || o.labels) for (const z of ZONES) {
+      if (z.r) { const [x, y] = toXY(z.cx, z.cz); c.fillText(z.name, x - 12, y); }
+      else { [a1, b1] = toXY(z.x0, z.z0); [a2, b2] = toXY(z.x1, z.z1); c.fillText(z.name, Math.max(a1 + 3, cx - R + 8), Math.max(b1 + 10, cy - R + 20)); }
+    }
+    // ทิศทางที่มีภัย: ไฮไลต์เป็นเสี้ยว
+    for (const t of threats) {
+      const b = this.blips.get(t.id); if (!b) continue;
+      const a = rad(b.b) - Math.PI / 2;
+      c.fillStyle = 'rgba(255,60,60,0.12)'; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, a - 0.18, a + 0.18); c.closePath(); c.fill();
+    }
+    // เส้นกวาด + หางเรืองแสง
+    const sw = rad(this.sweep) - Math.PI / 2;
+    if (c.createConicGradient) {
+      const grad = c.createConicGradient(sw - 1.2, cx, cy);
+      grad.addColorStop(0, 'rgba(57,255,106,0)'); grad.addColorStop(0.19, 'rgba(57,255,106,0.42)'); grad.addColorStop(0.1901, 'rgba(57,255,106,0)'); grad.addColorStop(1, 'rgba(57,255,106,0)');
+      c.fillStyle = grad; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - 1.2, sw); c.closePath(); c.fill();
+    }
+    c.shadowColor = G; c.shadowBlur = 12; c.strokeStyle = '#b6ffc9'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke();
+    c.shadowBlur = 0; c.lineWidth = 1;
+
+    // ---- เป้าหมาย
+    const hit = [];
+    const tags = [];
+    for (const bl of this.blips.values()) {
+      if (bl.d > this.range * 1.05) continue;
+      const age = (now - bl.seen) / 4000, alpha = Math.max(0.15, 1 - age);
+      const [x, y] = toXY(bl.x, bl.z);
+      const t = tracked.get(bl.id);
+      const trail = this.trails.get(bl.id) || [];
+      if (bl.type === 'human' || bl.type === 'vehicle') {
+        const bad = t?.status === 'threat' || t?.status === 'pending';
+        const rgb = bl.type === 'vehicle' ? '255,170,60' : bad ? '255,70,70' : t?.status === 'outside' ? '255,224,102' : '120,200,255';
+        // ร่องรอยการเคลื่อนที่
+        trail.forEach((p, i) => { const [tx, ty] = toXY(p.x, p.z); c.fillStyle = `rgba(${rgb},${(i + 1) / trail.length * 0.35 * alpha})`; c.beginPath(); c.arc(tx, ty, 2, 0, Math.PI * 2); c.fill(); });
+        // เวกเตอร์ทิศทาง
+        if (trail.length > 1) {
+          const p0 = trail[Math.max(0, trail.length - 3)];
+          const [px, py] = toXY(p0.x, p0.z), dx = x - px, dy = y - py, m = Math.hypot(dx, dy);
+          if (m > 1.5) { c.strokeStyle = `rgba(${rgb},${alpha})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x + dx / m * 16, y + dy / m * 16); c.stroke(); }
+        }
+        c.shadowColor = `rgb(${rgb})`; c.shadowBlur = 10; c.fillStyle = `rgba(${rgb},${alpha})`;
+        if (bl.type === 'vehicle') { c.fillRect(x - 5, y - 3.5, 10, 7); }
+        else { c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 6, y); c.lineTo(x, y + 6); c.lineTo(x - 6, y); c.closePath(); c.fill(); }
+        c.shadowBlur = 0;
+        if (bad) { const pr = 9 + ((now / 55) % 18); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 9) / 18})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
+        const name = bl.type === 'vehicle' ? bl.label : t?.status === 'resident' || t?.status === 'student' || t?.status === 'villager' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
+        tags.push({ x, y, rgb, alpha, name, sub: `${bl.d.toFixed(0)}m ${bl.b.toFixed(0).padStart(3, '0')}°`, bad });
+      } else {
+        c.fillStyle = `rgba(57,255,106,${alpha * 0.8})`; c.beginPath(); c.arc(x, y, 2.6, 0, Math.PI * 2); c.fill();
+      }
+      hit.push({ id: bl.id, x, y });
+      if (this.selected === bl.id) {
+        c.strokeStyle = '#ffffff'; c.lineWidth = 1.5; const s = 13;
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { c.beginPath(); c.moveTo(x + sx * s, y + sy * (s - 6)); c.lineTo(x + sx * s, y + sy * s); c.lineTo(x + sx * (s - 6), y + sy * s); c.stroke(); }
+        c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke(); c.setLineDash([]); c.lineWidth = 1;
+      }
+    }
+    // ป้ายชื่อแบบหอบังคับการบิน (มีเส้นโยง)
+    c.font = '11px "IBM Plex Sans Thai"';
+    if (!mini || o.labels) for (const tg of tags) {
+      const lx = tg.x + 14, ly = tg.y - 16;
+      c.strokeStyle = `rgba(${tg.rgb},${tg.alpha * 0.7})`; c.beginPath(); c.moveTo(tg.x + 5, tg.y - 5); c.lineTo(lx, ly + 6); c.stroke();
+      const w = Math.max(c.measureText(tg.name).width, c.measureText(tg.sub).width) + 10;
+      c.fillStyle = tg.bad ? 'rgba(60,0,0,.75)' : 'rgba(0,25,10,.7)'; c.fillRect(lx, ly - 10, w, 26);
+      c.strokeRect(lx, ly - 10, w, 26);
+      c.fillStyle = `rgba(${tg.rgb},${Math.max(0.6, tg.alpha)})`; c.fillText(tg.name, lx + 5, ly - 2);
+      c.font = '10px "Share Tech Mono"'; c.fillText(tg.sub, lx + 5, ly + 10); c.font = '11px "IBM Plex Sans Thai"';
+    }
+    // ฟ้าผ่า
+    this.strikes = this.strikes.filter(s => now - s.t < 5000);
+    for (const s of this.strikes) {
+      if (s.distance > this.range * 1.05) continue;
+      const [x, y] = toXY(s.x, s.z), a = 1 - (now - s.t) / 5000;
+      c.shadowColor = '#9fb6ff'; c.shadowBlur = 12; c.strokeStyle = `rgba(200,215,255,${a})`; c.lineWidth = 2; c.beginPath();
+      c.moveTo(x - 4, y - 12); c.lineTo(x + 3, y - 2); c.lineTo(x - 3, y + 1); c.lineTo(x + 4, y + 12); c.stroke(); c.lineWidth = 1; c.shadowBlur = 0;
+    }
+    // ขอบในมืด (ให้ดูเป็นจอโค้ง)
+    const vg = c.createRadialGradient(cx, cy, R * 0.65, cx, cy, R);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    c.fillStyle = vg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    c.restore();
+    if (!mini) this.hit = hit;
+  }
+
   draw(now) {
     const cv = this.cv, dpr = Math.min(devicePixelRatio, 2);
     const W = cv.clientWidth, H = cv.clientHeight;
@@ -494,113 +616,7 @@ export class Radar {
       }
     }
 
-    // ---- ภายในวงเรดาร์
-    c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
-    const bg = c.createRadialGradient(cx, cy, 0, cx, cy, R);
-    bg.addColorStop(0, 'rgba(6,40,16,.95)'); bg.addColorStop(1, 'rgba(1,10,4,.98)');
-    c.fillStyle = bg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
-    // แผนที่จริง (ย้อมเขียว)
-    if (this.mapImg) {
-      const s = R * (this.mapRange / this.range);
-      c.globalAlpha = 0.5; c.filter = 'grayscale(1) brightness(1.5) contrast(1.25) sepia(1) hue-rotate(65deg) saturate(2.6)';
-      c.drawImage(this.mapImg, cx - s, cy - s, s * 2, s * 2);
-      c.filter = 'none'; c.globalAlpha = 1;
-    }
-    // ตาราง
-    c.strokeStyle = GDD; c.lineWidth = 1;
-    for (let a = 0; a < 360; a += 30) { const t = rad(a); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.sin(t) * R, cy - Math.cos(t) * R); c.stroke(); }
-    c.strokeStyle = GD;
-    for (let i = 1; i <= 4; i++) { c.beginPath(); c.arc(cx, cy, R * i / 4, 0, Math.PI * 2); c.stroke(); }
-    c.fillStyle = 'rgba(57,255,106,.55)'; c.font = '10px "Share Tech Mono", monospace';
-    for (let i = 1; i <= 4; i++) c.fillText(`${Math.round(this.range * i / 4)}m`, cx + 4, cy - R * i / 4 + 9);
-    // เขตรั้ว (กะพริบแดงเมื่อมีภัย)
-    let [a1, b1] = toXY(PERIMETER.x0, PERIMETER.z0), [a2, b2] = toXY(PERIMETER.x1, PERIMETER.z1);
-    c.setLineDash([6, 5]); c.lineWidth = 1.5;
-    c.strokeStyle = threats.length ? `rgba(255,80,80,${0.5 + 0.5 * Math.sin(now / 150)})` : 'rgba(255,224,102,.55)';
-    c.strokeRect(a1, b1, a2 - a1, b2 - b1); c.setLineDash([]); c.lineWidth = 1;
-    c.fillStyle = 'rgba(160,255,190,.55)'; c.font = '10px "IBM Plex Sans Thai"';
-    for (const z of ZONES) {
-      if (z.r) { const [x, y] = toXY(z.cx, z.cz); c.fillText(z.name, x - 12, y); }
-      else { [a1, b1] = toXY(z.x0, z.z0); [a2, b2] = toXY(z.x1, z.z1); c.fillText(z.name, Math.max(a1 + 3, cx - R + 8), Math.max(b1 + 10, cy - R + 20)); }
-    }
-    // ทิศทางที่มีภัย: ไฮไลต์เป็นเสี้ยว
-    for (const t of threats) {
-      const b = this.blips.get(t.id); if (!b) continue;
-      const a = rad(b.b) - Math.PI / 2;
-      c.fillStyle = 'rgba(255,60,60,0.12)'; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, a - 0.18, a + 0.18); c.closePath(); c.fill();
-    }
-    // เส้นกวาด + หางเรืองแสง
-    const sw = rad(this.sweep) - Math.PI / 2;
-    if (c.createConicGradient) {
-      const grad = c.createConicGradient(sw - 1.2, cx, cy);
-      grad.addColorStop(0, 'rgba(57,255,106,0)'); grad.addColorStop(0.19, 'rgba(57,255,106,0.42)'); grad.addColorStop(0.1901, 'rgba(57,255,106,0)'); grad.addColorStop(1, 'rgba(57,255,106,0)');
-      c.fillStyle = grad; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - 1.2, sw); c.closePath(); c.fill();
-    }
-    c.shadowColor = G; c.shadowBlur = 12; c.strokeStyle = '#b6ffc9'; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke();
-    c.shadowBlur = 0; c.lineWidth = 1;
-
-    // ---- เป้าหมาย
-    this.hit = [];
-    const tags = [];
-    for (const bl of this.blips.values()) {
-      if (bl.d > this.range * 1.05) continue;
-      const age = (now - bl.seen) / 4000, alpha = Math.max(0.15, 1 - age);
-      const [x, y] = toXY(bl.x, bl.z);
-      const t = tracked.get(bl.id);
-      const trail = this.trails.get(bl.id) || [];
-      if (bl.type === 'human' || bl.type === 'vehicle') {
-        const bad = t?.status === 'threat' || t?.status === 'pending';
-        const rgb = bl.type === 'vehicle' ? '255,170,60' : bad ? '255,70,70' : t?.status === 'outside' ? '255,224,102' : '120,200,255';
-        // ร่องรอยการเคลื่อนที่
-        trail.forEach((p, i) => { const [tx, ty] = toXY(p.x, p.z); c.fillStyle = `rgba(${rgb},${(i + 1) / trail.length * 0.35 * alpha})`; c.beginPath(); c.arc(tx, ty, 2, 0, Math.PI * 2); c.fill(); });
-        // เวกเตอร์ทิศทาง
-        if (trail.length > 1) {
-          const p0 = trail[Math.max(0, trail.length - 3)];
-          const [px, py] = toXY(p0.x, p0.z), dx = x - px, dy = y - py, m = Math.hypot(dx, dy);
-          if (m > 1.5) { c.strokeStyle = `rgba(${rgb},${alpha})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x + dx / m * 16, y + dy / m * 16); c.stroke(); }
-        }
-        c.shadowColor = `rgb(${rgb})`; c.shadowBlur = 10; c.fillStyle = `rgba(${rgb},${alpha})`;
-        if (bl.type === 'vehicle') { c.fillRect(x - 5, y - 3.5, 10, 7); }
-        else { c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 6, y); c.lineTo(x, y + 6); c.lineTo(x - 6, y); c.closePath(); c.fill(); }
-        c.shadowBlur = 0;
-        if (bad) { const pr = 9 + ((now / 55) % 18); c.strokeStyle = `rgba(255,70,70,${1 - (pr - 9) / 18})`; c.beginPath(); c.arc(x, y, pr, 0, Math.PI * 2); c.stroke(); }
-        const name = bl.type === 'vehicle' ? bl.label : t?.status === 'resident' || t?.status === 'student' || t?.status === 'villager' ? bl.label : t?.status === 'known' ? t.name : bad ? 'UNKNOWN' : 'บุคคล';
-        tags.push({ x, y, rgb, alpha, name, sub: `${bl.d.toFixed(0)}m ${bl.b.toFixed(0).padStart(3, '0')}°`, bad });
-      } else {
-        c.fillStyle = `rgba(57,255,106,${alpha * 0.8})`; c.beginPath(); c.arc(x, y, 2.6, 0, Math.PI * 2); c.fill();
-      }
-      this.hit.push({ id: bl.id, x, y });
-      if (this.selected === bl.id) {
-        c.strokeStyle = '#ffffff'; c.lineWidth = 1.5; const s = 13;
-        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { c.beginPath(); c.moveTo(x + sx * s, y + sy * (s - 6)); c.lineTo(x + sx * s, y + sy * s); c.lineTo(x + sx * (s - 6), y + sy * s); c.stroke(); }
-        c.setLineDash([3, 4]); c.strokeStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke(); c.setLineDash([]); c.lineWidth = 1;
-      }
-    }
-    // ป้ายชื่อแบบหอบังคับการบิน (มีเส้นโยง)
-    c.font = '11px "IBM Plex Sans Thai"';
-    for (const tg of tags) {
-      const lx = tg.x + 14, ly = tg.y - 16;
-      c.strokeStyle = `rgba(${tg.rgb},${tg.alpha * 0.7})`; c.beginPath(); c.moveTo(tg.x + 5, tg.y - 5); c.lineTo(lx, ly + 6); c.stroke();
-      const w = Math.max(c.measureText(tg.name).width, c.measureText(tg.sub).width) + 10;
-      c.fillStyle = tg.bad ? 'rgba(60,0,0,.75)' : 'rgba(0,25,10,.7)'; c.fillRect(lx, ly - 10, w, 26);
-      c.strokeRect(lx, ly - 10, w, 26);
-      c.fillStyle = `rgba(${tg.rgb},${Math.max(0.6, tg.alpha)})`; c.fillText(tg.name, lx + 5, ly - 2);
-      c.font = '10px "Share Tech Mono"'; c.fillText(tg.sub, lx + 5, ly + 10); c.font = '11px "IBM Plex Sans Thai"';
-    }
-    // ฟ้าผ่า
-    this.strikes = this.strikes.filter(s => now - s.t < 5000);
-    for (const s of this.strikes) {
-      if (s.distance > this.range * 1.05) continue;
-      const [x, y] = toXY(s.x, s.z), a = 1 - (now - s.t) / 5000;
-      c.shadowColor = '#9fb6ff'; c.shadowBlur = 12; c.strokeStyle = `rgba(200,215,255,${a})`; c.lineWidth = 2; c.beginPath();
-      c.moveTo(x - 4, y - 12); c.lineTo(x + 3, y - 2); c.lineTo(x - 3, y + 1); c.lineTo(x + 4, y + 12); c.stroke(); c.lineWidth = 1; c.shadowBlur = 0;
-    }
-    // ขอบในมืด (ให้ดูเป็นจอโค้ง)
-    const vg = c.createRadialGradient(cx, cy, R * 0.65, cx, cy, R);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
-    c.fillStyle = vg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
-    c.restore();
+    this.drawScope(c, cx, cy, R, now);
 
     // ---- ขอบวง + องศา + ทิศ
     c.shadowColor = G; c.shadowBlur = 6;
