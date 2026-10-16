@@ -95,7 +95,9 @@ function applyWx(w) {
   farm.wx.set({ clouds: w.clouds, rain: w.rain, storm: w.storm, wind: w.wind, windDir: w.windDir ?? 80, fog: w.fog || 0 });
   sound.setRain(w.rain);
 }
-function setWxMode(mode) {
+let autoRealT = 0, announceReal = false;
+function setWxMode(mode, auto = false) {
+  if (!auto) { clearTimeout(autoRealT); announceReal = false; } // ผู้ใช้เลือกเอง → ไม่สลับอัตโนมัติแล้ว
   wxMode = mode;
   try { localStorage.setItem('wxMode', mode); } catch {}
   document.querySelectorAll('#wxChips .chip').forEach(c => c.classList.toggle('active', c.dataset.wx === mode));
@@ -118,6 +120,7 @@ bus.on('real-weather', d => {
   }
   lastStorm = d.storm;
   applyWx(d);
+  if (announceReal) { announceReal = false; toast(`🌦️ ตอนนี้แสดงอากาศจริงที่บ้านสวน: ${d.label} · ${d.temperature_2m}°C`, 5000); }
   const t = d.fetched.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
   wxStatus.innerHTML = `<b>${d.label}</b> · ${d.temperature_2m}°C · ความชื้น ${d.relative_humidity_2m}%<br>`
     + `ฝน ${d.precipitation} มม. · ลม ${d.wind_speed_10m} กม./ชม. · เมฆ ${d.cloud_cover}%<br>`
@@ -137,9 +140,10 @@ const ambient = new Ambient(sound, farm);
 const summary = new DailySummary({ radar, hub, farm });
 const kiosk = new Kiosk({ farm, tour, showTab });
 setInterval(() => ambient.update(0.25), 250);
-// เข้าครั้งแรก: อากาศแจ่มใส (ภาพสวยที่สุด) · ถ้าเคยเลือกไว้ จำค่าเดิม
-let savedWx = 'clear'; try { savedWx = localStorage.getItem('wxMode') || 'clear'; } catch {}
-setWxMode(savedWx);
+// เข้าเว็บ: เปิดด้วยอากาศแจ่มใส (ภาพสวยที่สุด) 10 วินาทีหลังภาพขึ้น แล้วสลับเป็นอากาศจริงของบ้านสวนเอง
+// ถ้าระหว่างนั้นผู้ใช้กดเลือกอากาศเอง จะไม่สลับให้
+setWxMode('clear');
+bus.on('farm-ready', () => { if (wxMode === 'clear') autoRealT = setTimeout(() => { announceReal = true; setWxMode('real', true); }, 10000); }); // นับ 10 วิหลังภาพ 3D ขึ้นแล้ว
 if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
 document.getElementById('fogToggle').addEventListener('change', e => farm.setFog(e.target.checked));
 // ป้ายชื่อโซน: ขึ้นให้เห็น 10 วินาทีตอนเข้าเว็บ แล้วซ่อนเอง (เปิดใหม่ได้ที่ปุ่ม 🏷️ ข้างปุ่มซูม)
