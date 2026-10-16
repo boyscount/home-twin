@@ -9,11 +9,13 @@
   <style>
     html, body { margin: 0; height: 100%; background: #050d08; color: #e6f0ea; overflow: hidden; font-family: "IBM Plex Sans Thai", system-ui, Tahoma, sans-serif; }
     #c { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+    #vid { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
     .hint { position: absolute; left: 50%; bottom: 2.5vh; transform: translateX(-50%); font-size: 1.6vh; color: #7fa08b; background: rgba(0,0,0,.4); padding: .5vh 1.4vh; border-radius: 99px; white-space: nowrap; }
     .hint a { color: #7bd88f; }
   </style>
 </head>
 <body>
+<video id="vid" muted playsinline loop preload="auto" style="display:none"></video>
 <canvas id="c"></canvas>
 <div class="hint" id="hint">กด OK / คลิก 1 ครั้ง = เต็มจอ + เปิดเสียงเตือน · <a href="./?lite=0">เปิดภาพ 3D เต็ม</a></div>
 <script>
@@ -144,78 +146,115 @@
       if (stranger && !stranger.alerted && stranger.z < FENCE.z1) { stranger.alerted = true; alertT = 12; beep(); }
     }
     if (alertT > 0) alertT -= dt;
+    tickMode(dt);
     draw(now, h, night);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
-  function draw(now, h, night) {
-    c.clearRect(0, 0, W, H);
-    var bg = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
-    bg.addColorStop(0, '#0b1d12'); bg.addColorStop(1, '#030806'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
-    var wide = W > H * 1.2;
-    var R = wide ? Math.min(H * 0.42, W * 0.27) : Math.min(W * 0.42, H * 0.3);
-    var cx = W / 2, cy = wide ? H / 2 + H * 0.02 : H * 0.53, k = R / RANGE;
+  // ---------- โหมดแสดงผล: สลับ "เรดาร์เต็มจอ" กับ "วิดีโอบ้านสวน 3D" (มีเรดาร์จิ๋วมุมจอ) · คนแปลกหน้ามา → กลับเรดาร์ทันที
+  var vid = document.getElementById('vid'), mode = 'radar', modeT = 45, vidOK = true, vidSrc = '';
+  var RADAR_SEC = 45, VIDEO_SEC = 75;
+  vid.addEventListener('error', function () { vidOK = false; setMode('radar'); }); // เล่นวิดีโอไม่ได้ → เรดาร์อย่างเดียว
+  function setMode(m) {
+    if (m === 'video' && !vidOK) m = 'radar';
+    mode = m; modeT = m === 'video' ? VIDEO_SEC : RADAR_SEC;
+    if (m === 'video') {
+      var h = hourNow(), src = (h < 6 || h >= 18.5) ? 'media/tv-night.mp4' : 'media/tv-day.mp4';
+      if (src !== vidSrc) { vidSrc = src; vid.src = src; }
+      vid.style.display = 'block';
+      try { var p = vid.play(); if (p && p.catch) p.catch(function () { vidOK = false; setMode('radar'); }); } catch (e) { vidOK = false; setMode('radar'); return; }
+    } else { vid.style.display = 'none'; try { vid.pause(); } catch (e) {} }
+  }
+  if (/[?&]start=video/.test(location.search)) setTimeout(function () { setMode('video'); }, 300); // สำหรับทดสอบ
+  function tickMode(dt) {
+    if (alertT > 0 && mode === 'video') setMode('radar');
+    modeT -= dt;
+    if (modeT <= 0 && alertT <= 0) setMode(mode === 'radar' ? 'video' : 'radar');
+  }
+
+  function radarAt(cx, cy, R, now, threat, small) {
+    var k = R / RANGE;
     function P(x, z) { return [cx + (x - CX) * k, cy + (z - CZ) * k]; }
-    var threat = alertT > 0 || (stranger && stranger.alerted && stranger.stage < 3);
     var G = '#39ff6a', GD = 'rgba(57,255,106,0.28)', GDD = 'rgba(57,255,106,0.1)';
-    // วงเรดาร์
     c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
     var g = c.createRadialGradient(cx, cy, 0, cx, cy, R); g.addColorStop(0, 'rgba(6,40,16,.95)'); g.addColorStop(1, 'rgba(1,10,4,.98)'); c.fillStyle = g; c.fillRect(cx - R, cy - R, R * 2, R * 2);
     c.strokeStyle = GDD; c.lineWidth = 1;
     for (var a = 0; a < 360; a += 30) { var t = a * Math.PI / 180; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.sin(t) * R, cy - Math.cos(t) * R); c.stroke(); }
     c.strokeStyle = GD; for (var r = 1; r <= 4; r++) { c.beginPath(); c.arc(cx, cy, R * r / 4, 0, Math.PI * 2); c.stroke(); }
-    // ถนน + รั้ว + โซน + บ่อ
     var r0 = P(-80, 41.5), r1 = P(80, 50.5); c.fillStyle = 'rgba(120,140,130,.16)'; c.fillRect(r0[0], r0[1], r1[0] - r0[0], r1[1] - r0[1]);
     var f0 = P(FENCE.x0, FENCE.z0), f1 = P(FENCE.x1, FENCE.z1);
-    c.setLineDash([R * 0.03, R * 0.025]); c.lineWidth = 2; c.strokeStyle = threat ? 'rgba(255,80,80,' + (0.5 + 0.5 * Math.sin(now / 150)) + ')' : 'rgba(255,224,102,.55)';
+    c.setLineDash([R * 0.03, R * 0.025]); c.lineWidth = small ? 1 : 2; c.strokeStyle = threat ? 'rgba(255,80,80,' + (0.5 + 0.5 * Math.sin(now / 150)) + ')' : 'rgba(255,224,102,.55)';
     c.strokeRect(f0[0], f0[1], f1[0] - f0[0], f1[1] - f0[1]); c.setLineDash([]); c.lineWidth = 1;
-    c.font = Math.round(R * 0.05) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    ZONES.forEach(function (z) { var a0 = P(z.x0, z.z0), a1 = P(z.x1, z.z1); c.strokeStyle = 'rgba(160,255,190,.22)'; c.strokeRect(a0[0], a0[1], a1[0] - a0[0], a1[1] - a0[1]); c.fillStyle = 'rgba(160,255,190,.6)'; c.fillText(z.n, (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2); });
-    var pp = P(POND.x, POND.z); c.strokeStyle = 'rgba(120,200,255,.4)'; c.beginPath(); c.arc(pp[0], pp[1], POND.r * k, 0, Math.PI * 2); c.stroke(); c.fillStyle = 'rgba(120,200,255,.6)'; c.fillText('บ่อปลา', pp[0], pp[1]);
-    // เส้นกวาด
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = Math.round(R * 0.05) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
+    ZONES.forEach(function (z) { var a0 = P(z.x0, z.z0), a1 = P(z.x1, z.z1); c.strokeStyle = 'rgba(160,255,190,.22)'; c.strokeRect(a0[0], a0[1], a1[0] - a0[0], a1[1] - a0[1]); if (!small) { c.fillStyle = 'rgba(160,255,190,.6)'; c.fillText(z.n, (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2); } });
+    var pp = P(POND.x, POND.z); c.strokeStyle = 'rgba(120,200,255,.4)'; c.beginPath(); c.arc(pp[0], pp[1], POND.r * k, 0, Math.PI * 2); c.stroke(); if (!small) { c.fillStyle = 'rgba(120,200,255,.6)'; c.fillText('บ่อปลา', pp[0], pp[1]); }
     var sw = sweep * Math.PI / 180 - Math.PI / 2;
     for (var j = 0; j < 24; j++) { c.fillStyle = 'rgba(57,255,106,' + (0.012 * (24 - j) / 24 * 10).toFixed(3) + ')'; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - (j + 1) * 0.05, sw - j * 0.05); c.closePath(); c.fill(); }
-    c.strokeStyle = '#b6ffc9'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke(); c.lineWidth = 1;
-    // จุดเป้าหมาย
+    c.strokeStyle = '#b6ffc9'; c.lineWidth = small ? 1.5 : 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke(); c.lineWidth = 1;
     function dot(x, z, col, size, diamond) { var q = P(x, z); c.fillStyle = col; c.beginPath(); if (diamond) { c.moveTo(q[0], q[1] - size); c.lineTo(q[0] + size, q[1]); c.lineTo(q[0], q[1] + size); c.lineTo(q[0] - size, q[1]); c.closePath(); } else c.arc(q[0], q[1], size, 0, Math.PI * 2); c.fill(); return q; }
-    pets.forEach(function (p) { dot(p.x, p.z, 'rgba(57,255,106,.75)', R * 0.012); });
+    pets.forEach(function (p) { dot(p.x, p.z, 'rgba(57,255,106,.75)', Math.max(1.5, R * 0.012)); });
     cars.forEach(function (cr) { var q = P(cr.x, cr.z); c.fillStyle = 'rgba(255,170,60,.95)'; c.fillRect(q[0] - R * 0.02, q[1] - R * 0.012, R * 0.04, R * 0.024); });
     c.font = Math.round(R * 0.045) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.textAlign = 'left';
-    people.forEach(function (p) { if (p.gone || Math.abs(p.z) > 55) return; var q = dot(p.x, p.z, 'rgba(120,200,255,.95)', R * 0.022, true); c.fillStyle = 'rgba(170,220,255,.9)'; c.fillText(p.name, q[0] + R * 0.03, q[1] - R * 0.025); });
+    people.forEach(function (p) { if (p.gone || Math.abs(p.z) > 55) return; var q = dot(p.x, p.z, 'rgba(120,200,255,.95)', Math.max(2.5, R * 0.022), true); if (!small) { c.fillStyle = 'rgba(170,220,255,.9)'; c.fillText(p.name, q[0] + R * 0.03, q[1] - R * 0.025); } });
     if (stranger) {
-      var q = dot(stranger.x, stranger.z, stranger.alerted ? '#ff4646' : '#ffe066', R * 0.026, true);
+      var q = dot(stranger.x, stranger.z, stranger.alerted ? '#ff4646' : '#ffe066', Math.max(3, R * 0.026), true);
       if (stranger.alerted) { var pr = R * (0.04 + ((now / 50) % 18) / 200); c.strokeStyle = 'rgba(255,70,70,.8)'; c.beginPath(); c.arc(q[0], q[1], pr, 0, Math.PI * 2); c.stroke();
-        c.strokeStyle = '#fff'; c.lineWidth = 2; var s = R * 0.05; [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (d) { c.beginPath(); c.moveTo(q[0] + d[0] * s, q[1] + d[1] * s * 0.55); c.lineTo(q[0] + d[0] * s, q[1] + d[1] * s); c.lineTo(q[0] + d[0] * s * 0.55, q[1] + d[1] * s); c.stroke(); }); c.lineWidth = 1;
-        c.fillStyle = '#ffb3b3'; c.fillText('UNKNOWN', q[0] + R * 0.06, q[1]); }
+        if (!small) { c.strokeStyle = '#fff'; c.lineWidth = 2; var s = R * 0.05; [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (d) { c.beginPath(); c.moveTo(q[0] + d[0] * s, q[1] + d[1] * s * 0.55); c.lineTo(q[0] + d[0] * s, q[1] + d[1] * s); c.lineTo(q[0] + d[0] * s * 0.55, q[1] + d[1] * s); c.stroke(); }); c.lineWidth = 1;
+          c.fillStyle = '#ffb3b3'; c.fillText('UNKNOWN', q[0] + R * 0.06, q[1]); } }
     }
     var vg = c.createRadialGradient(cx, cy, R * 0.65, cx, cy, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); c.fillStyle = vg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
     c.restore();
     c.strokeStyle = threat ? 'rgba(255,' + Math.round(80 + 60 * Math.sin(now / 160)) + ',80,1)' : G; c.lineWidth = threat ? 4 : 2; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke(); c.lineWidth = 1;
-    c.fillStyle = G; c.font = 'bold ' + Math.round(R * 0.06) + 'px monospace'; c.textAlign = 'center';
-    [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(function (d) { var t = d[1] * Math.PI / 180; c.fillText(d[0], cx + Math.sin(t) * (R + R * 0.08), cy - Math.cos(t) * (R + R * 0.08)); });
-    // ข้อมูลซ้าย/ขวา (จอกว้าง) หรือ บน/ล่าง (จอแนวตั้ง)
-    var d = new Date(), fs = wide ? H * 0.11 : W * 0.13;
+    if (!small) {
+      c.fillStyle = G; c.font = 'bold ' + Math.round(R * 0.06) + 'px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(function (d) { var t = d[1] * Math.PI / 180; c.fillText(d[0], cx + Math.sin(t) * (R + R * 0.08), cy - Math.cos(t) * (R + R * 0.08)); });
+    }
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  }
+
+  var days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'], months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  function draw(now, h, night) {
+    c.clearRect(0, 0, W, H);
+    var wide = W > H * 1.2, threat = alertT > 0 || (stranger && stranger.alerted && stranger.stage < 3), d = new Date();
+    if (mode === 'video') {
+      // วิดีโอ 3D เต็มจอ (อยู่ใต้ canvas) + เรดาร์จิ๋วมุมขวาบน + นาฬิกามุมซ้ายบน
+      var rs = Math.min(W, H) * 0.14, m = Math.min(W, H) * 0.04;
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.arc(W - m - rs, m + rs, rs + 6, 0, Math.PI * 2); c.fill();
+      radarAt(W - m - rs, m + rs, rs, now, threat, true);
+      var gsh = c.createLinearGradient(0, 0, 0, H * 0.25); gsh.addColorStop(0, 'rgba(0,0,0,.55)'); gsh.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gsh; c.fillRect(0, 0, W * 0.6, H * 0.25);
+      var fs2 = Math.min(W, H) * 0.09;
+      c.fillStyle = '#fff'; c.font = Math.round(fs2) + 'px monospace'; c.textBaseline = 'top'; c.textAlign = 'left';
+      c.fillText(pad(d.getHours()) + ':' + pad(d.getMinutes()), m, m);
+      c.font = Math.round(fs2 * 0.26) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillStyle = '#dfeee5';
+      c.fillText('◉ บ้านสวน Monitor' + (wx ? ' · ' + wx : ''), m, m + fs2 * 1.05);
+      c.textBaseline = 'alphabetic';
+      return;
+    }
+    var bg = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    bg.addColorStop(0, '#0b1d12'); bg.addColorStop(1, '#030806'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+    var R = wide ? Math.min(H * 0.42, W * 0.27) : Math.min(W * 0.42, H * 0.3);
+    var cx = W / 2, cy = wide ? H / 2 + H * 0.02 : H * 0.53;
+    radarAt(cx, cy, R, now, threat, false);
+    var fs = wide ? H * 0.11 : W * 0.13;
     var lx = wide ? W * 0.05 : W / 2, ly = wide ? H * 0.2 : H * 0.1;
     c.textAlign = wide ? 'left' : 'center'; c.fillStyle = '#e6f0ea'; c.font = Math.round(fs) + 'px monospace';
     c.fillText(pad(d.getHours()) + ':' + pad(d.getMinutes()), lx, ly);
     c.font = Math.round(fs * 0.22) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillStyle = '#9fb8a8';
-    var days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'], months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     c.fillText('วัน' + days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + (d.getFullYear() + 543), lx, ly + fs * 0.62);
     c.fillStyle = '#7bd88f'; if (wx) c.fillText(wx, lx, ly + fs * 0.95);
     c.fillStyle = '#9fb8a8'; c.fillText('🚗 รถผ่านหน้าบ้านวันนี้ ' + carsToday + ' คัน', lx, ly + fs * (wx ? 1.28 : 0.95));
-    // ครอบครัว
     var fx = wide ? W * 0.95 : W / 2, fy = wide ? H * 0.2 : cy + R + H * 0.06, lh = (wide ? H : W) * 0.045;
     c.textAlign = wide ? 'right' : 'center'; c.font = 'bold ' + Math.round(lh * 0.75) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillStyle = '#7bd88f';
     c.fillText('◉ บ้านสวน Monitor', fx, fy - lh * 0.4);
     c.font = Math.round(lh * 0.62) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
     people.forEach(function (p, i) { c.fillStyle = '#e6f0ea'; c.fillText(p.name + ' — ' + (p.task || ''), fx, fy + lh * (i + 0.8)); });
-    // ป้ายเตือน
+    if (vidOK && !threat) { c.fillStyle = '#5f8a6f'; c.font = Math.round(lh * 0.5) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillText('ภาพบ้านสวน 3D ใน ' + Math.ceil(modeT) + ' วิ', fx, fy + lh * 5.6); }
     if (threat) {
       var bw = Math.min(W * 0.8, R * 2.2), bh = R * 0.22, bx = W / 2 - bw / 2, by = cy - R - bh * 0.4;
       if (!wide) by = cy - R - bh * 1.1;
       c.fillStyle = 'rgba(170,20,20,.9)'; c.fillRect(bx, by, bw, bh); c.strokeStyle = '#ff8080'; c.lineWidth = 3; c.strokeRect(bx, by, bw, bh); c.lineWidth = 1;
-      c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = 'bold ' + Math.round(bh * 0.45) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
+      c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = 'bold ' + Math.round(bh * 0.45) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
       c.fillText('⚠ ตรวจพบบุคคลที่หน้าบ้าน', W / 2, by + bh / 2);
     }
     c.textAlign = 'left'; c.textBaseline = 'alphabetic';
