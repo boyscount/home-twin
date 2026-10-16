@@ -444,3 +444,18 @@ body.kiosk .sim-fab { display: none; }
   .ac-actions { flex-wrap: nowrap; gap: 5px; margin-left: -79px; margin-right: -28px; margin-top: 4px; }
   .ac-actions button { flex: 1; padding: 10px 2px; font-size: 12.5px; white-space: nowrap; }
 }
+/* ตอนกล้องเล่าเรื่องทำงาน ปุ่ม 🎮 กับ "แตะเพื่อควบคุมเอง" ย้ายขึ้นมุมบน → เลื่อนการ์ดแจ้งเตือนลงมาไว้ใต้ปุ่ม จะได้กดได้ทั้งคู่ */
+.tour-on .alert-card { top: calc(7% + 64px); }
+/* มือถือ: เปิดแผงควบคุมแล้ว ซ่อนปุ่มลอย (🎮 / ซูม) ที่จะทับเนื้อหาแผง */
+@media (max-width: 760px) {
+  #view-farm:has(.farm-panel.open) .sim-fab, #view-farm:has(.farm-panel.open) .zoom-ctl { display: none; }
+}
+/* แท็บเล็ต / iPad (761–1100px): หัวเว็บไม่ล้น · แผงควบคุมแคบลง · ปุ่ม 🎮 ไม่ทับแผง */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .topbar { gap: 12px; padding: 0 12px; }
+  .brand-sub, #connText { display: none; }
+  .tab { padding: 8px 12px; }
+  .farm-panel { width: 248px; }
+  .sim-fab { left: calc(16px + 248px + 14px); }
+  .tour-on .sim-fab { left: 16px; }
+}
