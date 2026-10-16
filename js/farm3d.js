@@ -254,6 +254,20 @@ class Walker {
       if (!this.path.length && this.cb) { const cb = this.cb; this.cb = null; cb(); }
       return;
     }
+    // ถึงขอบถนนแล้วจะข้าม → หยุด หันมองซ้าย-ขวา รอจนไม่มีรถกำลังมา แล้วค่อยเดินข้าม
+    const R = Walker.road, pz = g.position.z;
+    if (R && g.position.y < 0.5) {
+      const outside = pz < 41.3 || pz > 50.7, north = pz < 46;
+      if (this.crossSide && ((this.crossSide === 'n' && pz > 51) || (this.crossSide === 's' && pz < 41))) this.crossSide = null; // ข้ามเสร็จแล้ว
+      const toward = north ? t.z > 41.3 : t.z < 50.7;
+      if (!this.crossSide && outside && toward && Math.abs(pz - (north ? 41.15 : 50.85)) < 0.3) {
+        this.lookT = (this.lookT || 0) + dt;
+        animateIdle(this.h, dt);
+        this.h.head.rotation.y = Math.sin(this.lookT * 2.4) * 1.1;
+        if (this.lookT > 1.8 && R.clear(g.position.x)) { this.crossSide = north ? 'n' : 's'; this.lookT = 0; }
+        return;
+      }
+    }
     const step = Math.min(d, this.speed * dt);
     g.position.x += dx / d * step; g.position.z += dz / d * step;
     const target = Math.atan2(dx, dz);
@@ -459,6 +473,8 @@ export class Farm3D {
     this.buildBedroom();
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
+    // คนเดินถามก่อนข้าม: มีรถกำลังวิ่งเข้ามาในระยะ 45 ม. ไหม (รถที่จอดรออยู่แล้วไม่นับ)
+    Walker.road = { clear: x => !this.vehicles.some(v => { const d = v.dir * (x - v.g.position.x); return d > -4 && d < 45 && v.speed > 0.5; }) };
     this.wxState = { clouds: 0, rain: 0, fog: 0 };
     this.fogBase = 0.0065;
     this.wx = new WeatherFX(this);
@@ -2177,14 +2193,18 @@ export class Farm3D {
     for (const v of this.vehicles) {
       const x = v.g.position.x;
       // ระยะที่ต้องหยุดให้ทัน (ยิ่งเร็วยิ่งต้องมองไกล) — เจอคนในช่องทาง หรือรถคันหน้าใกล้เกิน → เบรก
-      let gap = Infinity;
-      for (const p of peds) if (Math.abs(p.z - v.laneZ) < 2.3) { const d = v.dir * (p.x - x); if (d > -1) gap = Math.min(gap, d - v.len / 2 - 1.2); }
-      for (const o of this.vehicles) if (o !== v && o.dir === v.dir) { const d = v.dir * (o.g.position.x - x); if (d > 0) gap = Math.min(gap, d - (o.len + v.len) / 2 - 3); }
+      let pedGap = Infinity, carGap = Infinity;
+      for (const p of peds) if (Math.abs(p.z - v.laneZ) < 2.3) { const d = v.dir * (p.x - x); if (d > -1) pedGap = Math.min(pedGap, d - v.len / 2 - 1.2); }
+      for (const o of this.vehicles) if (o !== v && o.dir === v.dir) { const d = v.dir * (o.g.position.x - x); if (d > 0) carGap = Math.min(carGap, d - (o.len + v.len) / 2 - 3); }
+      const gap = Math.min(pedGap, carGap);
       const stopDist = (v.speed * v.speed) / (2 * 9) + 1.5;
       const want = gap < stopDist + 6 ? Math.max(0, Math.min(v.cruise, (gap - 1.5) * 1.6)) : v.cruise;
       v.speed += Math.max(-14 * dt, Math.min(3.2 * dt, want - v.speed));
-      if (v.speed < 0.05 && want === 0) v.speed = 0;
+      if (v.speed < 0.08 && want < 0.4) v.speed = 0; // ค่อย ๆ จอดสนิท
       v.braking = want < v.speed - 0.3 || v.speed < 0.5;
+      // จอดรอคนข้ามถนนนานเกิน 1 วิ → บีบแตรเบา ๆ ครั้งเดียว
+      if (v.speed < 0.3 && pedGap <= carGap) { v.waitT = (v.waitT || 0) + dt; if (v.waitT > 1.2 && !v.honked) { v.honked = true; bus.emit('honk', { x, z: v.laneZ, moto: v.label === 'มอเตอร์ไซค์' }); } }
+      else if (v.speed > 3) { v.waitT = 0; v.honked = false; }
       v.g.position.x += v.dir * v.speed * dt;
       v.g.userData.hl.emissiveIntensity = night ? 4 : 0.3;
       v.g.userData.tl.emissiveIntensity = v.braking ? (night ? 7 : 3.5) : night ? 2.5 : 0.4; // ไฟเบรกสว่างขึ้นตอนชะลอ/จอด

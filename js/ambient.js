@@ -14,6 +14,7 @@ export class Ambient {
     bus.on('farm-event', msg => { if (msg.includes('เทอาหารหมู')) this.oinks(4); if (msg.includes('Goodbye')) this.kidsChatter(); });
     bus.on('bbq', on => this.sizzle(on));
     bus.on('firework', fw => this.boom(fw));
+    bus.on('honk', h => this.honk(h));
   }
 
   get ok() { return this.sound.enabled && this.sound.ctx && this.sound.ctx.state === 'running'; }
@@ -90,6 +91,15 @@ export class Ambient {
     const v = this.near(0, 46) * 0.3, moto = label === 'มอเตอร์ไซค์', truck = label?.includes('บรรทุก');
     this.noise({ dur: 2.4, gain: v * (truck ? 1.2 : 1), f0: 300, f1: 1400, q: 0.8, attack: 1.1 });
     this.tone({ type: 'sawtooth', f0: moto ? 110 : truck ? 55 : 75, f1: moto ? 85 : truck ? 45 : 60, dur: 2.2, gain: v * 0.35, filter: moto ? 700 : 300, q: 1.2, at: 0.1 });
+  }
+  // แตรรถเบา ๆ 2 จังหวะ (รถยนต์ = แตรสองโทน, มอเตอร์ไซค์ = แหลมกว่า)
+  honk(h) {
+    if (!this.ok) return;
+    const v = this.near(h.x, h.z) * 0.09;
+    for (const at of [0, 0.32]) {
+      if (h.moto) this.tone({ type: 'square', f0: 620, dur: 0.14, gain: v, filter: 1800, q: 1.2, at });
+      else { this.tone({ type: 'square', f0: 415, dur: 0.18, gain: v, filter: 1600, q: 1, at }); this.tone({ type: 'square', f0: 520, dur: 0.18, gain: v * 0.8, filter: 1600, q: 1, at }); }
+    }
   }
   kidsChatter() {
     if (!this.ok) return;
