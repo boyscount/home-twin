@@ -35,7 +35,9 @@ function showTab(name) {
 tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
 let startTab = 'farm';
 try { startTab = new URLSearchParams(location.search).get('tab') || localStorage.getItem('tab') || 'farm'; } catch {}
+if (window.__lite && !new URLSearchParams(location.search).get('tab')) startTab = 'radar'; // โหมดเบา: เปิดที่เรดาร์
 showTab(startTab);
+document.getElementById('liteRadar')?.addEventListener('click', () => showTab('radar'));
 
 // ---------- clock ----------
 const clock = document.getElementById('clock');

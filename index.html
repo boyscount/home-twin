@@ -59,6 +59,14 @@
     <!-- ============ TAB 1 : FARM 3D ============ -->
     <section class="view active" id="view-farm">
       <div id="farmCanvas" class="canvas-host"></div>
+      <div class="lite-note" id="liteNote">
+        <div class="lite-box">
+          <div class="lite-ico">📺</div>
+          <b>โหมดเบาสำหรับทีวี</b>
+          <p>เครื่องนี้ปิดภาพ 3D ไว้เพื่อไม่ให้ค้าง — ระบบยังทำงานครบ: เรดาร์ แจ้งเตือน คนแปลกหน้า ครอบครัว</p>
+          <div class="lite-actions"><button type="button" id="liteRadar">📡 ไปแท็บเรดาร์</button><a href="?lite=0">ลองเปิดภาพ 3D</a></div>
+        </div>
+      </div>
       <div class="loading" id="farmLoading">
         <div class="splash">
           <img src="icon.svg" alt="" width="84" height="84">
@@ -284,6 +292,12 @@
 
   <!-- ตัวช่วยสำหรับเบราว์เซอร์ทีวีรุ่นเก่า: ฟังก์ชันใหม่ที่แอปใช้ -->
   <script>
+    // โหมดเบา (ไม่วาดภาพ 3D): เปิดเองบนเบราว์เซอร์ทีวี · บังคับได้ด้วย ?lite=1 / ?lite=0
+    (function () {
+      var q = /[?&]lite=([01])/.exec(location.search), tv = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(navigator.userAgent);
+      window.__lite = q ? q[1] === '1' : tv;
+      if (window.__lite) document.documentElement.className += ' lite';
+    })();
     if (!Array.prototype.at) Object.defineProperty(Array.prototype, 'at', { configurable: true, writable: true, value: function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return this[i]; } });
     if (!String.prototype.replaceAll) String.prototype.replaceAll = function (a, b) { return this.split(a).join(b); };
   </script>

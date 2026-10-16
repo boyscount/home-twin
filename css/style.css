@@ -517,3 +517,14 @@ body.kiosk .mini-radar:not(.big) { top: auto; bottom: calc(7% + 72px); right: 32
 .err-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60; background: rgba(120,10,10,.94); color: #fff; border: 2px solid #ff6b6b; border-radius: 12px;
   padding: 10px 14px; font: 14px/1.5 "Share Tech Mono", "IBM Plex Sans Thai", monospace; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .dbg { position: fixed; left: 8px; top: 8px; z-index: 61; background: rgba(0,0,0,.72); color: #39ff6a; font: 13px/1.45 "Share Tech Mono", monospace; padding: 6px 10px; border-radius: 8px; pointer-events: none; white-space: pre; }
+
+/* ---------- โหมดเบาสำหรับทีวี (ไม่มีภาพ 3D) ---------- */
+.lite-note { display: none; }
+html.lite .lite-note { display: flex; position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 9; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, #13281c, #0b1410 70%); padding: 20px; }
+html.lite #view-farm > *:not(.lite-note) { display: none !important; }
+.lite-box { max-width: 560px; text-align: center; color: #e6f0ea; font-size: 20px; line-height: 1.6; }
+.lite-ico { font-size: 64px; }
+.lite-box b { display: block; font-size: 30px; color: #7bd88f; margin: 6px 0; }
+.lite-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+.lite-actions button, .lite-actions a { font-size: 22px; padding: 12px 22px; border-radius: 999px; border: 0; background: #39ff6a; color: #052a12; font-weight: 700; text-decoration: none; }
+.lite-actions a { background: transparent; color: #9fe8b0; border: 2px solid #3a6a4a; }

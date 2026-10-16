@@ -375,15 +375,16 @@ export class Farm3D {
     this.splash(35, 'กำลังสร้างบ้านสวน…');
     makeTextures(); makeFoliageTextures(); makeMaterials(); makeSharedGeo();
     const [w, h] = this.size();
-    const r = this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.lite = !!window.__lite; // โหมดเบา: จำลองครบ แต่ไม่วาดภาพ 3D (ทีวีชิปอ่อน)
+    const r = this.renderer = new THREE.WebGLRenderer({ antialias: !this.lite, powerPreference: this.lite ? 'low-power' : 'default' });
     this.touchDevice = matchMedia('(pointer: coarse)').matches;
     // ทีวี (Tizen/webOS/Android TV ฯลฯ) การ์ดจออ่อนมาก → เริ่มที่คุณภาพต่ำ · มือถือเริ่มที่กลาง
     this.tvDevice = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(navigator.userAgent);
     let q = 'high'; try { q = localStorage.getItem('quality') || (this.tvDevice ? 'low' : this.touchDevice ? 'medium' : 'high'); } catch {}
     this.quality = QUALITY[q] ? q : 'medium';
     r.setPixelRatio(Math.min(devicePixelRatio, QUALITY[this.quality].pr));
-    r.setSize(w, h);
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.setSize(this.lite ? 1 : w, this.lite ? 1 : h);
+    r.shadowMap.enabled = !this.lite; r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.shadowMap.autoUpdate = false; this.frameN = 0; // อัปเดตเงาเว้นเฟรม (ดู tick)
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.55;
     this.host.appendChild(r.domElement);
@@ -468,7 +469,7 @@ export class Farm3D {
     this.buildRubber();
     this.buildBackdrop();
     this.buildMountains();
-    this.grassPending = true; // หญ้าสร้างทีหลัง (หลังเห็นภาพแล้ว) เพื่อให้เปิดเว็บเร็วขึ้น
+    this.grassPending = !this.lite; // หญ้าสร้างทีหลัง (หลังเห็นภาพแล้ว) เพื่อให้เปิดเว็บเร็วขึ้น
     this.buildCharacters();
     this.buildLabels();
     this.gen = 0;
@@ -487,7 +488,7 @@ export class Farm3D {
 
     this.setTime(this.hour);
     // env map ต้องมีตั้งแต่แรก (ถ้ามาทีหลัง shader ทุกตัวต้องคอมไพล์ใหม่อีกรอบ)
-    clearTimeout(this.envTimer); this.envRT = this.pmrem.fromScene(this.envScene, 0.04); this.scene.environment = this.envRT.texture;
+    if (!this.lite) { clearTimeout(this.envTimer); this.envRT = this.pmrem.fromScene(this.envScene, 0.04); this.scene.environment = this.envRT.texture; }
 
     bus.on('cmd', c => this.onCommand(c));
 
@@ -500,6 +501,13 @@ export class Farm3D {
     // หมายเหตุ: ลอง compileAsync แล้วเฟรมแรกกลับช้าลงมาก จึงใช้การวาดตรง ๆ
     performance.mark('farm-built');
     const start = async () => {
+      if (this.lite) { // ไม่คอมไพล์ shader / ไม่วาดภาพ — เดินแค่ตรรกะการจำลอง
+        this.visible = false;
+        r.setAnimationLoop(() => this.safeTick());
+        const l = document.getElementById('farmLoading'); if (l) l.remove();
+        performance.mark('farm-first-frame'); bus.emit('farm-ready');
+        return;
+      }
       // คอมไพล์ shader ทั้งฉากแบบขนานระหว่างหน้าโหลด (จอไม่ค้าง) — ตั้ง render target แบบเดียวกับตอนวาดจริง
       this.splash(85, 'กำลังเตรียมกราฟิก… (ครั้งแรกอาจใช้เวลาสักครู่)');
       document.getElementById('splashBar')?.classList.add('busy');
@@ -528,7 +536,7 @@ export class Farm3D {
   }
 
   resize() {
-    if (!this.host.clientWidth) return;
+    if (this.lite || !this.host.clientWidth) return;
     const [w, h] = this.size();
     this.renderer.setSize(w, h); this.labelRenderer.setSize(w, h);
     this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h);
@@ -537,7 +545,7 @@ export class Farm3D {
     this.camera.updateProjectionMatrix();
   }
 
-  setVisible(v) { this.visible = v; if (v) requestAnimationFrame(() => this.resize()); }
+  setVisible(v) { if (this.lite) { this.visible = false; return; } this.visible = v; if (v) requestAnimationFrame(() => this.resize()); }
 
   // ---------------------------------------------------------------- world
   buildGround() {
@@ -1490,7 +1498,7 @@ export class Farm3D {
 
   // รวมชิ้นส่วนนิ่งเป็นก้อนเดียว (ดู freeze.js) — เดินฉากล่วงหน้า 3 วิแบบไม่วาดภาพ เพื่อดูว่าอะไรขยับบ้าง
   freeze() {
-    if (this.frozen) return; this.frozen = true;
+    if (this.frozen || this.lite) return; this.frozen = true;
     const clk = this.clock, vis = this.visible, auto = this.autoTime, nv = this.nextVisitor, tourIdle = this.tour?.idle;
     let et = clk.elapsedTime;
     this.clock = { elapsedTime: et, getDelta() { et += 0.05; this.elapsedTime = et; return 0.05; } };
@@ -1822,6 +1830,7 @@ export class Farm3D {
   }
 
   updateEnv(sunDir) {
+    if (this.lite) return;
     if (this.envHour !== undefined && Math.abs(this.envHour - this.hour) < 0.25) return;
     this.envHour = this.hour;
     clearTimeout(this.envTimer);
@@ -1891,6 +1900,7 @@ export class Farm3D {
 
   // ภาพมุมสูงของฟาร์ม (orthographic) สำหรับเป็นแผนที่ใต้จอเรดาร์ — ทิศเหนืออยู่บน
   captureTopView(center, range) {
+    if (this.lite) return null;
     const r = this.renderer, pr = r.getPixelRatio();
     const sizeVec = new THREE.Vector2(); r.getSize(sizeVec);
     const S = Math.floor(Math.min(512, sizeVec.x, sizeVec.y)); if (S < 64) return null;
@@ -2027,6 +2037,7 @@ export class Farm3D {
 
   // ถ่ายภาพใบหน้าจาก "กล้องจับหน้า" ในฉาก — ใช้ renderer ตัวเดิม render ลงมุมจอแล้วคัดลอกออกมา
   captureFace(id) {
+    if (this.lite) return null;
     const e = this.entities.find(x => x.id === id); if (!e || !e.h) return null;
     const W = 320, H = 240, pr = this.renderer.getPixelRatio();
     const head = new THREE.Vector3(); e.h.head.getWorldPosition(head);

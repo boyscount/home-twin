@@ -51,13 +51,12 @@ export class Kiosk {
 
   enter(full) {
     this.on = true;
-    this.showTab('farm');
+    this.showTab(window.__lite ? 'radar' : 'farm');
     document.body.classList.add('kiosk');
     this.el.hidden = false;
     this.prevIdle = this.tour.idleSeconds; this.tour.idleSeconds = 8; // แตะแล้วกลับมาเล่าเรื่องเองเร็วขึ้น
     this.userRot = this.farm.controls.autoRotate;
-    this.tourPhase();
-    clearInterval(this.phaseTimer); this.phaseTimer = setInterval(() => this.phaseTick(), 1000);
+    if (!window.__lite) { this.tourPhase(); clearInterval(this.phaseTimer); this.phaseTimer = setInterval(() => this.phaseTick(), 1000); }
     if (full) this.goFull();
     this.keepAwake();
     setTimeout(() => this.farm.resize(), 100);
