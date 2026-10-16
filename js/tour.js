@@ -111,6 +111,9 @@ export class Tour {
         init: () => { const ps = f.fishers.present(); this.fisher = ps[Math.floor(Math.random() * ps.length)]; },
         title: () => '🎣 ชาวบ้านปักเบ็ดในทุ่งนา', sub: () => `${this.fisher?.name || ''} · ${this.fisher?.task || ''}`,
         ...this.wrapFollow(() => (this.fisher?.present ? this.fisher.h.group : null), 5, 2.2, 0.8, 1) },
+      { id: 'polecam', dur: 10, title: () => '📹 กล้องบนเสาไฟหน้าบ้าน',
+        sub: () => { const n = f.vehicles.filter(v => !v.own && Math.abs(v.g.position.x) < 80).length; return `มองเห็นหน้าบ้าน ถนน และทุ่งนาฝั่งตรงข้าม · ตอนนี้มีรถบนถนน ${n} คัน · วันนี้ผ่านแล้ว ${f.carsToday} คัน`; },
+        cam: (t) => ({ pos: V(47.1, 6.9, 41.3), target: V(0, 1.2, 37.5 + Math.sin(t * 0.25) * 6) }), lerp: 2 },
       { id: 'road', dur: 9, lerp: 5, when: () => !!this.pickCar(), // รถวิ่งเร็ว → กล้องต้องตามไวกว่าช็อตอื่น
         init: () => { this.car = this.pickCar(); },
         title: () => 'ถนนหน้าบ้าน', sub: () => `${this.car?.label || 'รถ'} กำลังขับผ่าน · วันนี้มีรถผ่านหน้าบ้านแล้ว ${f.carsToday} คัน`,

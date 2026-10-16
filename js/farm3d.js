@@ -338,6 +338,8 @@ const CAMS = {
   bbq: { pos: [8, 4, 22], target: [2, 0.8, 15.5] },
   gate: { pos: [9, 5, 50], target: [0, 1, 34] },
   roof: { pos: [12, 9.5, 9], target: [3.6, 4.3, -0.5] },
+  // กล้องวงจรปิดบนเสาไฟต้นที่ x=48 มองไปตามถนน: หน้าบ้านด้านขวา ถนนตรงกลาง ทุ่งนาฝั่งตรงข้ามด้านซ้าย
+  pole: { pos: [47.1, 6.9, 41.3], target: [0, 1.2, 37.5] },
 };
 
 export class Farm3D {
@@ -971,6 +973,16 @@ export class Farm3D {
         const head = box(0.32, 0.12, 0.62, steel, 0, H - 2.12, 2.25, g);
         const lens = box(0.26, 0.03, 0.5, this.streetLampMat, 0, H - 2.2, 2.25, g); lens.castShadow = false; void head;
         const pl = new THREE.Mesh(poolGeo, this.lampPoolMat); pl.position.set(x, 0.07, PZ + 4.2); pl.renderOrder = 2; s.add(pl);
+      }
+      // กล้องวงจรปิดบนเสาต้นนี้ (มุมกล้อง "เสาไฟ")
+      if (x === 48) {
+        box(0.06, 0.06, 1.9, steel, 0, H - 2.25, 0.95, g); // แขนยึดกล้องยื่นออกไปทางถนน (อยู่ใต้สายไฟ)
+        const cam = new THREE.Group(); cam.position.set(-0.12, H - 2.35, 1.85); cam.rotation.y = -Math.PI / 2 - 0.06; g.add(cam);
+        box(0.06, 0.06, 0.3, steel, 0, 0.1, -0.12, cam);
+        box(0.16, 0.14, 0.34, new THREE.MeshStandardMaterial({ color: '#eceae4', roughness: 0.4 }), 0, 0, 0.12, cam);
+        box(0.2, 0.03, 0.4, new THREE.MeshStandardMaterial({ color: '#eceae4', roughness: 0.4 }), 0, 0.09, 0.14, cam);
+        cyl(0.045, 0.045, 0.02, new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.1, metalness: 0.5 }), 0, 0, 0.3, cam, 12).rotation.x = Math.PI / 2;
+        sph(0.012, M.ledBad, 0.05, 0.05, 0.3, cam, 6);
       }
       // หม้อแปลงไฟฟ้าที่ต้นใกล้บ้าน
       if (x === 8) {
