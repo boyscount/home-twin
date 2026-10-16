@@ -1,5 +1,7 @@
 // โหมดทีวี / Kiosk: เต็มจอ ซ่อนเมนู กล้องเล่าเรื่องวนตลอด จอไม่ดับ และขึ้นป้ายใหญ่พร้อมรูปเมื่อมีคนมาที่บ้าน
 // เปิดจากปุ่ม 📺 หรือเข้าลิงก์ ?kiosk=1 (เบราว์เซอร์ต้องให้แตะ 1 ครั้งก่อนจึงเต็มจอได้)
+// สลับ 2 ช่วงวนไปเรื่อย ๆ: กล้องเล่าเรื่อง ~2 นาที → หมุนรอบบ้านช้า ๆ 45 วินาที (มีคนมา → ตัดไปเล่าเรื่องทันที)
+const TOUR_SEC = 120, ORBIT_SEC = 45;
 import { bus } from './bus.js';
 
 export class Kiosk {
@@ -26,6 +28,7 @@ export class Kiosk {
     });
     bus.on('alert-photo', a => { this.alertId = a.id; this.showBanner('⚠ มีคนมาที่หน้าบ้าน', (a.desc ? a.desc + ' · ' : '') + 'แตะเพื่อดูเรดาร์', a.img, 'warn'); });
     this.banner.addEventListener('click', () => { if (!this.banner.classList.contains('warn')) return; this.exit(); bus.emit('open-radar', { id: this.alertId }); });
+    bus.on('alert', () => { if (this.on && this.phase === 'orbit') this.tourPhase(); });
     bus.on('known-arrival', a => this.showBanner(`✅ ${a.name} มาถึงบ้านแล้ว`, 'ระบบจดจำใบหน้าได้', a.img, 'ok'));
     bus.on('bbq', on => { if (on) this.showBanner('🍖 ได้เวลาหมูกะทะ', 'ครอบครัวตั้งวงกินข้าวเย็นหน้าบ้าน', null, 'info'); });
     setInterval(() => this.renderHud(), 1000);
@@ -52,7 +55,9 @@ export class Kiosk {
     document.body.classList.add('kiosk');
     this.el.hidden = false;
     this.prevIdle = this.tour.idleSeconds; this.tour.idleSeconds = 8; // แตะแล้วกลับมาเล่าเรื่องเองเร็วขึ้น
-    this.tour.start();
+    this.userRot = this.farm.controls.autoRotate;
+    this.tourPhase();
+    clearInterval(this.phaseTimer); this.phaseTimer = setInterval(() => this.phaseTick(), 1000);
     if (full) this.goFull();
     this.keepAwake();
     setTimeout(() => this.farm.resize(), 100);
@@ -64,10 +69,30 @@ export class Kiosk {
     document.body.classList.remove('kiosk', 'kiosk-idle');
     this.el.hidden = true; this.banner.hidden = true;
     this.tour.idleSeconds = this.prevIdle || 30;
+    clearInterval(this.phaseTimer); this.phase = null;
     this.tour.stop();
+    this.farm.controls.autoRotate = this.userRot ?? this.farm.controls.autoRotate;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     this.lock?.release?.().catch(() => {}); this.lock = null;
     setTimeout(() => this.farm.resize(), 100);
+  }
+
+  tourPhase() {
+    this.phase = 'tour'; this.left = TOUR_SEC;
+    this.tour.start();
+  }
+
+  orbitPhase() {
+    this.phase = 'orbit'; this.left = ORBIT_SEC;
+    this.farm.flyTo('overview'); // flyTo หยุดกล้องเล่าเรื่องให้ด้วย
+    this.farm.controls.autoRotate = true;
+  }
+
+  phaseTick() {
+    if (!this.on) return;
+    if (this.phase === 'orbit') { this.tour.idle = 0; this.farm.controls.autoRotate = true; } // กันกล้องเล่าเรื่องเริ่มเองระหว่างหมุน
+    if (--this.left > 0) return;
+    if (this.phase === 'tour') this.orbitPhase(); else this.tourPhase();
   }
 
   renderHud() {
