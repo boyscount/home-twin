@@ -14,6 +14,8 @@
   <!-- ฟอนต์ไม่บล็อกการแสดงผล (โหลดเสร็จค่อยสลับ) -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/style.css">
+  <!-- ตัวช่วย import map สำหรับเบราว์เซอร์รุ่นเก่า (เช่น สมาร์ททีวี) — เบราว์เซอร์ใหม่จะข้ามไปเอง -->
+  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
@@ -279,6 +281,23 @@
   <div class="kiosk-banner" id="kioskBanner" hidden></div>
 
   <script type="module" src="js/main.js"></script>
+  <!-- เปิดแอปไม่ขึ้น (เบราว์เซอร์เก่า เช่น ทีวีบางรุ่น) → บอกผู้ใช้แทนการค้างหน้าโหลด (เขียนแบบ ES5 ให้รันได้ทุกเบราว์เซอร์) -->
+  <script>
+    (function () {
+      var errs = [];
+      window.addEventListener('error', function (e) { errs.push((e.message || 'error') + ''); });
+      function fail(reason) {
+        if (window.app) return;
+        var st = document.getElementById('splashStep');
+        if (!st) return;
+        st.innerHTML = '⚠ เบราว์เซอร์นี้อาจเก่าเกินไปสำหรับภาพ 3D<br>' + reason +
+          '<br><a href="check.html" style="color:#7bd88f;font-size:18px">เช็กเครื่องนี้ ›</a>';
+        st.style.lineHeight = '1.7';
+      }
+      if (!('noModule' in document.createElement('script'))) { fail('ไม่รองรับ JavaScript modules'); return; }
+      setTimeout(function () { if (!window.app) fail(errs.length ? errs[0].slice(0, 120) : 'โหลดนานเกินไป'); }, 25000);
+    })();
+  </script>
   <!-- Cloudflare Web Analytics: นับผู้เข้าชมแบบไม่ใช้คุกกี้ ไม่เก็บข้อมูลส่วนตัว (ดูสถิติได้ที่ dash.cloudflare.com) -->
   <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "085991824f304c4383794746623b3a46"}'></script>
 </body>

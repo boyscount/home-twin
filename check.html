@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เช็กเครื่อง · บ้านสวน Monitor</title>
+  <style>
+    body { margin: 0; background: #0b1410; color: #e6f0ea; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { color: #7bd88f; font-size: 30px; margin: 0 0 6px; }
+    .verdict { font-size: 26px; font-weight: bold; padding: 16px 20px; border-radius: 14px; margin: 18px 0; }
+    .ok { background: #123a20; border: 2px solid #39ff6a; }
+    .bad { background: #3a1212; border: 2px solid #ff5252; }
+    table { width: 100%; border-collapse: collapse; font-size: 20px; }
+    td { padding: 9px 10px; border-bottom: 1px solid #1f3328; vertical-align: top; }
+    td:first-child { color: #9fb8a8; width: 42%; }
+    .y { color: #39ff6a; font-weight: bold; } .n { color: #ff6b6b; font-weight: bold; }
+    .ua { font-size: 14px; color: #9fb8a8; word-break: break-all; margin-top: 14px; }
+    a { color: #7bd88f; font-size: 22px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>เช็กเครื่องสำหรับ บ้านสวน Monitor</h1>
+  <div>ถ่ายรูปหน้านี้ส่งให้ทีมงานได้เลย</div>
+  <div id="verdict" class="verdict">กำลังตรวจ…</div>
+  <table id="t"></table>
+  <div class="ua" id="ua"></div>
+  <p><a href="./">← กลับไปเปิดบ้านสวน Monitor</a></p>
+</div>
+<script>
+// เขียนแบบ ES5 ล้วน เพื่อให้รันได้บนเบราว์เซอร์ทีวีรุ่นเก่า
+(function () {
+  var rows = [], need = 0, fail = 0;
+  function add(name, ok, detail, required) {
+    if (required) { need++; if (!ok) fail++; }
+    rows.push('<tr><td>' + name + (required ? '' : ' (เสริม)') + '</td><td class="' + (ok ? 'y' : 'n') + '">' + (ok ? '✓ ได้' : '✗ ไม่ได้') + (detail ? ' <span style="font-weight:normal;color:#cfe">' + detail + '</span>' : '') + '</td></tr>');
+  }
+  function syntax(code) { try { new Function(code); return true; } catch (e) { return false; } }
+  var ua = navigator.userAgent;
+  var m = ua.match(/Chrom(e|ium)\/(\d+)/), chrome = m ? parseInt(m[2], 10) : 0;
+  var s = ua.match(/Version\/(\d+)[\d.]* .*Safari/), safari = s ? parseInt(s[1], 10) : 0;
+  var tv = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(ua);
+  add('เบราว์เซอร์', true, chrome ? 'Chrome/Chromium ' + chrome : safari ? 'Safari ' + safari : 'ไม่ทราบรุ่น', false);
+  add('ประเภทเครื่อง', true, tv ? '📺 สมาร์ททีวี' : 'คอม / มือถือ / ไม่แน่ใจ', false);
+  add('ขนาดจอ', true, screen.width + '×' + screen.height + ' · หน้าต่าง ' + window.innerWidth + '×' + window.innerHeight + ' · DPR ' + (window.devicePixelRatio || 1), false);
+  var modules = 'noModule' in document.createElement('script');
+  add('JavaScript modules', modules, '', true);
+  var imap = !!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'));
+  add('Import maps', imap, imap ? '' : '(แอปมีตัวช่วยแทนให้แล้ว)', false);
+  add('ไวยากรณ์ ?. และ ??', syntax('var a={};return a?.b ?? 1;'), 'ต้องเป็น Chrome 80+', true);
+  add('ไวยากรณ์ ||= &&=', syntax('var a;a||=1;return a;'), 'ต้องเป็น Chrome 85+', true);
+  add('class fields', syntax('class A{ x = 1; static y = 2 }'), 'ต้องเป็น Chrome 72+', true);
+  var gl2 = null, gl1 = null, gpu = '';
+  try { var c = document.createElement('canvas'); gl2 = c.getContext('webgl2'); } catch (e) {}
+  try { var c1 = document.createElement('canvas'); gl1 = c1.getContext('webgl') || c1.getContext('experimental-webgl'); } catch (e) {}
+  var g = gl2 || gl1;
+  if (g) { var ext = g.getExtension('WEBGL_debug_renderer_info'); gpu = ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); }
+  add('WebGL 2 (ภาพ 3D)', !!gl2, gpu ? 'GPU: ' + gpu : '', true);
+  add('WebGL 1', !!gl1, '', false);
+  add('Canvas 2D roundRect', !!(window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype.roundRect), 'ใช้ในวิดีโอ/ไม่จำเป็น', false);
+  add('CSS :has()', !!(window.CSS && CSS.supports && CSS.supports('selector(:has(a))')), 'จัดหน้าบางส่วน', false);
+  add('หน่วยความจำเครื่อง', true, navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'ไม่ทราบ', false);
+  document.getElementById('t').innerHTML = rows.join('');
+  document.getElementById('ua').textContent = 'User agent: ' + ua;
+  var v = document.getElementById('verdict');
+  if (fail === 0) { v.className = 'verdict ok'; v.innerHTML = '✅ เครื่องนี้เปิดบ้านสวน Monitor ได้ (ถ้ายังช้า ลองตั้งคุณภาพภาพเป็น "ต่ำ")'; }
+  else { v.className = 'verdict bad'; v.innerHTML = '❌ เบราว์เซอร์นี้เก่าเกินไปสำหรับภาพ 3D (ขาด ' + fail + ' จาก ' + need + ' อย่าง)<br><span style="font-size:20px;font-weight:normal">ทางเลือก: อัปเดตซอฟต์แวร์ทีวี · ใช้ Chromecast / Android TV box / Fire TV Stick · หรือแคสต์จอจากมือถือ/คอม</span>'; }
+})();
+</script>
+</body>
+</html>
