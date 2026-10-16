@@ -13,6 +13,8 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
 import { freezeStatic } from './freeze.js';
+import { makeHuman, animateWalk, animateIdle } from './human.js';
+import { makePig, makeChicken, makeFish, makeCat, makeDog } from './animals.js';
 import { FOL, windU, makeFoliageTextures, leafMaterial, canopyGeometry, frondGeometry } from './foliage.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -229,102 +231,7 @@ function sph(r, mat, x = 0, y = 0, z = 0, parent, seg = 12) {
   return m;
 }
 
-// ---------------------------------------------------------------- characters
-function makeHuman(o = {}) {
-  const skin = new THREE.MeshStandardMaterial({ color: o.skin || '#c68e62', roughness: 0.7 });
-  const shirt = new THREE.MeshStandardMaterial({ color: o.shirt || '#3b6ea8', roughness: 0.9 });
-  const pants = new THREE.MeshStandardMaterial({ color: o.pants || '#2b2b33', roughness: 0.9 });
-  const hairM = new THREE.MeshStandardMaterial({ color: o.hair || '#151210', roughness: 0.8 });
-  const g = new THREE.Group();
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.42, 4, 10), shirt);
-  torso.scale.set(1.15, 1, 0.75); torso.position.y = 1.27; torso.castShadow = true; g.add(torso);
-  cyl(0.06, 0.07, 0.12, skin, 0, 1.56, 0, g, 8);
-  const head = new THREE.Group(); head.position.y = 1.7; g.add(head);
-  const skull = sph(0.135, skin, 0, 0, 0, head, 16); skull.scale.set(0.95, 1.1, 1);
-  sph(0.018, M.black, -0.045, 0.02, 0.122, head, 6);
-  sph(0.018, M.black, 0.045, 0.02, 0.122, head, 6);
-  const nose = sph(0.022, skin, 0, -0.02, 0.135, head, 6); nose.scale.z = 1.4;
-  const mouth = box(0.06, 0.01, 0.01, new THREE.MeshStandardMaterial({ color: '#6b2f2a' }), 0, -0.07, 0.125, head);
-  mouth.castShadow = false;
-  if (o.hat === 'straw') {
-    const hat = cyl(0.04, 0.34, 0.16, new THREE.MeshStandardMaterial({ color: '#d9c27a', roughness: 1 }), 0, 0.14, 0, head, 16);
-    hat.rotation.x = -0.05;
-  } else if (o.hat === 'cap') {
-    const cap = sph(0.145, new THREE.MeshStandardMaterial({ color: o.hatColor || '#c0392b' }), 0, 0.04, 0, head, 12);
-    cap.scale.set(1, 0.7, 1);
-    box(0.2, 0.02, 0.14, cap.material, 0, 0.04, 0.17, head);
-  } else if (o.hat === 'helmet') {
-    const hm = sph(0.16, new THREE.MeshStandardMaterial({ color: o.hatColor || '#222', metalness: 0.3, roughness: 0.3 }), 0, 0.04, -0.01, head, 14);
-    hm.scale.set(1, 0.95, 1.05);
-  } else {
-    const hair = sph(0.142, hairM, 0, 0.035, -0.012, head, 14); hair.scale.set(1, 0.9, 1);
-    if (o.longHair) { const back = box(0.26, 0.3, 0.08, hairM, 0, -0.12, -0.1, head); back.castShadow = true; }
-  }
-  if (o.glasses) { box(0.17, 0.035, 0.01, M.black, 0, 0.02, 0.135, head); }
-  const limb = (x, y, len, r, mat, handMat) => {
-    const pivot = new THREE.Group(); pivot.position.set(x, y, 0); g.add(pivot);
-    const m = cyl(r, r * 0.85, len, mat, 0, -len / 2, 0, pivot, 8);
-    if (handMat) sph(r * 1.1, handMat, 0, -len, 0, pivot, 8);
-    pivot.userData.mesh = m;
-    return pivot;
-  };
-  const legL = limb(-0.1, 0.98, 0.92, 0.075, pants, pants);
-  const legR = limb(0.1, 0.98, 0.92, 0.075, pants, pants);
-  const armL = limb(-0.29, 1.5, 0.62, 0.055, shirt, skin);
-  const armR = limb(0.29, 1.5, 0.62, 0.055, shirt, skin);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  return { group: g, legL, legR, armL, armR, head, phase: 0 };
-}
-function animateWalk(h, dt, speed) {
-  h.phase += dt * speed * 5.2;
-  const s = Math.sin(h.phase) * 0.6 * Math.min(1, speed);
-  h.legL.rotation.x = s; h.legR.rotation.x = -s;
-  if (!h.holding) { h.armL.rotation.x = -s * 0.8; h.armR.rotation.x = s * 0.8; }
-  h.group.position.y = (h.baseY || 0) + Math.abs(Math.cos(h.phase)) * 0.03;
-}
-function animateIdle(h, dt) {
-  h.phase += dt;
-  if (h.sleeping) { // นอนหงายบนฟูก หายใจช้า ๆ
-    h.legL.rotation.x = h.legR.rotation.x = 0; h.armL.rotation.x = h.armR.rotation.x = 0.1;
-    h.armL.rotation.z = -0.12; h.armR.rotation.z = 0.12;
-    h.head.rotation.y = Math.sin(h.phase * 0.12) * 0.25; h.head.rotation.x = 0;
-    h.group.position.y = h.baseY || 0;
-    return;
-  }
-  if (h.sitting) { // นั่งเก้าอี้ (ตอนกินหมูกะทะ)
-    h.legL.rotation.x = h.legR.rotation.x = -1.45;
-    h.group.position.y = (h.baseY || 0) - 0.47 * h.group.scale.y;
-    if (h.eating) {
-      const k = Math.sin(h.phase * 1.6 + (h.eatOffset || 0));
-      h.armR.rotation.x = -1.0 + k * 0.45; h.armL.rotation.x = -0.5;
-      h.head.rotation.x = 0.15 + Math.max(0, k) * 0.15;
-    }
-    if (h.handUp > 0) { h.handUp -= dt; h.armR.rotation.x = -2.9; h.armR.rotation.z = 0.15; }
-    else if (!h.eating) { h.armR.rotation.x = -0.6; h.armL.rotation.x = -0.6; h.armR.rotation.z = 0; }
-    h.head.rotation.y = Math.sin(h.phase * 0.35 + (h.eatOffset || 0)) * (h.eating ? 0.6 : 0.2);
-    return;
-  }
-  if (h.teaching) { // ยืนสอน: เขียนกระดาน / ชี้ / หันมาคุยกับเด็ก
-    h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85;
-    h.group.position.y = h.baseY || 0;
-    if (h.writing) { h.armR.rotation.x = -1.9 + Math.sin(h.phase * 6) * 0.15; h.armR.rotation.z = Math.sin(h.phase * 3) * 0.2; }
-    else { h.armR.rotation.x = -0.9 + Math.sin(h.phase * 1.5) * 0.35; h.armR.rotation.z = 0; h.armL.rotation.x = -0.3; }
-    h.head.rotation.y = h.writing ? 0 : Math.sin(h.phase * 0.6) * 0.5;
-    return;
-  }
-  h.head.rotation.x *= 0.9;
-  if (h.tapping) { // กรีดยาง: มือขวาลากมีดกรีดเป็นเกลียว
-    h.armR.rotation.x = -1.2 + Math.sin(h.phase * 7) * 0.25; h.armR.rotation.z = Math.sin(h.phase * 3.5) * 0.3;
-    h.armL.rotation.x = -0.9; h.head.rotation.x = 0.25;
-    h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85; h.group.position.y = h.baseY || 0;
-    return;
-  }
-  h.legL.rotation.x *= 0.85; h.legR.rotation.x *= 0.85;
-  if (!h.holding) { h.armL.rotation.x *= 0.85; h.armR.rotation.x *= 0.85; }
-  h.group.position.y = h.baseY || 0;
-  h.head.rotation.y = Math.sin(h.phase * 0.5) * 0.35;
-}
-
+// ---------------------------------------------------------------- characters (ร่างกายคนอยู่ใน human.js)
 // เดินตามจุด waypoint
 class Walker {
   constructor(h, speed = 1.3) { this.h = h; this.speed = speed; this.path = []; this.cb = null; this.wait = 0; }
@@ -357,80 +264,6 @@ class Walker {
   }
 }
 
-function makePig(scale = 1) {
-  const g = new THREE.Group();
-  const body = sph(0.5, M.pig, 0, 0.55, 0, g, 16); body.scale.set(0.8, 0.75, 1.35);
-  const head = new THREE.Group(); head.position.set(0, 0.62, 0.62); g.add(head);
-  sph(0.3, M.pig, 0, 0, 0, head, 14);
-  const snout = cyl(0.12, 0.13, 0.12, M.pigDark, 0, -0.04, 0.27, head, 12); snout.rotation.x = Math.PI / 2;
-  sph(0.02, M.black, -0.04, -0.03, 0.34, head, 5); sph(0.02, M.black, 0.04, -0.03, 0.34, head, 5);
-  sph(0.03, M.black, -0.12, 0.09, 0.22, head, 6); sph(0.03, M.black, 0.12, 0.09, 0.22, head, 6);
-  const earL = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.18, 6), M.pigDark); earL.position.set(-0.16, 0.24, 0.05); earL.rotation.z = 0.5; head.add(earL);
-  const earR = earL.clone(); earR.position.x = 0.16; earR.rotation.z = -0.5; head.add(earR);
-  const legs = [];
-  for (const [x, z] of [[-0.22, 0.38], [0.22, 0.38], [-0.22, -0.38], [0.22, -0.38]]) {
-    const p = new THREE.Group(); p.position.set(x, 0.38, z); g.add(p);
-    cyl(0.07, 0.06, 0.38, M.pig, 0, -0.19, 0, p, 8); legs.push(p);
-  }
-  const tail = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 6, 12, Math.PI * 1.6), M.pigDark);
-  tail.position.set(0, 0.7, -0.68); g.add(tail);
-  g.scale.setScalar(scale);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  return { group: g, head, legs, tail, phase: Math.random() * 10 };
-}
-
-function makeChicken(color) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
-  const body = sph(0.16, mat, 0, 0.26, 0, g, 12); body.scale.set(0.85, 0.85, 1.2);
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 6), mat); tail.position.set(0, 0.36, -0.2); tail.rotation.x = -0.8; g.add(tail);
-  const head = new THREE.Group(); head.position.set(0, 0.42, 0.14); g.add(head);
-  sph(0.075, mat, 0, 0, 0, head, 10);
-  const comb = box(0.02, 0.06, 0.08, new THREE.MeshStandardMaterial({ color: '#d62828' }), 0, 0.07, 0, head);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 5), new THREE.MeshStandardMaterial({ color: '#e9a23b' })); beak.rotation.x = Math.PI / 2; beak.position.set(0, -0.01, 0.09); head.add(beak);
-  sph(0.012, M.black, -0.045, 0.02, 0.05, head, 4); sph(0.012, M.black, 0.045, 0.02, 0.05, head, 4);
-  const legM = new THREE.MeshStandardMaterial({ color: '#e0a030' });
-  cyl(0.012, 0.012, 0.16, legM, -0.05, 0.08, 0, g, 4); cyl(0.012, 0.012, 0.16, legM, 0.05, 0.08, 0, g, 4);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  void comb;
-  return { group: g, head };
-}
-
-function makeFish(color) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
-  const b = sph(0.12, mat, 0, 0, 0, g, 10); b.scale.set(0.45, 0.7, 1.4);
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.14, 4), mat); tail.rotation.x = -Math.PI / 2; tail.position.z = -0.22; tail.scale.x = 0.25; g.add(tail);
-  return { group: g, tail };
-}
-
-// แมว: สีลำตัว, สีจุด/ลาย (ถ้ามี), สีปลายหู-หาง (วิเชียรมาศ)
-function makeCat(o) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.9 });
-  const point = o.point ? new THREE.MeshStandardMaterial({ color: o.point, roughness: 0.9 }) : mat;
-  const eyeM = new THREE.MeshStandardMaterial({ color: o.eye || '#c8d64a', emissive: o.eye || '#c8d64a', emissiveIntensity: 0.25 });
-  const body = new THREE.Group(); g.add(body);
-  const torso = sph(0.13, mat, 0, 0.24, 0, body, 12); torso.scale.set(0.8, 0.8, 1.7);
-  if (o.patch) { const p = sph(0.1, new THREE.MeshStandardMaterial({ color: o.patch }), 0.05, 0.3, -0.06, body, 8); p.scale.set(0.9, 0.5, 1.2); }
-  const head = new THREE.Group(); head.position.set(0, 0.33, 0.22); body.add(head);
-  sph(0.095, mat, 0, 0, 0, head, 12);
-  const muzzle = sph(0.045, point, 0, -0.025, 0.08, head, 8); muzzle.scale.set(1.2, 0.8, 0.8);
-  sph(0.016, eyeM, -0.035, 0.02, 0.083, head, 6);
-  sph(0.016, eyeM, 0.035, 0.02, 0.083, head, 6);
-  sph(0.012, new THREE.MeshStandardMaterial({ color: '#d98a8a' }), 0, -0.01, 0.12, head, 5);
-  for (const sx of [-1, 1]) { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 4), point); ear.position.set(sx * 0.055, 0.085, 0); ear.rotation.z = -sx * 0.25; head.add(ear); }
-  const legs = [];
-  for (const [x, z] of [[-0.05, 0.12], [0.05, 0.12], [-0.05, -0.12], [0.05, -0.12]]) {
-    const p = new THREE.Group(); p.position.set(x, 0.18, z); body.add(p); cyl(0.022, 0.02, 0.18, point, 0, -0.09, 0, p, 6); legs.push(p);
-  }
-  const tail = new THREE.Group(); tail.position.set(0, 0.28, -0.2); body.add(tail);
-  const tcurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.12, -0.1), new THREE.Vector3(0, 0.26, -0.08)]);
-  tail.add(new THREE.Mesh(new THREE.TubeGeometry(tcurve, 8, 0.018, 5), point));
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  return { group: g, body, head, legs, tail, phase: Math.random() * 10 };
-}
-
 const CATS = [
   { name: 'ส้ม', color: '#e08a3c', eye: '#e8c547' },
   { name: 'ดำ', color: '#1d1d1f', eye: '#e8d34a' },
@@ -439,26 +272,6 @@ const CATS = [
   { name: 'สลิ่ม', color: '#8a8580', patch: '#55504b' },
   { name: 'วิเชียรมาศ', color: '#efe3cf', point: '#4a3428', eye: '#5aa7e6' },
 ];
-
-function makeDog() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: '#b07a3e', roughness: 0.9 });
-  const body = sph(0.25, mat, 0, 0.45, 0, g, 12); body.scale.set(0.75, 0.75, 1.5);
-  const head = new THREE.Group(); head.position.set(0, 0.65, 0.4); g.add(head);
-  sph(0.15, mat, 0, 0, 0, head, 10);
-  const snout = box(0.1, 0.08, 0.14, mat, 0, -0.04, 0.14, head);
-  sph(0.025, M.black, 0, -0.02, 0.22, head, 5);
-  const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.12, 4), mat); ear.position.set(-0.08, 0.15, 0); head.add(ear);
-  const ear2 = ear.clone(); ear2.position.x = 0.08; head.add(ear2);
-  const legs = [];
-  for (const [x, z] of [[-0.1, 0.22], [0.1, 0.22], [-0.1, -0.22], [0.1, -0.22]]) {
-    const p = new THREE.Group(); p.position.set(x, 0.33, z); g.add(p); cyl(0.04, 0.035, 0.33, mat, 0, -0.165, 0, p, 6); legs.push(p);
-  }
-  const tail = cyl(0.025, 0.015, 0.3, mat, 0, 0.6, -0.4, g, 5); tail.rotation.x = -0.9;
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  void snout;
-  return { group: g, head, legs, tail, phase: 0 };
-}
 
 // ผู้มาเยือน — ใบหน้า/การแต่งตัวต่างกัน ให้เรดาร์ "จำ" ได้ว่าเป็นใคร (ในระบบจริงคือ face embedding)
 const PERSONAS = [
@@ -1351,7 +1164,7 @@ export class Farm3D {
     this.sis = { h: sis, w: new Walker(sis, 1.1), task: 'พักหน้าบ้าน' };
     this.entities.push({ id: 'H-SIS', type: 'human', label: 'พี่สาว', resident: true, obj: sis.group, h: sis });
     // น้องสาว — เด็ก เล่นในสวน ให้อาหารปลา
-    const kid = makeHuman({ shirt: '#ff7eb6', pants: '#7b5cd6', longHair: true, skin: '#d4a57c' });
+    const kid = makeHuman({ shirt: '#ff7eb6', pants: '#7b5cd6', longHair: true, skin: '#d4a57c', child: true });
     kid.group.scale.setScalar(0.68); kid.group.position.set(0, 0, 16);
     this.scene.add(kid.group);
     this.kid = { h: kid, w: new Walker(kid, 1.0), task: 'เล่นในสวน' };
@@ -2168,7 +1981,7 @@ export class Farm3D {
       const tl = new THREE.MeshStandardMaterial({ color: '#a11', emissive: '#f22', emissiveIntensity: 0.4 });
       box(0.12, 0.08, 0.05, tl, 0, 0.85, -0.62, g);
       const rider = makeHuman({ hat: 'helmet', hatColor: ['#111', '#c0392b', '#f1f1f1', '#2980b9'][Math.floor(Math.random() * 4)], shirt: colors[Math.floor(Math.random() * colors.length)] });
-      rider.legL.rotation.x = rider.legR.rotation.x = -1.2; rider.armL.rotation.x = rider.armR.rotation.x = -1.15;
+      rider.legL.rotation.x = rider.legR.rotation.x = -1.2; rider.armL.rotation.x = rider.armR.rotation.x = -1.15; rider.kneeL.rotation.x = rider.kneeR.rotation.x = 1.3; rider.elbowL.rotation.x = rider.elbowR.rotation.x = -0.35;
       rider.group.position.set(0, -0.12, -0.15); rider.group.rotation.x = 0.12; g.add(rider.group);
       g.userData = { hl, tl };
       label = 'มอเตอร์ไซค์'; speed = rand(10, 14);
@@ -2605,7 +2418,7 @@ export class Farm3D {
     sc.kids = [];
     for (let i = 0; i < 8; i++) {
       const girl = i % 2 === 1;
-      const h = makeHuman({ shirt: '#f6f6f2', pants: girl ? '#22305e' : '#1b2a4a', skin: skins[i % 4], longHair: girl });
+      const h = makeHuman({ shirt: '#f6f6f2', pants: girl ? '#22305e' : '#1b2a4a', skin: skins[i % 4], longHair: girl, child: true, shoe: '#222' });
       box(0.26, 0.32, 0.12, new THREE.MeshStandardMaterial({ color: bags[i % bags.length] }), 0, 1.3, -0.22, h.group);
       h.group.scale.setScalar(rand(0.58, 0.7));
       h.group.position.set(-34 - i * 1.4, 0, 45.2 + (i % 2) * 0.6);
