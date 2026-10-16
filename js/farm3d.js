@@ -1475,17 +1475,17 @@ export class Farm3D {
     if (this.visitors.some(v => v.persona.id === p.id)) return;
     const h = makeHuman(p);
     const fromLeft = Math.random() > 0.5;
-    h.group.position.set(fromLeft ? -70 : 70, 0, 45);
+    h.group.position.set(fromLeft ? -70 : 70, 0, 40.9); // เดินบนไหล่ทางริมรั้ว ไม่เดินกลางถนน
     this.scene.add(h.group);
     const w = new Walker(h, 1.15);
     const ent = { id: 'H-' + p.id, type: 'human', label: 'บุคคล', persona: p, obj: h.group, h, visitor: true };
     const v = { h, w, persona: p, ent };
     this.visitors.push(v); this.entities.push(ent);
-    if (nearGate) h.group.position.set(0.5, 0, 42);
-    w.go([...(nearGate ? [] : [[0, 0, 45]]), [0, 0, 37], [-0.5, 0, 26], [-1, 0, 12]], () => {
+    if (nearGate) h.group.position.set(0.5, 0, 40.8);
+    w.go([...(nearGate ? [] : [[0, 0, 40.9]]), [0, 0, 37], [-0.5, 0, 26], [-1, 0, 12]], () => {
       h.group.rotation.y = Math.PI; w.wait = 8;
       setTimeout(() => {
-        w.go([[0, 0, 26], [0, 0, 37], [0, 0, 45], [fromLeft ? 70 : -70, 0, 45]], () => {
+        w.go([[0, 0, 26], [0, 0, 37], [0, 0, 40.9], [fromLeft ? 70 : -70, 0, 40.9]], () => {
           this.scene.remove(h.group);
           this.visitors = this.visitors.filter(x => x !== v);
           this.entities = this.entities.filter(x => x !== ent);
@@ -2163,7 +2163,7 @@ export class Farm3D {
     g.position.set(-dir * 300, 0, laneZ);
     const id = 'CAR-' + (++this.carSeq);
     const ent = { id, type: 'vehicle', label, obj: g };
-    this.vehicles.push({ g, dir, speed, label, ent, passed: false });
+    this.vehicles.push({ g, dir, speed, cruise: speed, laneZ, label, ent, passed: false, len: type === 'truck' ? 7 : type === 'moto' ? 2 : 4.6 });
     this.entities.push(ent);
   }
 
@@ -2171,10 +2171,23 @@ export class Farm3D {
     this.nextCar -= dt;
     if (this.nextCar < 0) { this.spawnVehicle(); this.nextCar = this.nightFactor > 0.6 ? rand(14, 35) : rand(5, 16); }
     const night = this.nightFactor > 0.4 || (this.wxState?.rain || 0) > 0.5;
+    // คนที่อยู่บนพื้นถนน (ข้ามถนน / ยืนบนผิวทาง)
+    const peds = [];
+    for (const e of this.entities) if (e.type === 'human' && e.obj.visible !== false) { const p = e.obj.position; if (p.z > 41.2 && p.z < 50.8 && p.y < 0.5) peds.push(p); }
     for (const v of this.vehicles) {
+      const x = v.g.position.x;
+      // ระยะที่ต้องหยุดให้ทัน (ยิ่งเร็วยิ่งต้องมองไกล) — เจอคนในช่องทาง หรือรถคันหน้าใกล้เกิน → เบรก
+      let gap = Infinity;
+      for (const p of peds) if (Math.abs(p.z - v.laneZ) < 2.3) { const d = v.dir * (p.x - x); if (d > -1) gap = Math.min(gap, d - v.len / 2 - 1.2); }
+      for (const o of this.vehicles) if (o !== v && o.dir === v.dir) { const d = v.dir * (o.g.position.x - x); if (d > 0) gap = Math.min(gap, d - (o.len + v.len) / 2 - 3); }
+      const stopDist = (v.speed * v.speed) / (2 * 9) + 1.5;
+      const want = gap < stopDist + 6 ? Math.max(0, Math.min(v.cruise, (gap - 1.5) * 1.6)) : v.cruise;
+      v.speed += Math.max(-14 * dt, Math.min(3.2 * dt, want - v.speed));
+      if (v.speed < 0.05 && want === 0) v.speed = 0;
+      v.braking = want < v.speed - 0.3 || v.speed < 0.5;
       v.g.position.x += v.dir * v.speed * dt;
       v.g.userData.hl.emissiveIntensity = night ? 4 : 0.3;
-      v.g.userData.tl.emissiveIntensity = night ? 2.5 : 0.4;
+      v.g.userData.tl.emissiveIntensity = v.braking ? (night ? 7 : 3.5) : night ? 2.5 : 0.4; // ไฟเบรกสว่างขึ้นตอนชะลอ/จอด
       if (!v.passed && v.dir * v.g.position.x > 0) { v.passed = true; this.carsToday++; bus.emit('vehicle-pass', { label: v.label, total: this.carsToday }); }
       if (Math.abs(v.g.position.x) > 310) {
         v.dead = true; this.scene.remove(v.g);
@@ -2601,12 +2614,12 @@ export class Farm3D {
       const h = makeHuman({ shirt: '#f6f6f2', pants: girl ? '#22305e' : '#1b2a4a', skin: skins[i % 4], longHair: girl, child: true, shoe: '#222' });
       box(0.26, 0.32, 0.12, new THREE.MeshStandardMaterial({ color: bags[i % bags.length] }), 0, 1.3, -0.22, h.group);
       h.group.scale.setScalar(rand(0.58, 0.7));
-      h.group.position.set(-34 - i * 1.4, 0, 45.2 + (i % 2) * 0.6);
+      h.group.position.set(-34 - i * 1.4, 0, 40.6 + (i % 2) * 0.5);
       this.scene.add(h.group);
       const w = new Walker(h, rand(1.25, 1.4));
       const seat = sc.seats[i];
       const kid = { h, w, seat, i, sitting: false };
-      w.go([[-2, 0, 45], [0, 0, 37], [-4, 0, 31], [-16, 0, 30.5], [-24.5 + (i % 3) * 0.4, 0, 30.2], [seat.x, 0.5, 28.6], [seat.x, 0.5, seat.z]], () => {
+      w.go([[-2, 0, 40.9], [0, 0, 37], [-4, 0, 31], [-16, 0, 30.5], [-24.5 + (i % 3) * 0.4, 0, 30.2], [seat.x, 0.5, 28.6], [seat.x, 0.5, seat.z]], () => {
         h.group.rotation.y = Math.PI; h.baseY = 0.5; h.sitting = true; kid.sitting = true;
       });
       const ent = { id: 'STU-' + (i + 1), type: 'human', label: 'นักเรียน', student: true, obj: h.group, h };
@@ -2627,7 +2640,7 @@ export class Farm3D {
     for (const k of sc.kids) {
       k.h.sitting = false; k.h.handUp = 0;
       k.w.wait = rand(0, 3);
-      k.w.go([[k.seat.x, 0.5, 28.6], [-25, 0, 30.4], [-16, 0, 30.8], [-4, 0, 31.5], [0, 0, 37], [-2, 0, 45.6], [-80, 0, 45.6]], () => {
+      k.w.go([[k.seat.x, 0.5, 28.6], [-25, 0, 30.4], [-16, 0, 30.8], [-4, 0, 31.5], [0, 0, 37], [-2, 0, 40.9], [-80, 0, 40.9]], () => {
         this.scene.remove(k.h.group);
         this.entities = this.entities.filter(e => e !== k.ent);
         sc.kids = sc.kids.filter(x => x !== k);

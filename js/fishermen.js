@@ -10,11 +10,11 @@ const FISH = ['ปลาช่อน', 'ปลาดุก', 'ปลาหมอ
 // แต่ละคน: คันนาที่ใช้ (จุดเริ่ม → จุดสิ้นสุด), ทางเดินจากถนน, เวลาปัก / ตรวจกลางคืน / เก็บ
 const PEOPLE = [
   { name: 'ลุงแดง', look: { shirt: '#6b5b4a', pants: '#2f3a45', hat: 'straw', skin: '#9c6a45' },
-    from: [58, 0, 47], a: [58, 0, 40], b: [58, 0, -12], side: [1, 0], plant: 17.0, check: [20.5, 22.0], collect: 5.5 },
+    from: [58, 0, 53], a: [58, 0, 40], b: [58, 0, -12], side: [1, 0], plant: 17.0, check: [20.5, 22.0], collect: 5.5 },
   { name: 'ป้าศรี', look: { shirt: '#7a4a5a', pants: '#3a3030', hat: 'straw', skin: '#a8714a', longHair: true },
-    from: [-58, 0, 47], a: [-58, 0, 40], b: [-58, 0, -14], side: [-1, 0], plant: 17.4, check: [21.0, 22.5], collect: 6.0 },
+    from: [-58, 0, 53], a: [-58, 0, 40], b: [-58, 0, -14], side: [-1, 0], plant: 17.4, check: [21.0, 22.5], collect: 6.0 },
   { name: 'น้าเอก', look: { shirt: '#4a5a6a', pants: '#2a2a2a', hat: 'cap', hatColor: '#3a4a3a', skin: '#b07a50' },
-    from: [-40, 0, 50.5], a: [-40, 0, 58], b: [30, 0, 58], side: [0, 1], plant: 17.8, check: null, collect: 6.4 },
+    from: [-40, 0, 52], a: [-40, 0, 58], b: [30, 0, 58], side: [0, 1], plant: 17.8, check: null, collect: 6.4 },
 ];
 
 export class Fishermen {
