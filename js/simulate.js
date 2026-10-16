@@ -30,6 +30,16 @@ export class Simulator {
         } },
         { icon: '📚', label: 'นักเรียนมาเรียนภาษาอังกฤษ', cam: 'school', run: () => { if (f.school.active) f.endClass(); else f.startClass(); } },
         { icon: '🎣', label: 'ชาวบ้านมาปักเบ็ด', cam: 'field', run: () => f.fishers.startNow() },
+        { icon: '🚗', label: 'แม่ขับรถไปทำงาน', cam: 'carport', run: () => {
+          if (f.momState !== 'home') return 'แม่ไม่ได้อยู่บ้านตอนนี้';
+          if (f.familyAsleep) f.wakeFamily();
+          if (!f.startMomLeave('manual')) return 'ตอนนี้แม่ยังออกไปไม่ได้';
+        } },
+        { icon: '🏠', label: 'แม่ขับรถกลับบ้าน', cam: 'gate', run: () => {
+          if (f.momState === 'home') return 'แม่อยู่บ้านอยู่แล้ว — กด “แม่ขับรถไปทำงาน” ก่อน';
+          if (f.momState !== 'away') return 'รถแม่กำลังวิ่งอยู่';
+          f.startMomReturn('manual');
+        } },
         { icon: '🍖', label: 'ครอบครัวกินหมูกะทะ', cam: 'bbq', run: () => (f.bbq.active ? f.endBBQ() : f.startBBQ()) },
         { icon: '🌌', label: 'นอนดูดาวบนดาดฟ้า', cam: 'roof', state: () => f.stargazing, run: () => {
           if (f.stargazing) { f.endStargaze(); return '🌌 ลงจากดาดฟ้าแล้ว'; }

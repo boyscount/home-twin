@@ -98,6 +98,9 @@ export class Tour {
       { id: 'roof', dur: 12, when: () => !!f.stargazing && f.kid.h.sleeping, title: () => '🌌 นอนดูดาวบนดาดฟ้า',
         sub: () => (f.meteorFlash ? '✨ ดาวตก! อธิษฐานเร็ว ๆ' : 'พี่สาวกับน้องสาวนอนบนเสื่อชี้ดาวกัน · ไฟระย้าบนดาดฟ้าเปิดอ่อน ๆ'),
         ...this.orbit(V(3.7, 4.3, -1.8), 5.2, 7.6, 0.05) },
+      { id: 'momcar', dur: 14, when: () => !!f.momDrive, title: () => (f.momState === 'returning' ? '🏠 แม่ขับรถกลับบ้าน' : '🚗 แม่ขับรถไปทำงาน'),
+        sub: () => (f.momDrive?.waitT > 0 ? 'จอดรอถนนว่างก่อนเลี้ยว' : f.momState === 'returning' ? 'เลี้ยวเข้าประตูรั้ว ถอยเข้าโรงรถ' : 'ออกจากโรงรถ ขับผ่านประตูรั้วออกถนน'),
+        ...this.follow(() => f.momCar, 9, 3.6, 0.7, 0.9), lerp: 3 },
       { id: 'bbq', dur: 13, when: () => f.bbq.active, title: () => '🍖 หมูกะทะหน้าบ้าน',
         sub: () => { const n = f.cats.filter(c => c.group.position.distanceTo(f.bbq.center) < 3).length; return `พ่อ แม่ พี่สาว น้องสาว ล้อมวงกินหมูกะทะ${n ? ` · แมว ${n} ตัวมานั่งรอขอกิน` : ''}`; },
         ...this.orbit(V(2, 0.9, 15.5), 4.4, 2.5, 0.1) },
@@ -221,6 +224,9 @@ export class Tour {
     // เริ่มตั้งวงหมูกะทะ → ไปดูก่อนเลย
     if (this.f.bbq.active && !this.bbqShown && this.shot?.id !== 'visitor') { this.bbqShown = true; const k = this.shots.findIndex(x => x.id === 'bbq'); this.i = k - 1; this.next(); }
     if (!this.f.bbq.active) this.bbqShown = false;
+    // แม่เริ่มขับรถ → ตัดไปดู (ครั้งเดียวต่อเที่ยว)
+    if (this.f.momDrive && !this.momShown && this.shot?.id !== 'visitor') { this.momShown = true; const k = this.shots.findIndex(x => x.id === 'momcar'); this.i = k - 1; this.next(); }
+    if (!this.f.momDrive) this.momShown = false;
     if (this.f.school.active && !this.classShown && this.shot?.id !== 'visitor') { this.classShown = true; const k = this.shots.findIndex(x => x.id === 'class'); this.i = k - 1; this.next(); }
     if (!this.f.school.active) this.classShown = false;
 

@@ -454,6 +454,7 @@ export class Farm3D {
     this.buildHouse();
     this.buildRooftop();
     this.buildCarport();
+    this.scene.updateMatrixWorld(true); this.momCarSetup();
     this.buildFenceAndGarden();
     this.buildPond();
     this.buildPigPen();
@@ -801,6 +802,142 @@ export class Farm3D {
     }
   }
 
+  // ---------------------------------------------------------------- แม่ขับรถไปทำงาน (07:45 ออก · 17:00 กลับ)
+  // รถเก๋งสีเงินในโรงรถเป็นรถแม่ จอดหันหัวออกเสมอ (ขากลับถอยเข้าซอง)
+  momCarSetup() {
+    const car = this.momCar, p = new THREE.Vector3(); car.getWorldPosition(p);
+    this.scene.attach(car); // ย้ายออกจากกลุ่มโรงรถ จะได้ขับไปไหนก็ได้
+    this.momPark = { x: p.x, z: p.z };
+    car.rotation.set(0, 0, 0); car.position.set(p.x, 0, p.z);
+    this.momState = 'home'; this.momDrive = null;
+    this.momCarV = { g: car, dir: 1, speed: 0, len: 4.6, own: true, laneZ: 44.3 };
+    this.momEnt = { id: 'CAR-MOM', type: 'vehicle', label: 'รถของแม่', obj: car };
+  }
+  // จุดทาง (พิกัดโลก): s = ความเร็ว ม./วิ, rev = ถอย, wait = รอให้ถนนว่างก่อนไปต่อ
+  momRouteOut() {
+    const P = this.momPark;
+    return [
+      { x: P.x, z: P.z + 3.8, s: 2.2 }, { x: P.x - 1.3, z: P.z + 6.6, s: 3 }, { x: 1.6, z: 22.4, s: 4 }, { x: 0.3, z: 26, s: 4 },
+      { x: 0, z: 33, s: 4 }, { x: 0, z: 39.6, s: 2.5, wait: 'out' }, { x: 0.8, z: 42.4, s: 3.5 }, { x: 4, z: 44.3, s: 6 },
+      { x: 30, z: 44.3, s: 12 }, { x: 330, z: 44.3, s: 14 },
+    ];
+  }
+  momRouteIn() {
+    const P = this.momPark;
+    return [
+      { x: 40, z: 47.7, s: 12 }, { x: 7, z: 47.7, s: 6 }, { x: 2.6, z: 47.4, s: 2.5, wait: 'in' }, { x: 0.6, z: 44.6, s: 3 },
+      { x: 0, z: 39.5, s: 3.5 }, { x: 0, z: 33, s: 4 }, { x: 0.3, z: 26, s: 4 }, { x: 1.6, z: 22.4, s: 4 }, { x: P.x - 1.4, z: P.z + 6.4, s: 3 },
+      { x: P.x + 3.4, z: P.z + 4.8, s: 2.2 }, // เลยซองไปนิด แล้วถอยเข้า
+      { x: P.x + 1, z: P.z + 3.1, s: 1.6, rev: true }, { x: P.x, z: P.z + 1, s: 1.4, rev: true }, { x: P.x, z: P.z, s: 0.8, rev: true },
+    ];
+  }
+  // ถนนว่างพอให้เลี้ยวออก/เข้าไหม (ไม่มีรถคันอื่นกำลังวิ่งเข้ามาใกล้ทางเข้าบ้าน)
+  roadClearForTurn(lanes) {
+    return !this.vehicles.some(v => !v.own && lanes.includes(v.dir) && v.speed > 0.5 && (() => { const d = v.dir * (0 - v.g.position.x); return d > -6 && d < 48; })());
+  }
+  startMomLeave(source = 'auto') {
+    if (this.momState !== 'home' || this.familyAsleep) return false;
+    const m = this.mom, h = m.h, P = this.momPark;
+    this.momState = 'leaving'; m.w.locked = true; m.w.wait = 0; this.momTask = 'เดินไปขึ้นรถ';
+    const start = this.isInside(h.group) ? this.pathOut() : [];
+    m.w.go([...start, [7.5, 0, 10.2], [P.x - 1.25, 0, P.z + 1.4], [P.x - 1.25, 0, P.z + 0.6]], () => {
+      h.group.visible = false; this.entities = this.entities.filter(e => e.h !== h);
+      this.momTask = 'ขับรถไปทำงาน 🚗';
+      this.momTimer = { t: 1.5, fn: () => this.momStartDrive(this.momRouteOut(), () => this.momArriveAway()) }; // ปิดประตูรถ สตาร์ท
+    }, true);
+    bus.emit('farm-event', '👩 แม่ออกจากบ้าน เดินไปขึ้นรถ — ไปทำงาน');
+    return true;
+  }
+  momArriveAway() {
+    this.momState = 'away'; this.momTask = 'ไปทำงาน (กลับ 17:00)';
+    this.momCar.visible = false; this.momDrive = null;
+    this.vehicles = this.vehicles.filter(v => v !== this.momCarV); this.entities = this.entities.filter(e => e !== this.momEnt);
+  }
+  startMomReturn(source = 'auto') {
+    if (this.momState !== 'away') return false;
+    this.momState = 'returning'; this.momTask = 'ขับรถกลับบ้าน 🚗';
+    const car = this.momCar; car.visible = true; car.position.set(330, 0, 47.7); car.rotation.y = -Math.PI / 2;
+    this.momStartDrive([{ x: 120, z: 47.7, s: 14 }, ...this.momRouteIn()], () => this.momParked());
+    bus.emit('farm-event', '🚗 รถแม่กำลังกลับมาถึงบ้าน');
+    return true;
+  }
+  momParked() {
+    const m = this.mom, h = m.h, P = this.momPark;
+    this.momDrive = null; this.momCar.position.set(P.x, 0, P.z); this.momCar.rotation.y = 0;
+    this.vehicles = this.vehicles.filter(v => v !== this.momCarV); this.entities = this.entities.filter(e => e !== this.momEnt);
+    this.momTask = 'ลงจากรถ';
+    this.momTimer = { t: 1.2, fn: () => {
+      h.group.visible = true; h.group.position.set(P.x - 1.25, 0, P.z + 0.6); h.baseY = 0; h.group.rotation.y = Math.PI;
+      if (!this.entities.some(e => e.h === h)) this.entities.push({ id: 'H-MOM', type: 'human', label: 'แม่', resident: true, obj: h.group, h });
+      m.w.go([[P.x - 1.25, 0, P.z + 1.6], [7.5, 0, 10.2], ...this.pathIn([-3.5, 0.65, -0.6])], () => {
+        this.momState = 'home'; m.w.locked = false; this.momTask = 'อยู่บ้าน';
+        if (!this.familyAsleep) this.momLoop();
+      }, true);
+      bus.emit('farm-event', '🏠 แม่กลับจากทำงานถึงบ้านแล้ว');
+    } };
+  }
+  momStartDrive(route, done) {
+    const car = this.momCar;
+    this.momDrive = { route, i: 0, done, speed: 0, waitT: 0 };
+    if (!this.vehicles.includes(this.momCarV)) this.vehicles.push(this.momCarV);
+    if (!this.entities.includes(this.momEnt)) this.entities.push(this.momEnt);
+    // ประตูรั้วปิดอยู่ → เปิดให้รถผ่าน แล้วค่อยปิดคืนตอนรถผ่านไปแล้ว
+    if (this.devices.gateClosed) { this.momGateWasClosed = true; this.devices.gateClosed = false; }
+    car.visible = true;
+  }
+  updateMomCar(dt) {
+    if (this.momTimer && (this.momTimer.t -= dt) <= 0) { const fn = this.momTimer.fn; this.momTimer = null; fn(); } // หน่วงตามเวลาในฉาก
+    const D = this.momDrive; if (!D) return;
+    const car = this.momCar, p = car.position, wp = D.route[D.i];
+    const dx = wp.x - p.x, dz = wp.z - p.z, dist = Math.hypot(dx, dz);
+    // รอถนนว่างก่อนเลี้ยวออก/เข้า
+    let target = wp.s;
+    if (wp.wait && dist < 0.6) {
+      const ok = this.roadClearForTurn(wp.wait === 'out' ? [1, -1] : [1]);
+      if (!ok) { target = 0; D.waitT += dt; } else D.waitT = 0;
+    }
+    // ชะลอก่อนถึงจุดที่ต้องเลี้ยวแรง/หยุด
+    const next = D.route[D.i + 1];
+    if (!next) target = Math.min(target, Math.max(0.5, dist * 1.2));
+    else if (next.s < wp.s && dist < 6) target = Math.min(target, next.s + dist * 0.8);
+    D.speed += Math.max(-6 * dt, Math.min(2.4 * dt, target - D.speed));
+    if (D.speed < 0) D.speed = 0;
+    const step = Math.min(dist, D.speed * dt);
+    if (dist > 0.01) {
+      p.x += dx / dist * step; p.z += dz / dist * step;
+      // หันหัวรถตามทิศที่วิ่ง (ถอย = หันหัวกลับด้าน) เลี้ยวได้เร็วตามความเร็วรถ
+      let want = Math.atan2(dx, dz); if (wp.rev) want += Math.PI;
+      let diff = want - car.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const rate = Math.min(2.2, 0.35 + D.speed * 0.45) * dt;
+      car.rotation.y += Math.max(-rate, Math.min(rate, diff));
+    }
+    const mv = this.momCarV; mv.speed = D.speed; mv.dir = Math.sin(car.rotation.y) >= 0 ? 1 : -1; mv.laneZ = p.z;
+    const night = this.nightFactor > 0.4 || (this.wxState?.rain || 0) > 0.5;
+    car.userData.hl.emissiveIntensity = night ? 4 : 0.3;
+    car.userData.tl.emissiveIntensity = (D.speed < 0.5 || target < D.speed - 0.3) ? (night ? 7 : 3.5) : night ? 2.5 : 0.4;
+    // ผ่านประตูรั้วไปแล้ว → ปิดคืนเหมือนเดิม
+    if (this.momGateWasClosed && ((this.momState === 'leaving' && p.z > 42) || (this.momState === 'returning' && p.z < 30))) { this.devices.gateClosed = true; this.momGateWasClosed = false; }
+    if (dist < 0.25 && !(wp.wait && D.waitT > 0)) {
+      D.i++;
+      if (D.i >= D.route.length) { const cb = D.done; this.momDrive = null; cb?.(); }
+    }
+  }
+  // เวลาในฉากกระโดด (เช่น เลื่อนเวลา/เปิดเว็บกลางวัน) → จัดแม่+รถให้ตรงช่วงเวลาทันที
+  syncMomInstant(h) {
+    const away = h >= 8.1 && h < 17;
+    const m = this.mom;
+    if (away && this.momState === 'home') {
+      m.w.locked = true; m.w.path = []; m.h.group.visible = false; this.entities = this.entities.filter(e => e.h !== m.h);
+      this.momArriveAway();
+    } else if (!away && h >= 17.6 && this.momState === 'away') {
+      const P = this.momPark;
+      this.momCar.visible = true; this.momCar.position.set(P.x, 0, P.z); this.momCar.rotation.y = 0;
+      m.h.group.visible = true; m.w.locked = false; m.h.baseY = 0.65; m.h.group.position.set(-3.5, 0.65, -0.6);
+      if (!this.entities.some(e => e.h === m.h)) this.entities.push({ id: 'H-MOM', type: 'human', label: 'แม่', resident: true, obj: m.h.group, h: m.h });
+      this.momState = 'home'; this.momTask = 'อยู่บ้าน'; this.momLoop();
+    }
+  }
+
   glassPane(parent, x, y, z, w, h, side = false) {
     const geo = new THREE.PlaneGeometry(w, h);
     const m = new THREE.Mesh(geo, M.glass);
@@ -825,7 +962,7 @@ export class Farm3D {
     // ผนังระแนงไม้ด้านหลัง
     for (let x = -3.9; x <= 3.9; x += 0.3) box(0.15, 2.8, 0.06, M.wood, x, 1.45, -3.6, g);
     for (let z = -3.4; z <= 3.4; z += 0.3) box(0.06, 2.8, 0.15, M.wood, 4, 1.45, z, g);
-    this.makeCar(g, -1.8, 0.2, '#b9bec4', false);
+    this.momCar = this.makeCar(g, -1.8, 0.2, '#b9bec4', false); // รถแม่ (ใช้ขับไปทำงาน)
     this.makeCar(g, 1.9, 0.4, '#c4c4c0', true);
   }
 
@@ -1416,7 +1553,7 @@ export class Farm3D {
     const gen = this.gen;
     const spots = [[-5.5, 0.65, -3.6], [-1.5, 0.65, -0.6], [1.5, 0.65, 3.8], [-4.2, 0.65, 0.6], [3, 0.65, -3.6]];
     const go = () => {
-      if (gen !== this.gen) return;
+      if (gen !== this.gen || this.momState !== 'home') return;
       const p = spots[Math.floor(Math.random() * spots.length)];
       this.mom.w.go([[p[0] - 2, p[1], p[2]]], () => { this.mom.w.wait = rand(3, 8); setTimeout(go, 100); });
     };
@@ -1859,6 +1996,7 @@ export class Farm3D {
     this.tv.material.emissiveIntensity = this.familyAsleep ? 0 : 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
     this.updateBedroom(dt, t);
     this.updateRooftop(dt, t);
+    this.updateMomCar(dt);
     if (this.coopDoor) this.coopDoor.rotation.x = lerp(this.coopDoor.rotation.x, this.devices.chickenDoor ? 1.4 : 0, 0.05);
     this.gates.forEach(g => (g.pivot.rotation.y = lerp(g.pivot.rotation.y, this.devices.gateClosed ? 0 : g.side * 1.3, 0.04)));
 
@@ -2191,11 +2329,12 @@ export class Farm3D {
     const peds = [];
     for (const e of this.entities) if (e.type === 'human' && e.obj.visible !== false) { const p = e.obj.position; if (p.z > 41.2 && p.z < 50.8 && p.y < 0.5) peds.push(p); }
     for (const v of this.vehicles) {
+      if (v.own) continue; // รถแม่ขับเองใน updateMomCar
       const x = v.g.position.x;
       // ระยะที่ต้องหยุดให้ทัน (ยิ่งเร็วยิ่งต้องมองไกล) — เจอคนในช่องทาง หรือรถคันหน้าใกล้เกิน → เบรก
       let pedGap = Infinity, carGap = Infinity;
       for (const p of peds) if (Math.abs(p.z - v.laneZ) < 2.3) { const d = v.dir * (p.x - x); if (d > -1) pedGap = Math.min(pedGap, d - v.len / 2 - 1.2); }
-      for (const o of this.vehicles) if (o !== v && o.dir === v.dir) { const d = v.dir * (o.g.position.x - x); if (d > 0) carGap = Math.min(carGap, d - (o.len + v.len) / 2 - 3); }
+      for (const o of this.vehicles) if (o !== v && o.dir === v.dir && Math.abs((o.laneZ ?? o.g.position.z) - v.laneZ) < 2) { const d = v.dir * (o.g.position.x - x); if (d > 0) carGap = Math.min(carGap, d - (o.len + v.len) / 2 - 3); }
       const gap = Math.min(pedGap, carGap);
       const stopDist = (v.speed * v.speed) / (2 * 9) + 1.5;
       const want = gap < stopDist + 6 ? Math.max(0, Math.min(v.cruise, (gap - 1.5) * 1.6)) : v.cruise;
@@ -2233,6 +2372,13 @@ export class Farm3D {
 
   updateSchedule() {
     const h = this.hour;
+    // แม่ไปทำงาน 07:45–17:00 — ทำตอนช่วงเวลาเปลี่ยน (ปุ่มจำลองสั่งเองได้โดยไม่โดนดึงกลับ)
+    const momPhase = h >= 7.75 && h < 17 ? 'work' : 'home';
+    if (momPhase !== this.momPhase && !this.familyAsleep) {
+      this.momPhase = momPhase;
+      if (momPhase === 'work') { if (h < 8.1) this.startMomLeave(); else this.syncMomInstant(h); }
+      else if (h < 17.6 && this.momState === 'away') this.startMomReturn(); else this.syncMomInstant(h);
+    }
     if (this.bbq.active) return;
     const famSleep = h >= 21.75 || h < 5.75;
     // นอนดูดาว 19:45–21:40 ถ้าฟ้าไม่ฝน (ลงมาก่อนเข้านอน) · วันละครั้ง
@@ -2428,6 +2574,7 @@ export class Farm3D {
     this.gen++;
     this.bed.group.visible = true;
     for (const [key, who] of [['mom', this.mom], ['sis', this.sis], ['kid', this.kid]]) {
+      if (key === 'mom' && this.momState !== 'home') continue; // แม่ยังไม่กลับ
       const w = who.w, o = who.h.group, bed = this.bed.slots[key];
       w.locked = true; who.h.sitting = false; who.h.holding = false; who.h.teaching = false;
       if (who.task !== undefined) who.task = 'เข้านอน';
@@ -2757,6 +2904,7 @@ export class Farm3D {
       <div class="st"><span>เวลาในฉาก</span><b>${hh} ${this.nightFactor > 0.5 ? '🌙' : '☀️'}</b></div>
       <div class="st"><span>คนในพื้นที่</span><b>${people.length} คน</b></div>
       <div class="st"><span>พ่อ</span><b>${this.fatherState}</b></div>
+      <div class="st"><span>แม่</span><b>${this.momTask || 'อยู่บ้าน'}</b></div>
       ${this.bbq.active ? '<div class="st"><span>🍖 หมูกะทะหน้าบ้าน</span><b>กำลังกิน</b></div>' : ''}
       ${this.school.active ? `<div class="st"><span>📚 ศาลาเรียน</span><b>English · ${this.school.lesson.topic} · ${this.school.kids.length} คน</b></div>` : ''}
       ${this.festival ? `<div class="st"><span>${this.festival.emoji} เทศกาล</span><b>${this.festival.name}</b></div>` : ''}

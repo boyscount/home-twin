@@ -104,7 +104,7 @@ export class Kiosk {
     const temp = document.querySelector('[data-m="weather/temp"]')?.textContent;
     this.wxEl.textContent = [wx, temp && temp !== '-' ? `${temp}°C` : ''].filter(Boolean).join(' · ');
     const f = this.farm;
-    this.famEl.innerHTML = [['พ่อ', f.fatherState], ['พี่สาว', f.sis.task], ['น้องสาว', f.kid.task]]
+    this.famEl.innerHTML = [['พ่อ', f.fatherState], ['แม่', f.momTask || 'อยู่บ้าน'], ['พี่สาว', f.sis.task], ['น้องสาว', f.kid.task]]
       .map(([n, t]) => `<div><b>${n}</b> ${t}</div>`).join('');
   }
 
