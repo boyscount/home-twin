@@ -31,6 +31,16 @@ export class Simulator {
         { icon: '📚', label: 'นักเรียนมาเรียนภาษาอังกฤษ', cam: 'school', run: () => { if (f.school.active) f.endClass(); else f.startClass(); } },
         { icon: '🎣', label: 'ชาวบ้านมาปักเบ็ด', cam: 'field', run: () => f.fishers.startNow() },
         { icon: '🍖', label: 'ครอบครัวกินหมูกะทะ', cam: 'bbq', run: () => (f.bbq.active ? f.endBBQ() : f.startBBQ()) },
+        { icon: '🌌', label: 'นอนดูดาวบนดาดฟ้า', cam: 'roof', state: () => f.stargazing, run: () => {
+          if (f.stargazing) { f.endStargaze(); return '🌌 ลงจากดาดฟ้าแล้ว'; }
+          if (f.hour > 5.5 && f.hour < 19.5) this.setHour(20); this.setWx('clear');
+          if (f.familyAsleep) f.wakeFamily();
+          if (!f.startStargaze('manual')) return 'ตอนนี้ขึ้นดาดฟ้าไม่ได้ (มีกิจกรรมอื่นอยู่)';
+        } },
+        { icon: '🪑', label: 'น้องสาวขึ้นไปนั่งเล่นบนดาดฟ้า', cam: 'roof', run: () => {
+          if (f.stargazing || f.familyAsleep) return 'ตอนนี้น้องสาวไม่ว่าง';
+          f.kidGen = (f.kidGen || 0) + 1; f.kidRoofSit(f.kidToken());
+        } },
       ] },
       { title: '🐾 สัตว์', items: [
         { icon: '🐖', label: 'พ่อให้อาหารหมู', cam: 'pig', run: () => cmd('pig-feeder') },

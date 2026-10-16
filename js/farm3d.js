@@ -323,6 +323,7 @@ const CAMS = {
   field: { pos: [74, 9, 54], target: [58, 0, 30] },
   bbq: { pos: [8, 4, 22], target: [2, 0.8, 15.5] },
   gate: { pos: [9, 5, 50], target: [0, 1, 34] },
+  roof: { pos: [12, 9.5, 9], target: [3.6, 4.3, -0.5] },
 };
 
 export class Farm3D {
@@ -437,6 +438,7 @@ export class Farm3D {
 
     this.buildGround();
     this.buildHouse();
+    this.buildRooftop();
     this.buildCarport();
     this.buildFenceAndGarden();
     this.buildPond();
@@ -586,14 +588,15 @@ export class Farm3D {
     // พื้นในบ้าน
     const floor = box(13.8, 0.05, 9.6, M.deck, -1, 0.63, 0, g); floor.castShadow = false;
     // หลังคา 2 ชั้น (เลียนแบบบ้านในรูป)
-    const r1 = box(17.6, 0.15, 8, M.roof, -1, 5.0, -2.2, g); r1.rotation.x = 0.12;
-    const fascia1 = box(17.6, 0.4, 0.12, M.wallDark, -1, 4.55, 1.8, g);
+    // หลังคาเฉพาะฝั่งซ้าย — ฝั่งขวา (ห้องปูนเปลือย) เป็นดาดฟ้า ดู buildRooftop()
+    const r1 = box(13.4, 0.15, 8, M.roof, -3.1, 5.0, -2.2, g); r1.rotation.x = 0.12;
+    const fascia1 = box(13.4, 0.4, 0.12, M.wallDark, -3.1, 4.55, 1.8, g);
     void fascia1;
     // ช่องแสงระหว่างหลังคา
-    box(14.2, 0.9, 0.2, M.wood, -1, y0 + H + 0.45, 1.6, g);
-    this.glassPane(g, -1, y0 + H + 0.45, 1.75, 13, 0.6);
-    const r2 = box(17.6, 0.15, 7.4, M.roof, -1, 3.95, 5.2, g); r2.rotation.x = 0.08;
-    box(17.6, 0.35, 0.12, M.wallDark, -1, 3.62, 8.9, g);
+    box(11.7, 0.9, 0.2, M.wood, -2.25, y0 + H + 0.45, 1.6, g);
+    this.glassPane(g, -2.25, y0 + H + 0.45, 1.75, 11, 0.6);
+    const r2 = box(13.4, 0.15, 7.4, M.roof, -3.1, 3.95, 5.2, g); r2.rotation.x = 0.08;
+    box(13.4, 0.35, 0.12, M.wallDark, -3.1, 3.62, 8.9, g);
     box(0.2, 3.3, 0.2, M.frame, -9.4, 1.95, 8.6, g); box(0.2, 3.3, 0.2, M.frame, 7.5, 1.95, 8.6, g);
     // ฝ้าชายคา + ไฟดาวน์ไลท์
     const soffit = box(17.4, 0.05, 3.6, M.wood, -1, 3.75, 7, g); soffit.castShadow = false;
@@ -630,6 +633,142 @@ export class Farm3D {
     for (const [x, z] of [[-8.6, 6], [-0.6, 8.3], [3.4, 8.3], [4.4, 6]]) {
       cyl(0.25, 0.18, 0.45, M.white, x, 0.9, z, g, 10);
       const p = sph(0.4, M.leafLight, x, 1.45, z, g, 8); p.scale.y = 1.3;
+    }
+  }
+
+  // ---------------------------------------------------------------- ดาดฟ้า
+  // พื้นดาดฟ้าบนห้องปูนฝั่งขวา (กว้าง ~4 ม. ยาว 14 ม. คลุมระเบียงหน้าด้วย) บันไดเหล็กขึ้นด้านข้างบ้าน
+  buildRooftop() {
+    const g = this.house, Y = 4.16; this.roofY = Y;
+    box(4.4, 0.25, 14.3, M.concrete, 5.7, 3.98, 1.85, g);
+    const fl = box(4.1, 0.05, 13.9, M.deck, 5.7, 4.13, 1.85, g); fl.castShadow = false;
+    box(0.2, 1.1, 14.3, M.wall, 3.5, Y + 0.5, 1.85, g); // ผนังกันด้านที่ติดหลังคา
+    const rail = (x, z, w, d) => {
+      const p = box(w, 0.95, d, M.glass, x, Y + 0.48, z, g); p.castShadow = false;
+      box(w + 0.04, 0.06, d + 0.04, M.frame, x, Y + 0.98, z, g);
+    };
+    rail(7.85, -4.0, 0.06, 2.4); rail(7.85, 3.9, 0.06, 10.0); // ด้านข้าง (เว้นช่องทางขึ้นบันได)
+    rail(5.7, 8.95, 4.3, 0.06); rail(5.7, -5.25, 4.3, 0.06);
+    // บันไดเหล็กด้านข้าง: เริ่มที่พื้น z=3.8 ขึ้นไปถึงชานพัก z=-1.6
+    const n = 18, run = 5.4;
+    for (let i = 0; i < n; i++) box(1.0, 0.05, 0.3, M.wood, 8.5, (i + 1) * (Y / n), 3.8 - i * (run / n), g);
+    const len = Math.hypot(run, Y), ang = Math.atan2(Y, run);
+    for (const x of [7.98, 9.02]) {
+      const st = box(0.06, 0.2, len, M.frame, x, Y / 2, 3.8 - run / 2, g); st.rotation.x = ang;
+      const hr = box(0.04, 0.04, len, M.frame, x, Y / 2 + 0.95, 3.8 - run / 2, g); hr.rotation.x = ang;
+    }
+    box(1.2, 0.08, 1.2, M.frame, 8.5, Y - 0.04, -2.2, g);
+    box(0.08, Y, 0.08, M.frame, 9.05, Y / 2, -2.75, g);
+    // ม้านั่งไม้ติดผนัง + เบาะ
+    box(0.55, 0.45, 5.2, M.wood, 3.9, Y + 0.225, 3.6, g);
+    box(0.5, 0.08, 5.0, new THREE.MeshStandardMaterial({ color: '#d8c7a6', roughness: 1 }), 3.9, Y + 0.49, 3.6, g);
+    // เสื่อนอนดูดาว 2 ผืน + หมอน + กล้องโทรทรรศน์
+    const matC = ['#c0634a', '#4a6fa0'];
+    this.roofMats = [5.0, 6.3].map((x, i) => {
+      const m = box(0.85, 0.06, 1.95, new THREE.MeshStandardMaterial({ color: matC[i], roughness: 1 }), x, Y + 0.03, -2.1, g); m.castShadow = false;
+      sph(0.2, M.white, x, Y + 0.1, -2.9, g, 10).scale.set(1.6, 0.45, 0.8);
+      return { x: x - 2, z: -1.15 }; // จุดปลายเท้า (พิกัดโลก)
+    });
+    const tel = new THREE.Group(); tel.position.set(7.1, Y, -3.9); g.add(tel);
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1, l = cyl(0.015, 0.015, 1.1, M.frame, Math.sin(a) * 0.16, 0.52, Math.cos(a) * 0.16, tel, 5);
+      l.rotation.set(0.3 * Math.cos(a), 0, -0.3 * Math.sin(a));
+    }
+    const tube = cyl(0.06, 0.05, 0.85, M.white, 0, 1.12, 0, tel, 12); tube.rotation.x = -0.9; tube.rotation.z = 0.3;
+    // กระถางต้นไม้ + ไฟระย้าตามราว
+    for (const [x, z] of [[7.4, 8.4], [4.0, 8.4], [7.4, -4.8], [4.0, -4.8]]) {
+      cyl(0.22, 0.16, 0.4, M.white, x, Y + 0.2, z, g, 10);
+      const pl = new THREE.Mesh(GEO.shrub[0], M.leaves[1]); pl.position.set(x, Y + 0.75, z); pl.scale.setScalar(0.85); g.add(pl);
+    }
+    this.roofBulbs = [];
+    for (let i = 0; i <= 14; i++) { const b = sph(0.045, M.warm, 7.8, Y + 1.25 + Math.sin(i * 0.9) * 0.08, -5 + i, g, 6); b.castShadow = false; this.roofBulbs.push(b); }
+    for (let i = 1; i <= 4; i++) { const b = sph(0.045, M.warm, 7.8 - i * 0.85, Y + 1.2, 8.9, g, 6); b.castShadow = false; this.roofBulbs.push(b); }
+    const pl = new THREE.PointLight('#ffc27a', 0, 9, 1.6); pl.position.set(6, Y + 1.6, 2); g.add(pl); this.nightLights.push({ l: pl, max: 2.2 });
+    // ดาวตก (เส้นสว่างวิ่งข้ามฟ้า)
+    const mm = new THREE.MeshBasicMaterial({ color: '#fff6e0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    this.meteor = new THREE.Mesh(new THREE.CylinderGeometry(0.0, 0.35, 26, 5, 1, true), mm);
+    this.meteor.visible = false; this.meteor.frustumCulled = false; this.meteor.userData = { t: 0, v: new THREE.Vector3() };
+    this.scene.add(this.meteor); this.meteorT = 6;
+    this.stargazing = null;
+  }
+
+  onRoof(o) { return o.position.y > 3; }
+  // ทางขึ้น/ลงดาดฟ้า (พิกัดโลก) — แตกเป็นหลายจุดตามขั้นบันได ตัวละครจะได้ไต่ขึ้นตามความชันจริง
+  roofUp() {
+    const Y = this.roofY, pts = [[7.2, 0, 6.2], [6.5, 0, 4.4]];
+    for (let i = 1; i <= 6; i++) pts.push([6.5, Y * i / 6, 3.8 - 5.4 * i / 6]);
+    return [...pts, [6.5, Y, -2.2], [5.2, Y, -2.0]];
+  }
+  roofDown() { return this.roofUp().reverse().slice(1); }
+
+  // ขึ้นไปนอนดูดาว (พี่สาว + น้องสาว)
+  startStargaze(source = 'auto') {
+    if (this.stargazing || this.familyAsleep || this.bbq.active || this.school.active) return false;
+    this.stargazing = { source };
+    this.kidGen = (this.kidGen || 0) + 1; this.sisGen = (this.sisGen || 0) + 1;
+    [[this.kid, 0], [this.sis, 1]].forEach(([who, i]) => {
+      const h = who.h, mat = this.roofMats[i], Y = this.roofY;
+      who.w.locked = true; who.w.wait = 0; h.holding = false; h.sitting = false; h.teaching = false; who.task = 'ขึ้นดาดฟ้าไปดูดาว';
+      const start = this.onRoof(h.group) ? [] : this.isInside(h.group) ? this.pathOut() : [];
+      const up = this.onRoof(h.group) ? [] : this.roofUp();
+      who.w.go([...start, ...up, [mat.x, Y, mat.z + 0.6], [mat.x, Y, mat.z]], () => {
+        if (!this.stargazing) return;
+        h.group.rotation.set(-Math.PI / 2, 0, 0); h.baseY = Y + 0.06 + 0.1 * h.group.scale.y; h.sleeping = true;
+        who.task = 'นอนดูดาวบนดาดฟ้า 🌌';
+      }, true);
+    });
+    bus.emit('farm-event', '🌌 พี่สาวกับน้องสาวขึ้นไปนอนดูดาวบนดาดฟ้า');
+    return true;
+  }
+  endStargaze() {
+    if (!this.stargazing) return;
+    this.stargazing = null;
+    this.kidGen = (this.kidGen || 0) + 1; this.sisGen = (this.sisGen || 0) + 1;
+    let left = 2;
+    [this.kid, this.sis].forEach(who => {
+      const h = who.h;
+      if (h.sleeping) { h.sleeping = false; h.group.rotation.set(0, 0, 0); h.group.position.y = this.roofY; h.baseY = this.roofY; }
+      h.sitting = false; who.task = 'ลงจากดาดฟ้า';
+      const down = this.onRoof(h.group) ? this.roofDown() : [];
+      who.w.go([...down, who === this.kid ? [0, 0, 16] : [-3, 0, 11.5]], () => {
+        who.w.locked = false;
+        if (--left === 0 && !this.familyAsleep) { this.sis.task = 'พักหน้าบ้าน'; this.kid.task = 'เล่นในสวน'; setTimeout(() => this.sisLoop(), 20000); this.kidLoop(); }
+      }, true);
+    });
+  }
+  // น้องสาวขึ้นไปนั่งเล่นบนม้านั่งดาดฟ้าตอนกลางวัน
+  kidRoofSit(gen) {
+    const k = this.kid, h = k.h, Y = this.roofY, z = rand(2, 5);
+    k.task = 'ขึ้นไปนั่งเล่นบนดาดฟ้า';
+    k.w.go([...this.roofUp(), [2.6, Y, z], [2.05, Y, z]], () => {
+      if (gen !== this.kidToken()) return;
+      h.group.rotation.y = Math.PI / 2; h.baseY = Y + 0.53 - 0.46 * h.group.scale.y; h.sitting = true; k.task = 'นั่งเล่นบนดาดฟ้า';
+      setTimeout(() => {
+        if (gen !== this.kidToken()) return;
+        h.sitting = false; h.baseY = Y; k.task = 'ลงจากดาดฟ้า';
+        k.w.go([...this.roofDown(), [0, 0, 16]], () => this.kidLoop(gen));
+      }, rand(18, 30) * 1000);
+    });
+  }
+  updateRooftop(dt) {
+    const night = (this.nightFactor || 0) > 0.5;
+    const on = night || this.devices.lights;
+    if (this.roofBulbsOn !== on) { this.roofBulbsOn = on; this.roofBulbs.forEach(b => (b.visible = on)); }
+    // ดาวตก: ระหว่างนอนดูดาวตอนกลางคืน ทุก ๆ 5–12 วิ
+    const m = this.meteor;
+    if (m.visible) {
+      m.userData.t += dt; const k = m.userData.t / 0.9;
+      m.position.addScaledVector(m.userData.v, dt);
+      m.material.opacity = Math.sin(Math.min(1, k) * Math.PI) * 0.95;
+      this.meteorFlash = k < 1;
+      if (k >= 1) m.visible = false;
+    } else if (this.stargazing && night && (this.meteorT -= dt) < 0) {
+      this.meteorT = rand(5, 12);
+      const a = rand(0, Math.PI * 2), dir = new THREE.Vector3(Math.cos(a), -0.35, Math.sin(a)).normalize();
+      m.position.set(rand(-120, 120), rand(140, 190), rand(-260, -60));
+      m.userData = { t: 0, v: dir.clone().multiplyScalar(160) };
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+      m.visible = true;
     }
   }
 
@@ -1222,6 +1361,8 @@ export class Farm3D {
     if (gen !== this.kidToken()) return;
     const k = this.kid, h = k.h;
     const next = () => setTimeout(() => this.kidLoop(gen), rand(1, 4) * 1000);
+    const hr = this.hour;
+    if (Math.random() < 0.12 && hr > 7 && hr < 18.5 && (this.wx?.cur.rain || 0) < 0.2) { this.kidRoofSit(gen); return; }
     if (Math.random() < 0.35) {
       k.task = 'ไปให้อาหารปลา';
       k.w.go([[4, 0, 18], [8.7, 0, 22]], () => {
@@ -1260,7 +1401,8 @@ export class Farm3D {
       const o = new CSS2DObject(el); o.position.set(x, y, z); this.scene.add(o); this.labels.push(o);
       return el;
     };
-    add('🏡 บ้าน', -2, 6.2, 0, 'house');
+    add('🏡 บ้าน', -3, 6.4, -1, 'house');
+    add('🌌 ดาดฟ้า', 3.7, 6.0, 4, 'roof');
     add('🐖 คอกหมู', 30, 3.6, -2, 'pig');
     add('🐟 บ่อปลา', 14, 1.6, 22, 'pond');
     add('🐔 เล้าไก่', 30, 3, 18, 'chicken');
@@ -1672,6 +1814,7 @@ export class Farm3D {
     M.water.normalMap.offset.set(t * 0.02, t * 0.013);
     this.tv.material.emissiveIntensity = this.familyAsleep ? 0 : 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
     this.updateBedroom(dt, t);
+    this.updateRooftop(dt, t);
     if (this.coopDoor) this.coopDoor.rotation.x = lerp(this.coopDoor.rotation.x, this.devices.chickenDoor ? 1.4 : 0, 0.05);
     this.gates.forEach(g => (g.pivot.rotation.y = lerp(g.pivot.rotation.y, this.devices.gateClosed ? 0 : g.side * 1.3, 0.04)));
 
@@ -2031,6 +2174,11 @@ export class Farm3D {
     const h = this.hour;
     if (this.bbq.active) return;
     const famSleep = h >= 21.75 || h < 5.75;
+    // นอนดูดาว 19:45–21:40 ถ้าฟ้าไม่ฝน (ลงมาก่อนเข้านอน) · วันละครั้ง
+    const starHour = h >= 19.75 && h < 21.66, clearSky = (this.wx?.cur.rain || 0) < 0.2 && (this.wx?.cur.clouds ?? 0) < 0.85;
+    if (starHour && clearSky && !this.stargazing && !this.familyAsleep && !this.starDone) { if (this.startStargaze()) this.starDone = true; }
+    if (!starHour) this.starDone = false;
+    if (this.stargazing && (!starHour || !clearSky) && this.stargazing.source === 'auto') this.endStargaze();
     if (famSleep && !this.familyAsleep && !this.school.active) this.sleepFamily();
     if (!famSleep && this.familyAsleep) this.wakeFamily();
     if (this.dadTask) return; // กำลังทำงานด่วน (เช่น เติมอาหารหมู)
@@ -2214,6 +2362,7 @@ export class Farm3D {
   }
 
   sleepFamily() {
+    this.stargazing = null;
     this.familyAsleep = true;
     this.gen++;
     this.bed.group.visible = true;
@@ -2221,7 +2370,8 @@ export class Farm3D {
       const w = who.w, o = who.h.group, bed = this.bed.slots[key];
       w.locked = true; who.h.sitting = false; who.h.holding = false; who.h.teaching = false;
       if (who.task !== undefined) who.task = 'เข้านอน';
-      const path = this.isInside(o) ? [bed.side] : this.pathIn(bed.side);
+      if (who.h.sleeping) { who.h.sleeping = false; o.rotation.set(0, 0, 0); o.position.y = this.roofY; who.h.baseY = this.roofY; }
+      const path = this.isInside(o) ? [bed.side] : [...(this.onRoof(o) ? this.roofDown() : []), ...this.pathIn(bed.side)];
       w.go(path, () => { this.lieDown(key, who.h); if (who.task !== undefined) who.task = 'นอนหลับในมุ้ง 💤'; }, true);
     }
     this.setTime(this.hour);
