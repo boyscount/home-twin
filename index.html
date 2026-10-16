@@ -295,6 +295,8 @@
     // โหมดเบา (ไม่วาดภาพ 3D): เปิดเองบนเบราว์เซอร์ทีวี · บังคับได้ด้วย ?lite=1 / ?lite=0
     (function () {
       var q = /[?&]lite=([01])/.exec(location.search), tv = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(navigator.userAgent);
+      // เบราว์เซอร์ทีวีส่วนใหญ่รันภาพ 3D ไม่ไหว → ส่งไปหน้าทีวี (tv.html) · บังคับเปิดหน้านี้ได้ด้วย ?lite=0 / ?lite=1
+      if (tv && !q) { location.replace('tv.html'); return; }
       window.__lite = q ? q[1] === '1' : tv;
       if (window.__lite) document.documentElement.className += ' lite';
     })();

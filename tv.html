@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>บ้านสวน Monitor · ทีวี</title>
+  <meta name="theme-color" content="#0b1410">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    html, body { margin: 0; height: 100%; background: #050d08; color: #e6f0ea; overflow: hidden; font-family: "IBM Plex Sans Thai", system-ui, Tahoma, sans-serif; }
+    #c { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+    .hint { position: absolute; left: 50%; bottom: 2.5vh; transform: translateX(-50%); font-size: 1.6vh; color: #7fa08b; background: rgba(0,0,0,.4); padding: .5vh 1.4vh; border-radius: 99px; white-space: nowrap; }
+    .hint a { color: #7bd88f; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint" id="hint">กด OK / คลิก 1 ครั้ง = เต็มจอ + เปิดเสียงเตือน · <a href="./?lite=0">เปิดภาพ 3D เต็ม</a></div>
+<script>
+// หน้าสำหรับทีวี: ไม่มีภาพ 3D · โค้ด ES5 ล้วน (ทีวีรุ่นเก่าเปิดได้) · วาดด้วย canvas 2D อย่างเดียว
+// มีระบบจำลองเบา ๆ ของตัวเอง: ครอบครัว แมว หมา รถบนถนน และคนแปลกหน้าทุก ๆ 3–5 นาที
+(function () {
+  var cv = document.getElementById('c'), c = cv.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+  function resize() { DPR = Math.min(window.devicePixelRatio || 1, 1.5); W = window.innerWidth; H = window.innerHeight; cv.width = W * DPR; cv.height = H * DPR; c.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  window.addEventListener('resize', resize); resize();
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  // ---------- ผังบ้าน (เมตร, ศูนย์กลางเรดาร์ = หน้าบ้าน) เหมือนแอปหลัก
+  var CX = 0, CZ = 5, RANGE = 60;
+  var ZONES = [
+    { n: 'บ้าน', x0: -10, x1: 4, z0: -5, z1: 9 }, { n: 'โรงรถ', x0: 10, x1: 18, z0: 2, z1: 9 },
+    { n: 'คอกหมู', x0: 24, x1: 36, z0: -6, z1: 2 }, { n: 'เล้าไก่', x0: 26, x1: 34, z0: 14.5, z1: 21.5 },
+    { n: 'ไฮโดร', x0: -32, x1: -20, z0: -4, z1: 16 }, { n: 'ศาลาเรียน', x0: -29, x1: -21, z0: 22, z1: 29 }
+  ];
+  var FENCE = { x0: -46, x1: 48, z0: -24, z1: 36 };
+  var POND = { x: 14, z: 22, r: 4.6 };
+
+  // ---------- ตัวละคร (เดินสุ่มไปตามจุดในเขตที่เหมาะกับช่วงเวลา)
+  function spot(zone) { var z = ZONES[zone]; return { x: rand(z.x0 + 1, z.x1 - 1), z: rand(z.z0 + 1, z.z1 - 1) }; }
+  var people = [
+    { id: 'dad', name: 'พ่อ', x: 4, z: 10, tx: 4, tz: 10, sp: 1.2 },
+    { id: 'mom', name: 'แม่', x: -4, z: 0, tx: -4, tz: 0, sp: 0.9 },
+    { id: 'sis', name: 'พี่สาว', x: -3, z: 11, tx: -3, tz: 11, sp: 1.1 },
+    { id: 'kid', name: 'น้องสาว', x: 0, z: 16, tx: 0, tz: 16, sp: 1.0 }
+  ];
+  var pets = []; for (var i = 0; i < 7; i++) pets.push({ x: rand(-8, 8), z: rand(8, 24), tx: 0, tz: 0, sp: 0.8, wait: rand(0, 5), dog: i === 6 });
+  var cars = [], nextCar = 4, stranger = null, nextStranger = rand(40, 90), alertT = 0, carsToday = 0;
+
+  function hourNow() { var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+  // กิจวัตรตามเวลาจริง (เหมือนแอปหลักแบบย่อ)
+  function plan(p, h) {
+    var sleep = h >= 21.75 || h < 5.75;
+    if (p.id === 'dad') {
+      if (h >= 21.75 || h < 1.75) return { t: 'นอนหลับในมุ้ง 💤', zone: 0, hide: false };
+      if (h < 6) return { t: 'กรีดยาง 🔦 (สวนยาง)', away: { x: rand(-25, 25), z: rand(-40, -20) } };
+      if (h < 7) return { t: 'ให้อาหารหมู', zone: 2 };
+      if (h < 9) return { t: 'เก็บน้ำยาง', away: { x: rand(-25, 25), z: rand(-40, -20) } };
+      if (h >= 16.5 && h < 17) return { t: 'ให้อาหารหมู', zone: 2 };
+      if (h >= 12 && h < 13.5) return { t: 'พักกลางวัน', zone: 0 };
+      return { t: 'ดูแลสวน', yard: true };
+    }
+    if (p.id === 'mom') {
+      if (sleep) return { t: 'นอนหลับในมุ้ง 💤', zone: 0 };
+      if (h >= 7.75 && h < 17) return { t: 'ไปทำงาน 🚗 (กลับ 17:00)', gone: true };
+      return { t: 'อยู่ในบ้าน', zone: 0 };
+    }
+    if (p.id === 'sis') {
+      if (sleep) return { t: 'นอนหลับในมุ้ง 💤', zone: 0 };
+      if (h >= 16 && h < 17.5) return { t: 'สอนภาษาอังกฤษ 📚', zone: 5 };
+      if (h >= 19.75 && h < 21.6) return { t: 'นอนดูดาวบนดาดฟ้า 🌌', zone: 0 };
+      return Math.random() < 0.5 ? { t: 'ดูแลผักไฮโดร 🥬', zone: 4 } : { t: 'เก็บไข่ไก่ 🥚', zone: 3 };
+    }
+    if (sleep) return { t: 'นอนหลับในมุ้ง 💤', zone: 0 };
+    if (h >= 19.75 && h < 21.6) return { t: 'นอนดูดาวบนดาดฟ้า 🌌', zone: 0 };
+    return Math.random() < 0.3 ? { t: 'ให้อาหารปลา 🐟', pond: true } : { t: 'เล่นในสวน', yard: true };
+  }
+  function retarget(p) {
+    var pl = plan(p, hourNow()); p.task = pl.t; p.gone = !!pl.gone;
+    var t = pl.away || (pl.pond ? { x: POND.x - 5, z: POND.z } : pl.yard ? { x: rand(-9, 8), z: rand(11, 30) } : spot(pl.zone || 0));
+    p.tx = t.x; p.tz = t.z; p.wait = rand(4, 12);
+  }
+  people.forEach(retarget);
+
+  function move(o, dt) {
+    var dx = o.tx - o.x, dz = o.tz - o.z, d = Math.sqrt(dx * dx + dz * dz);
+    if (d < 0.2) return true;
+    var s = Math.min(d, o.sp * dt); o.x += dx / d * s; o.z += dz / d * s; return false;
+  }
+
+  // ---------- เสียงเตือน (ต้องแตะ/กด OK ก่อน 1 ครั้งตามกฎเบราว์เซอร์)
+  var ac = null;
+  function beep() {
+    if (!ac) return;
+    try { for (var k = 0; k < 3; k++) { var o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = 880; g.gain.value = 0.06; o.connect(g); g.connect(ac.destination); o.start(ac.currentTime + k * 0.32); o.stop(ac.currentTime + k * 0.32 + 0.16); } } catch (e) {}
+  }
+  function activate() {
+    try { if (!ac) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) ac = new AC(); } if (ac && ac.resume) ac.resume(); } catch (e) {}
+    var el = document.documentElement, rf = el.requestFullscreen || el.webkitRequestFullscreen;
+    try { if (rf && !document.fullscreenElement) rf.call(el); } catch (e) {}
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen'); } catch (e) {}
+    document.getElementById('hint').style.display = 'none';
+  }
+  document.addEventListener('click', activate);
+  setTimeout(function () { document.getElementById('hint').style.display = 'none'; }, 15000); // คำแนะนำหายเองไม่บังข้อมูล document.addEventListener('keydown', function (e) { if (e.keyCode === 13 || e.key === 'Enter') activate(); });
+
+  // ---------- อากาศจริง (Open-Meteo) ใช้ตำแหน่งบ้านสวนที่ตั้งไว้ในแอปหลัก
+  var wx = '';
+  function loadWx() {
+    var loc = { lat: 13.75, lon: 100.5 };
+    try { var s = JSON.parse(localStorage.getItem('farmLoc')); if (s && s.lat) loc = s; } catch (e) {}
+    var x = new XMLHttpRequest();
+    x.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat + '&longitude=' + loc.lon + '&current=temperature_2m,weather_code&timezone=auto');
+    x.onload = function () { try { var d = JSON.parse(x.responseText).current, code = d.weather_code;
+      var lab = code === 0 ? 'แจ่มใส' : code <= 3 ? 'มีเมฆ' : code < 50 ? 'มีหมอก' : code < 60 ? 'ฝนปรอย' : code < 70 ? 'ฝนตก' : code < 95 ? 'ฝนเป็นช่วง ๆ' : 'พายุฝนฟ้าคะนอง';
+      wx = lab + ' · ' + Math.round(d.temperature_2m) + '°C'; } catch (e) {} };
+    x.send();
+  }
+  loadWx(); setInterval(loadWx, 15 * 60 * 1000);
+
+  // ---------- วาด
+  var sweep = 0, last = Date.now();
+  function frame() {
+    var now = Date.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
+    sweep = (sweep + dt * 90) % 360;
+    var h = hourNow(), night = h < 6 || h >= 18.5;
+    // จำลอง
+    people.forEach(function (p) { if (p.gone) return; if (move(p, dt)) { p.wait -= dt; if (p.wait < 0) retarget(p); } });
+    pets.forEach(function (p) { if (move(p, dt)) { p.wait -= dt; if (p.wait < 0) { p.tx = rand(-12, 10); p.tz = rand(6, 30); p.wait = rand(3, 10); } } });
+    nextCar -= dt;
+    if (nextCar < 0) { var dir = Math.random() < 0.5 ? 1 : -1; cars.push({ x: -dir * 80, z: dir > 0 ? 44.3 : 47.7, dir: dir, sp: rand(9, 15), moto: Math.random() < 0.3 }); nextCar = night ? rand(15, 35) : rand(5, 15); }
+    for (var i = cars.length - 1; i >= 0; i--) { var cr = cars[i], px = cr.x; cr.x += cr.dir * cr.sp * dt; if (px * cr.x <= 0) carsToday++; if (Math.abs(cr.x) > 85) cars.splice(i, 1); }
+    nextStranger -= dt;
+    if (!stranger && nextStranger < 0) stranger = { x: Math.random() < 0.5 ? -30 : 30, z: 41, tx: 0, tz: 41, sp: 1.1, stage: 0, alerted: false };
+    if (stranger) {
+      if (move(stranger, dt)) {
+        stranger.stage++;
+        if (stranger.stage === 1) { stranger.tx = 0; stranger.tz = 22; }
+        else if (stranger.stage === 2) { stranger.tx = 0; stranger.tz = 41; stranger.wait = 3; }
+        else if (stranger.stage === 3) { stranger.tx = Math.random() < 0.5 ? -40 : 40; }
+        else { stranger = null; nextStranger = rand(180, 300); }
+      }
+      if (stranger && !stranger.alerted && stranger.z < FENCE.z1) { stranger.alerted = true; alertT = 12; beep(); }
+    }
+    if (alertT > 0) alertT -= dt;
+    draw(now, h, night);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function draw(now, h, night) {
+    c.clearRect(0, 0, W, H);
+    var bg = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    bg.addColorStop(0, '#0b1d12'); bg.addColorStop(1, '#030806'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+    var wide = W > H * 1.2;
+    var R = wide ? Math.min(H * 0.42, W * 0.27) : Math.min(W * 0.42, H * 0.3);
+    var cx = W / 2, cy = wide ? H / 2 + H * 0.02 : H * 0.53, k = R / RANGE;
+    function P(x, z) { return [cx + (x - CX) * k, cy + (z - CZ) * k]; }
+    var threat = alertT > 0 || (stranger && stranger.alerted && stranger.stage < 3);
+    var G = '#39ff6a', GD = 'rgba(57,255,106,0.28)', GDD = 'rgba(57,255,106,0.1)';
+    // วงเรดาร์
+    c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
+    var g = c.createRadialGradient(cx, cy, 0, cx, cy, R); g.addColorStop(0, 'rgba(6,40,16,.95)'); g.addColorStop(1, 'rgba(1,10,4,.98)'); c.fillStyle = g; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    c.strokeStyle = GDD; c.lineWidth = 1;
+    for (var a = 0; a < 360; a += 30) { var t = a * Math.PI / 180; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.sin(t) * R, cy - Math.cos(t) * R); c.stroke(); }
+    c.strokeStyle = GD; for (var r = 1; r <= 4; r++) { c.beginPath(); c.arc(cx, cy, R * r / 4, 0, Math.PI * 2); c.stroke(); }
+    // ถนน + รั้ว + โซน + บ่อ
+    var r0 = P(-80, 41.5), r1 = P(80, 50.5); c.fillStyle = 'rgba(120,140,130,.16)'; c.fillRect(r0[0], r0[1], r1[0] - r0[0], r1[1] - r0[1]);
+    var f0 = P(FENCE.x0, FENCE.z0), f1 = P(FENCE.x1, FENCE.z1);
+    c.setLineDash([R * 0.03, R * 0.025]); c.lineWidth = 2; c.strokeStyle = threat ? 'rgba(255,80,80,' + (0.5 + 0.5 * Math.sin(now / 150)) + ')' : 'rgba(255,224,102,.55)';
+    c.strokeRect(f0[0], f0[1], f1[0] - f0[0], f1[1] - f0[1]); c.setLineDash([]); c.lineWidth = 1;
+    c.font = Math.round(R * 0.05) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    ZONES.forEach(function (z) { var a0 = P(z.x0, z.z0), a1 = P(z.x1, z.z1); c.strokeStyle = 'rgba(160,255,190,.22)'; c.strokeRect(a0[0], a0[1], a1[0] - a0[0], a1[1] - a0[1]); c.fillStyle = 'rgba(160,255,190,.6)'; c.fillText(z.n, (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2); });
+    var pp = P(POND.x, POND.z); c.strokeStyle = 'rgba(120,200,255,.4)'; c.beginPath(); c.arc(pp[0], pp[1], POND.r * k, 0, Math.PI * 2); c.stroke(); c.fillStyle = 'rgba(120,200,255,.6)'; c.fillText('บ่อปลา', pp[0], pp[1]);
+    // เส้นกวาด
+    var sw = sweep * Math.PI / 180 - Math.PI / 2;
+    for (var j = 0; j < 24; j++) { c.fillStyle = 'rgba(57,255,106,' + (0.012 * (24 - j) / 24 * 10).toFixed(3) + ')'; c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sw - (j + 1) * 0.05, sw - j * 0.05); c.closePath(); c.fill(); }
+    c.strokeStyle = '#b6ffc9'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sw) * R, cy + Math.sin(sw) * R); c.stroke(); c.lineWidth = 1;
+    // จุดเป้าหมาย
+    function dot(x, z, col, size, diamond) { var q = P(x, z); c.fillStyle = col; c.beginPath(); if (diamond) { c.moveTo(q[0], q[1] - size); c.lineTo(q[0] + size, q[1]); c.lineTo(q[0], q[1] + size); c.lineTo(q[0] - size, q[1]); c.closePath(); } else c.arc(q[0], q[1], size, 0, Math.PI * 2); c.fill(); return q; }
+    pets.forEach(function (p) { dot(p.x, p.z, 'rgba(57,255,106,.75)', R * 0.012); });
+    cars.forEach(function (cr) { var q = P(cr.x, cr.z); c.fillStyle = 'rgba(255,170,60,.95)'; c.fillRect(q[0] - R * 0.02, q[1] - R * 0.012, R * 0.04, R * 0.024); });
+    c.font = Math.round(R * 0.045) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.textAlign = 'left';
+    people.forEach(function (p) { if (p.gone || Math.abs(p.z) > 55) return; var q = dot(p.x, p.z, 'rgba(120,200,255,.95)', R * 0.022, true); c.fillStyle = 'rgba(170,220,255,.9)'; c.fillText(p.name, q[0] + R * 0.03, q[1] - R * 0.025); });
+    if (stranger) {
+      var q = dot(stranger.x, stranger.z, stranger.alerted ? '#ff4646' : '#ffe066', R * 0.026, true);
+      if (stranger.alerted) { var pr = R * (0.04 + ((now / 50) % 18) / 200); c.strokeStyle = 'rgba(255,70,70,.8)'; c.beginPath(); c.arc(q[0], q[1], pr, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = '#fff'; c.lineWidth = 2; var s = R * 0.05; [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (d) { c.beginPath(); c.moveTo(q[0] + d[0] * s, q[1] + d[1] * s * 0.55); c.lineTo(q[0] + d[0] * s, q[1] + d[1] * s); c.lineTo(q[0] + d[0] * s * 0.55, q[1] + d[1] * s); c.stroke(); }); c.lineWidth = 1;
+        c.fillStyle = '#ffb3b3'; c.fillText('UNKNOWN', q[0] + R * 0.06, q[1]); }
+    }
+    var vg = c.createRadialGradient(cx, cy, R * 0.65, cx, cy, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); c.fillStyle = vg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    c.restore();
+    c.strokeStyle = threat ? 'rgba(255,' + Math.round(80 + 60 * Math.sin(now / 160)) + ',80,1)' : G; c.lineWidth = threat ? 4 : 2; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke(); c.lineWidth = 1;
+    c.fillStyle = G; c.font = 'bold ' + Math.round(R * 0.06) + 'px monospace'; c.textAlign = 'center';
+    [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(function (d) { var t = d[1] * Math.PI / 180; c.fillText(d[0], cx + Math.sin(t) * (R + R * 0.08), cy - Math.cos(t) * (R + R * 0.08)); });
+    // ข้อมูลซ้าย/ขวา (จอกว้าง) หรือ บน/ล่าง (จอแนวตั้ง)
+    var d = new Date(), fs = wide ? H * 0.11 : W * 0.13;
+    var lx = wide ? W * 0.05 : W / 2, ly = wide ? H * 0.2 : H * 0.1;
+    c.textAlign = wide ? 'left' : 'center'; c.fillStyle = '#e6f0ea'; c.font = Math.round(fs) + 'px monospace';
+    c.fillText(pad(d.getHours()) + ':' + pad(d.getMinutes()), lx, ly);
+    c.font = Math.round(fs * 0.22) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillStyle = '#9fb8a8';
+    var days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'], months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    c.fillText('วัน' + days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + (d.getFullYear() + 543), lx, ly + fs * 0.62);
+    c.fillStyle = '#7bd88f'; if (wx) c.fillText(wx, lx, ly + fs * 0.95);
+    c.fillStyle = '#9fb8a8'; c.fillText('🚗 รถผ่านหน้าบ้านวันนี้ ' + carsToday + ' คัน', lx, ly + fs * (wx ? 1.28 : 0.95));
+    // ครอบครัว
+    var fx = wide ? W * 0.95 : W / 2, fy = wide ? H * 0.2 : cy + R + H * 0.06, lh = (wide ? H : W) * 0.045;
+    c.textAlign = wide ? 'right' : 'center'; c.font = 'bold ' + Math.round(lh * 0.75) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif'; c.fillStyle = '#7bd88f';
+    c.fillText('◉ บ้านสวน Monitor', fx, fy - lh * 0.4);
+    c.font = Math.round(lh * 0.62) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
+    people.forEach(function (p, i) { c.fillStyle = '#e6f0ea'; c.fillText(p.name + ' — ' + (p.task || ''), fx, fy + lh * (i + 0.8)); });
+    // ป้ายเตือน
+    if (threat) {
+      var bw = Math.min(W * 0.8, R * 2.2), bh = R * 0.22, bx = W / 2 - bw / 2, by = cy - R - bh * 0.4;
+      if (!wide) by = cy - R - bh * 1.1;
+      c.fillStyle = 'rgba(170,20,20,.9)'; c.fillRect(bx, by, bw, bh); c.strokeStyle = '#ff8080'; c.lineWidth = 3; c.strokeRect(bx, by, bw, bh); c.lineWidth = 1;
+      c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = 'bold ' + Math.round(bh * 0.45) + 'px "IBM Plex Sans Thai", Tahoma, sans-serif';
+      c.fillText('⚠ ตรวจพบบุคคลที่หน้าบ้าน', W / 2, by + bh / 2);
+    }
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  }
+})();
+</script>
+</body>
+</html>
