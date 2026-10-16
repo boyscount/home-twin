@@ -280,6 +280,11 @@
   </div>
   <div class="kiosk-banner" id="kioskBanner" hidden></div>
 
+  <!-- ตัวช่วยสำหรับเบราว์เซอร์ทีวีรุ่นเก่า: ฟังก์ชันใหม่ที่แอปใช้ -->
+  <script>
+    if (!Array.prototype.at) Object.defineProperty(Array.prototype, 'at', { configurable: true, writable: true, value: function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return this[i]; } });
+    if (!String.prototype.replaceAll) String.prototype.replaceAll = function (a, b) { return this.split(a).join(b); };
+  </script>
   <script type="module" src="js/main.js"></script>
   <!-- เปิดแอปไม่ขึ้น (เบราว์เซอร์เก่า เช่น ทีวีบางรุ่น) → บอกผู้ใช้แทนการค้างหน้าโหลด (เขียนแบบ ES5 ให้รันได้ทุกเบราว์เซอร์) -->
   <script>

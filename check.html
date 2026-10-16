@@ -58,6 +58,10 @@
   if (g) { var ext = g.getExtension('WEBGL_debug_renderer_info'); gpu = ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); }
   add('WebGL 2 (ภาพ 3D)', !!gl2, gpu ? 'GPU: ' + gpu : '', true);
   add('WebGL 1', !!gl1, '', false);
+  var css = function (q) { return !!(window.CSS && CSS.supports && CSS.supports(q)); };
+  add('CSS inset (Chrome 87+)', css('inset: 0'), 'แอปมีตัวแทนให้แล้ว', false);
+  add('CSS aspect-ratio (Chrome 88+)', css('aspect-ratio: 1'), 'แอปมีตัวแทนให้แล้ว', false);
+  add('Array.at() (Chrome 92+)', !!Array.prototype.at, 'แอปมีตัวแทนให้แล้ว', false);
   add('Canvas 2D roundRect', !!(window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype.roundRect), 'ใช้ในวิดีโอ/ไม่จำเป็น', false);
   add('CSS :has()', !!(window.CSS && CSS.supports && CSS.supports('selector(:has(a))')), 'จัดหน้าบางส่วน', false);
   add('หน่วยความจำเครื่อง', true, navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'ไม่ทราบ', false);

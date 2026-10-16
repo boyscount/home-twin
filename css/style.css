@@ -48,8 +48,8 @@ input { font: inherit; }
 .dot.ok { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
 .dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
-main { position: absolute; inset: 60px 0 0 0; }
-.view { position: absolute; inset: 0; display: none; }
+main { position: absolute; top: 60px; right: 0; bottom: 0; left: 0; }
+.view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; }
 .view.active { display: block; }
 
 /* ---------- panels ---------- */
@@ -70,10 +70,10 @@ main { position: absolute; inset: 60px 0 0 0; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* ---------- farm ---------- */
-.canvas-host { position: absolute; inset: 0; isolation: isolate; touch-action: none; } /* นิ้ว pinch บนฉาก 3D = ซูมกล้อง ไม่ใช่ซูมทั้งหน้าเว็บ */ /* กัน z-index ของป้าย CSS2D ไม่ให้ลอยทับแผงควบคุม */
+.canvas-host { position: absolute; top: 0; right: 0; bottom: 0; left: 0; isolation: isolate; touch-action: none; } /* นิ้ว pinch บนฉาก 3D = ซูมกล้อง ไม่ใช่ซูมทั้งหน้าเว็บ */ /* กัน z-index ของป้าย CSS2D ไม่ให้ลอยทับแผงควบคุม */
 .canvas-host canvas { display: block; }
 .loading {
-  position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; color: var(--dim);
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; font-size: 18px; color: var(--dim);
   background: var(--bg); z-index: 2; transition: opacity .6s;
 }
 .panel-toggle {
@@ -94,9 +94,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* ---------- radar ---------- */
 #view-radar { background: #020703; }
-.radar-layout { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 300px 300px; gap: 14px; padding: 14px; }
+.radar-layout { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: 1fr 300px 300px; gap: 14px; padding: 14px; }
 .radar-main { position: relative; border: 1px solid var(--hud-dim); border-radius: 6px; overflow: hidden; background: radial-gradient(circle at 50% 50%, #04170a, #010402 70%); min-height: 0; }
-#radarCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#radarCanvas { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; }
 .radar-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; font-family: "Share Tech Mono", "IBM Plex Sans Thai", monospace; }
 .hud-box { border: 1px solid var(--hud-dim); border-radius: 4px; padding: 10px; color: var(--hud); background: rgba(10, 40, 18, .35); }
 .hud-box.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -179,7 +179,7 @@ button.primary { background: var(--accent); color: #0b1410; border: 0; font-weig
 .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 13px; }
 .switch { position: relative; width: 42px; height: 24px; }
 .switch input { opacity: 0; width: 0; height: 0; }
-.switch span { position: absolute; inset: 0; background: #2a3a31; border-radius: 99px; transition: .2s; cursor: pointer; }
+.switch span { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #2a3a31; border-radius: 99px; transition: .2s; cursor: pointer; }
 .switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::before { transform: translateX(18px); }
@@ -286,7 +286,7 @@ body.kiosk .topbar { display: none; }
 body.kiosk main { top: 0; }
 body.kiosk .farm-panel, body.kiosk .panel-toggle, body.kiosk .farm-status, body.kiosk .tour-stop { display: none !important; }
 body.kiosk-idle, body.kiosk-idle * { cursor: none !important; }
-.kiosk-hud { position: fixed; inset: 0; z-index: 30; pointer-events: none; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.85); }
+.kiosk-hud { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; pointer-events: none; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.85); }
 .k-left { position: absolute; top: calc(7% + 18px); left: 32px; }
 .k-clock { font-family: "Share Tech Mono", monospace; font-size: clamp(40px, 7vw, 86px); line-height: 1; }
 .k-date { font-size: clamp(14px, 1.6vw, 20px); margin-top: 6px; }
@@ -338,13 +338,13 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
 /* ---------- เรดาร์: จอ CRT ---------- */
 #radarCanvas { touch-action: none; cursor: crosshair; }
 .radar-main .crt {
-  position: absolute; inset: 0; pointer-events: none;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none;
   background:
     repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px),
     radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%);
   mix-blend-mode: multiply;
 }
-.radar-main::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 52%, rgba(57,255,106,.08), transparent 60%); }
+.radar-main::before { content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; background: radial-gradient(circle at 50% 52%, rgba(57,255,106,.08), transparent 60%); }
 .radar-ctl { position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; font-family: "Share Tech Mono", monospace; color: var(--hud); z-index: 2; }
 .radar-ctl button { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--hud-dim); background: rgba(5,30,12,.75); color: var(--hud); font-size: 20px; touch-action: manipulation; }
 .radar-ctl button:active { background: var(--hud); color: #031208; }
@@ -364,7 +364,7 @@ body.kiosk:not(.kiosk-idle) .k-exit { opacity: 1; }
 }
 .tour-on .sim-fab { bottom: auto; top: calc(7% + 12px); left: 16px; padding: 9px 14px; font-size: 14px; } /* ตอนกล้องเล่าเรื่องย้ายขึ้นมุมบน ไม่ทับคำบรรยาย แต่ยังกดได้ */
 body.kiosk .sim-fab { display: none; }
-.sim-sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,0); display: flex; align-items: flex-end; justify-content: center; transition: background .2s; }
+.sim-sheet { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 40; background: rgba(0,0,0,0); display: flex; align-items: flex-end; justify-content: center; transition: background .2s; }
 .sim-sheet.show { background: rgba(0,0,0,.45); }
 .sim-panel {
   width: min(980px, 100%); max-height: 78vh; display: flex; flex-direction: column; background: #101c16; border: 1px solid var(--line);
@@ -504,3 +504,11 @@ body.kiosk .mini-radar:not(.big) { top: auto; bottom: calc(7% + 72px); right: 32
 @media (max-width: 760px) {
   #view-farm:has(.alert-card:not([hidden])) .mini-radar:not(.big) { top: 150px; right: 62px; }
 }
+
+/* เบราว์เซอร์ทีวีรุ่นเก่า (Chromium < 88) ไม่รู้จัก aspect-ratio → กำหนดความสูงเองให้เรดาร์จิ๋วยังเป็นวงกลม */
+@supports not (aspect-ratio: 1) {
+  .mini-radar { height: 136px; }
+  .mini-radar.big { width: 62vh; height: 62vh; }
+  body.kiosk .mini-radar:not(.big) { height: 170px; }
+}
+@media (max-width: 760px) { @supports not (aspect-ratio: 1) { .mini-radar { height: 88px; } .mini-radar.big { width: 56vh; height: 56vh; } } }

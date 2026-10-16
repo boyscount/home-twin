@@ -377,7 +377,9 @@ export class Farm3D {
     const [w, h] = this.size();
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.touchDevice = matchMedia('(pointer: coarse)').matches;
-    let q = 'high'; try { q = localStorage.getItem('quality') || (this.touchDevice ? 'medium' : 'high'); } catch {}
+    // ทีวี (Tizen/webOS/Android TV ฯลฯ) การ์ดจออ่อนมาก → เริ่มที่คุณภาพต่ำ · มือถือเริ่มที่กลาง
+    this.tvDevice = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(navigator.userAgent);
+    let q = 'high'; try { q = localStorage.getItem('quality') || (this.tvDevice ? 'low' : this.touchDevice ? 'medium' : 'high'); } catch {}
     this.quality = QUALITY[q] ? q : 'medium';
     r.setPixelRatio(Math.min(devicePixelRatio, QUALITY[this.quality].pr));
     r.setSize(w, h);
@@ -388,7 +390,7 @@ export class Farm3D {
 
     this.labelRenderer = new CSS2DRenderer();
     this.labelRenderer.setSize(w, h);
-    Object.assign(this.labelRenderer.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+    Object.assign(this.labelRenderer.domElement.style, { position: 'absolute', top: '0', left: '0', pointerEvents: 'none' });
     this.host.appendChild(this.labelRenderer.domElement);
 
     const s = this.scene = new THREE.Scene();
