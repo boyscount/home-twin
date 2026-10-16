@@ -393,9 +393,9 @@ export class Farm3D {
     this.setupDoubleTap();
     this.setupTwist();
     this.controls.autoRotateSpeed = 0.7; // หมุนรอบช้า ๆ ราว 85 วินาทีต่อรอบ
-    // เข้าเว็บครั้งแรกให้หมุนรอบบ้านช้า ๆ เลย (ถ้าเคยกดปิดไว้ จำค่าเดิม)
+    // เปิดแอปทุกครั้งให้หมุนรอบบ้านช้า ๆ (ปุ่ม 🔄 ปิด/เปิดได้เฉพาะรอบที่ใช้งานอยู่ ไม่จำข้ามครั้ง)
     this.controls.autoRotate = true;
-    try { const v = localStorage.getItem('autoRotate'); if (v !== null) this.controls.autoRotate = v === '1'; } catch {}
+    try { localStorage.removeItem('autoRotate'); } catch {}
     this.snapCam = new THREE.PerspectiveCamera(32, 4 / 3, 0.1, 200);
     // ไฟฉายติดกล้อง (ใช้ตอนกล้องเล่าเรื่องเข้าสวนยางตอนกลางคืน หรือกดเปิดเอง)
     s.add(this.camera);
@@ -1689,7 +1689,6 @@ export class Farm3D {
 
   setAutoRotate(on) {
     this.controls.autoRotate = on;
-    try { localStorage.setItem('autoRotate', on ? '1' : '0'); } catch {}
   }
 
   // บิดสองนิ้ว = หมุนฉาก (เหมือนแอปแผนที่) — ทำงานพร้อมกับบีบซูมของ OrbitControls
