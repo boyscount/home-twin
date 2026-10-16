@@ -470,10 +470,14 @@ export class Radar {
     c.fillStyle = bg; c.fillRect(cx - R, cy - R, R * 2, R * 2);
     // แผนที่จริง (ย้อมเขียว)
     if (this.mapImg) {
+      // ย้อมสีเขียวครั้งเดียวต่อภาพแผนที่ แล้วเก็บไว้ใช้ซ้ำ (ฟิลเตอร์ canvas ทุกเฟรมหนักมาก ทำให้ทั้งแอปแลค)
+      if (this.tintSrc !== this.mapImg) {
+        const m = this.mapImg, tc = document.createElement('canvas'); tc.width = m.width; tc.height = m.height;
+        const tx = tc.getContext('2d'); tx.filter = 'grayscale(1) brightness(1.5) contrast(1.25) sepia(1) hue-rotate(65deg) saturate(2.6)'; tx.drawImage(m, 0, 0);
+        this.tint = tc; this.tintSrc = m;
+      }
       const s = R * (this.mapRange / this.range);
-      c.globalAlpha = 0.5; c.filter = 'grayscale(1) brightness(1.5) contrast(1.25) sepia(1) hue-rotate(65deg) saturate(2.6)';
-      c.drawImage(this.mapImg, cx - s, cy - s, s * 2, s * 2);
-      c.filter = 'none'; c.globalAlpha = 1;
+      c.globalAlpha = 0.5; c.drawImage(this.tint, cx - s, cy - s, s * 2, s * 2); c.globalAlpha = 1;
     }
     // ตาราง
     c.strokeStyle = GDD; c.lineWidth = 1;

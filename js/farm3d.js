@@ -13,6 +13,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
 import { freezeStatic } from './freeze.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeHuman, animateWalk, animateIdle } from './human.js';
 import { makePig, makeChicken, makeFish, makeCat, makeDog } from './animals.js';
 import { FOL, windU, makeFoliageTextures, leafMaterial, canopyGeometry, frondGeometry } from './foliage.js';
@@ -210,6 +211,23 @@ function makeSharedGeo() {
   GEO.palmFrond = frondGeometry(1.6, 4.2, 1.9, 0.3);
   GEO.palmDead = frondGeometry(1.2, 3.2, 3.6, 0.15);
   GEO.bananaLeaf = frondGeometry(0.75, 2.3, 1.7, 0.08);
+}
+
+// รวม mesh ลูกหลานทั้งหมดในกลุ่ม (ที่ใช้วัสดุเดียวกัน) เป็น mesh เดียวในพิกัดของกลุ่ม → ลด draw call โดยกลุ่มยังขยับได้ตามเดิม
+function mergeChildren(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert(), byMat = new Map();
+  group.traverse(o => { if (o.isMesh && o !== group && !Array.isArray(o.material)) (byMat.get(o.material) || byMat.set(o.material, []).get(o.material)).push(o); });
+  for (const [mat, list] of byMat) {
+    if (list.length < 2) continue;
+    const geos = list.map(o => { const g = o.geometry.clone(); g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); return g.index ? g : g; });
+    const merged = mergeGeometries(geos.map(g => g.index ? g : g), false); geos.forEach(g => g.dispose());
+    if (!merged) continue;
+    const m = new THREE.Mesh(merged, mat); m.castShadow = list.some(o => o.castShadow); m.receiveShadow = list.some(o => o.receiveShadow);
+    list.forEach(o => o.parent.remove(o)); group.add(m);
+  }
+  // กลุ่มย่อยที่ว่างแล้วทิ้งได้
+  group.children.filter(ch => ch.isGroup && ch.children.length === 0).forEach(ch => group.remove(ch));
 }
 
 function box(w, h, d, mat, x = 0, y = 0, z = 0, parent) {
@@ -1125,6 +1143,7 @@ export class Farm3D {
       const leaf = new THREE.Group(); pivot.add(leaf);
       box(3, 0.06, 0.06, gateM, -side * 1.5, 1.5, 0, leaf); box(3, 0.06, 0.06, gateM, -side * 1.5, 0.15, 0, leaf);
       for (let i = 0; i <= 12; i++) box(0.03, 1.4, 0.03, gateM, -side * (0.1 + i * 0.24), 0.82, 0, leaf);
+      mergeChildren(leaf); // ซี่ประตู 15 ชิ้น → 1 ชิ้น (ยังเปิด-ปิดได้)
       pivot.rotation.y = side * 1.3; this.gates.push({ pivot, side });
     }
     // แนวรั้วต้นไม้
@@ -1193,7 +1212,8 @@ export class Farm3D {
       const holder = new THREE.Group(); holder.position.y = -0.3; holder.rotation.y = rand(0, 6.3); top.add(holder);
       f.rotation.x = rand(2.2, 2.6); holder.add(f);
     }
-    for (let i = 0; i < 5; i++) sph(0.16, new THREE.MeshStandardMaterial({ color: '#5b6b25' }), rand(-0.25, 0.25), -0.2, rand(-0.25, 0.25), top, 6);
+    for (let i = 0; i < 5; i++) sph(0.16, M.coconut || (M.coconut = new THREE.MeshStandardMaterial({ color: '#5b6b25' })), rand(-0.25, 0.25), -0.2, rand(-0.25, 0.25), top, 6);
+    mergeChildren(top); // ทางมะพร้าว ~20 ชิ้น → 3 ชิ้น (ยังไหวตามลมทั้งกลุ่ม)
     this.palms = this.palms || []; this.palms.push(top);
   }
 

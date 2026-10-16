@@ -15,7 +15,8 @@ export class MiniRadar {
     bus.on('radar-known', () => this.check());
     bus.on('radar-threat', () => this.check());
     let n = 0;
-    const loop = now => { requestAnimationFrame(loop); if (++n % 2 === 0 && this.farm.visible) this.draw(now); }; // ~30 fps พอ
+    // วงเล็กไม่ต้องลื่นเท่าภาพ 3D: ปกติวาด ~20 fps · ตอนขยายใหญ่ ~30 fps · แท็บซ่อนอยู่ไม่วาด
+    const loop = now => { requestAnimationFrame(loop); if (!this.farm.visible || document.hidden) return; if (++n % (this.el.classList.contains('big') ? 2 : 3) === 0) this.draw(now); };
     requestAnimationFrame(loop);
   }
 
@@ -44,7 +45,8 @@ export class MiniRadar {
     const dpr = Math.min(devicePixelRatio, 2), px = Math.round(size * dpr);
     if (this.cv.width !== px) { this.cv.width = this.cv.height = px; }
     const c = this.ctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, size, size);
-    this.radar.refreshMap(); // แผนที่ใต้เรดาร์ (ถ่ายใหม่ทุก ~20 วิ)
+    // แผนที่ใต้เรดาร์: ในแท็บ 3D ถ่ายใหม่ทุก 2 นาทีพอ (การถ่ายแต่ละครั้งต้องวาดฉากเพิ่ม 1 รอบ)
+    if (!this.radar.mapImg || now - (this.mapAt || 0) > 120000) { this.mapAt = now; this.radar.refreshMap(true); }
     const big = el.classList.contains('big'), R = size / 2;
     this.radar.drawScope(c, R, R, R - 1, now, { mini: true, labels: big && size > 260 });
     // จุดติดตั้งเรดาร์ตรงกลาง
