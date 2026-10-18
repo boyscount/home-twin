@@ -199,7 +199,7 @@ export class Tour {
     this.active = false; this.idle = 0;
     this.view.classList.remove('tour-on');
     if (this.autoRotWas !== undefined) { this.f.controls.autoRotate = this.autoRotWas; this.autoRotWas = undefined; }
-    this.f.setLabels(document.getElementById('labelToggle')?.checked ?? true);
+    this.f.setLabels(document.getElementById('btnLabels')?.classList.contains('active') ?? true);
     this.capEl.hidden = true;
     bus.emit('tour', false);
   }

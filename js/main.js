@@ -171,11 +171,11 @@ bus.on('farm-ready', () => { if (wxMode === 'clear') autoRealT = setTimeout(() =
 if (realTimeBox.checked) { syncRealTime(); realTimer = setInterval(syncRealTime, 30000); }
 document.getElementById('fogToggle').addEventListener('change', e => farm.setFog(e.target.checked));
 // ป้ายชื่อโซน: ขึ้นให้เห็น 10 วินาทีตอนเข้าเว็บ แล้วซ่อนเอง (เปิดใหม่ได้ที่ปุ่ม 🏷️ ข้างปุ่มซูม)
-const labelBox = document.getElementById('labelToggle'), btnLabels = document.getElementById('btnLabels');
+// ป้ายชื่อโซน: สลับได้จากปุ่ม 🏷️ ในแถบปุ่มด้านขวาเท่านั้น
+const btnLabels = document.getElementById('btnLabels');
 let labelsTouched = false;
-function setLabelsUI(on) { labelBox.checked = on; btnLabels.classList.toggle('active', on); farm.setLabels(on); }
-labelBox.addEventListener('change', () => { labelsTouched = true; setLabelsUI(labelBox.checked); });
-btnLabels.addEventListener('click', () => { labelsTouched = true; setLabelsUI(!labelBox.checked); });
+function setLabelsUI(on) { btnLabels.classList.toggle('active', on); farm.setLabels(on); }
+btnLabels.addEventListener('click', () => { labelsTouched = true; setLabelsUI(!btnLabels.classList.contains('active')); });
 setLabelsUI(true);
 setTimeout(() => { if (!labelsTouched && !tour.active) setLabelsUI(false); }, 10000);
 
@@ -295,9 +295,6 @@ const qSel = document.getElementById('qualitySel');
 qSel.innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}">${q.label}</option>`).join('');
 qSel.value = farm.quality;
 qSel.addEventListener('change', () => farm.setQuality(qSel.value));
-const grassBox = document.getElementById('grassToggle');
-grassBox.checked = farm.grassOn;
-grassBox.addEventListener('change', () => farm.setGrass(grassBox.checked));
 
 // ---------- เทศกาล ----------
 const festSel = document.getElementById('festivalSel');

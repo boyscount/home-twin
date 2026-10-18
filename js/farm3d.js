@@ -1663,7 +1663,7 @@ export class Farm3D {
     }
     im.receiveShadow = true; im.frustumCulled = false;
     im.count = QUALITY[this.quality].grass;
-    try { this.grassOn = localStorage.getItem('grassOn') !== '0'; } catch { this.grassOn = true; }
+    this.grassOn = true; // หญ้าเปิดเสมอ (จำนวนต้นปรับตามคุณภาพภาพ) — เอาปุ่มเปิด/ปิดออกจากแผงควบคุมแล้ว
     im.visible = im.count > 0 && this.grassOn;
     this.scene.add(im); this.grass = im;
     // กอหญ้าโค้ง 3 ใบจาก Blender แทนใบเดี่ยว → สนามดูหนาฟูขึ้นโดยจำนวนชิ้นเท่าเดิม
