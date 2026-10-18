@@ -15,8 +15,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/theme.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&family=Srisakdi:wght@700&family=Bai+Jamjuree:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|neon|lanna|monsoon|jade|canopy)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(!/^(aether|siam|neon|lanna|monsoon|jade|canopy)$/.test(t)) t="siam"; if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&family=Srisakdi:wght@700&family=Bai+Jamjuree:wght@500;600;700&family=Nunito:wght@600;700;800&family=Prompt:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|neon|lanna|monsoon|jade|canopy|sky)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(!/^(aether|siam|neon|lanna|monsoon|jade|canopy|sky)$/.test(t)) t="siam"; if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
   <!-- ตัวช่วย import map สำหรับเบราว์เซอร์รุ่นเก่า (เช่น สมาร์ททีวี) — เบราว์เซอร์ใหม่จะข้ามไปเอง -->
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
@@ -111,6 +111,7 @@
           <button class="chip theme-chip" data-theme-pick="monsoon"><i style="background:linear-gradient(160deg,#e8f6ff,#8ecbff 45%,#2a4458)"></i>Monsoon Glass</button>
           <button class="chip theme-chip" data-theme-pick="jade"><i style="background:linear-gradient(160deg,#f0fff6,#9ef0c8 45%,#1f4a36)"></i>Jade Rain Glass</button>
           <button class="chip theme-chip" data-theme-pick="canopy"><i style="background:radial-gradient(circle at 70% 25%,#f2e98a,#6fae45 45%,#14301a)"></i>Rainforest Canopy</button>
+          <button class="chip theme-chip" data-theme-pick="sky"><i style="background:linear-gradient(160deg,#ffffff,#a8e6ff 40%,#c7b8ff 70%,#ffb8d9)"></i>Sky Isle</button>
         </div>
         <h3>คุณภาพภาพ</h3>
         <select id="qualitySel" class="sel" aria-label="คุณภาพภาพ"></select>

@@ -227,12 +227,12 @@ html[data-theme="neon"] .brand-mark::after { background: radial-gradient(circle,
 .theme-chip i { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
 
 /* ---------- ธีมมุมโค้งมน (ใช้ร่วม: Lanna Night / Monsoon Glass) ---------- */
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: var(--round, 12px) !important; }
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .tabs { clip-path: none; border-radius: calc(var(--round, 12px) + 4px); }
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) :is(.panel, .card) { border-radius: calc(var(--round, 12px) + 4px); }
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .alert-card { clip-path: none; border-radius: 18px; }
-html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .card-h .ico { clip-path: none; border-radius: 50%; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: var(--round, 12px) !important; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) .tabs { clip-path: none; border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) :is(.panel, .card) { border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) .alert-card { clip-path: none; border-radius: 18px; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"], [data-theme="sky"]) .card-h .ico { clip-path: none; border-radius: 50%; }
 
 /* ---------- Lanna Night: ล้านนายามค่ำ ไม้สัก + แสงโคมยี่เป็ง อบอุ่นลึกลับ ---------- */
 html[data-theme="lanna"] {
@@ -366,3 +366,79 @@ html[data-theme="canopy"] .card-h .ico { border-radius: 0 50% 0 50%; }
 .tour-on .sim-fab { width: 46px; height: 46px; }
 .tour-on .sim-fab .ic { width: 24px; height: 24px; }
 @media (max-width: 760px) { .sim-fab { width: 50px; height: 50px; } .sim-fab .ic { width: 26px; height: 26px; } }
+
+/* ---------- Sky Isle: เกาะกลางทะเลยามสาย — แผงโปร่งจางหายเข้าฉาก ตัวหนังสือขาวมีเงานุ่ม หัวข้อแบบจุด + เส้นบาง
+   ปุ่มหกเหลี่ยมขอบขาวเรือง · ชิปมนโปร่ง · ปุ่มที่เลือกเป็นสีขาว · ไฮไลต์พาสเทล (ฟ้า ลาเวนเดอร์ ชมพู) กับสีเหลือง ---------- */
+html[data-theme="sky"] {
+  --bg: #0f1a2d; --panel-solid: #16223a; --line: rgba(255, 255, 255, .16); --text: #ffffff; --dim: #c6d3e4;
+  --jade: #9fe3ff; --cyan: #c7b8ff; --violet: #ffb3d1; --gold: #ffd84a; --rose: #ff6b8a;
+  --grad: linear-gradient(115deg, #a8e6ff, #c7b8ff 50%, #ffb8d9); --grad-soft: linear-gradient(115deg, rgba(168, 230, 255, .2), rgba(255, 184, 217, .16));
+  --edge: linear-gradient(160deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, .18)); --edge-soft: linear-gradient(160deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, .1));
+  --active: linear-gradient(160deg, #ffffff, #e8efff); --on-active: #1b2440; --btn-text: #ffffff; --tab-text: rgba(255, 255, 255, .78); --head: #f2f6ff; --glow: rgba(255, 255, 255, .4);
+  --surface: rgba(20, 30, 50, .5); --panel-bg: linear-gradient(165deg, rgba(24, 36, 58, .55), rgba(14, 22, 38, .42));
+  --topbar-bg: linear-gradient(180deg, rgba(10, 16, 30, .62), rgba(10, 16, 30, .28)); --sheet-bg: linear-gradient(170deg, rgba(26, 38, 62, .82), rgba(12, 20, 36, .9));
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #ffffff, #ffffff);
+  --display: "Nunito", "Prompt", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 12px;
+}
+html[data-theme="sky"], html[data-theme="sky"] body { background: radial-gradient(1200px 700px at 75% -10%, rgba(160, 205, 255, .28), transparent 60%), radial-gradient(900px 600px at 0% 110%, rgba(255, 180, 220, .16), transparent 60%), linear-gradient(180deg, #16243c, #0f1a2d); }
+html[data-theme="sky"] body { font-family: "Prompt", "IBM Plex Sans Thai", system-ui, sans-serif; }
+html[data-theme="sky"] :is(.panel, .card, .sim-panel, .farm-status, .tabs, .zone-label, .toast) { text-shadow: 0 1px 3px rgba(0, 10, 30, .35); }
+/* หัวเว็บโปร่ง ไล่จางลงฉาก */
+html[data-theme="sky"] .topbar { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+html[data-theme="sky"] .topbar::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent); box-shadow: none; opacity: 1; }
+html[data-theme="sky"] .brand-name { font-weight: 800; letter-spacing: .01em; text-shadow: 0 2px 8px rgba(0, 20, 50, .45); }
+html[data-theme="sky"] .brand-sub { color: rgba(255, 255, 255, .65); letter-spacing: .08em; }
+html[data-theme="sky"] .brand-mark::after { background: radial-gradient(circle, #fff, #ffd84a 45%, transparent 70%); box-shadow: 0 0 14px rgba(255, 216, 74, .8); }
+html[data-theme="sky"] .clock { text-shadow: 0 1px 6px rgba(0, 20, 50, .5); }
+/* แท็บ: แคปซูลโปร่ง แท็บที่เลือกเป็นสีขาว */
+html[data-theme="sky"] .tabs { background: rgba(10, 16, 30, .38); border: 1px solid rgba(255, 255, 255, .2); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+html[data-theme="sky"] .tab { font-weight: 700; }
+html[data-theme="sky"] .tab.active { background: rgba(255, 255, 255, .95); color: #1b2440; text-shadow: none; box-shadow: 0 0 16px rgba(255, 255, 255, .35); }
+html[data-theme="sky"] .tab.active .ic { color: #6b5cff; }
+/* แผง: ไม่มีกรอบ ไล่จางหายเข้าฉาก (แผงซ้ายจางไปทางขวา แผงขวาจางไปทางซ้าย) */
+html[data-theme="sky"] :is(.panel, .card) { border: 0; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: none; }
+html[data-theme="sky"] .farm-panel { background: linear-gradient(90deg, rgba(14, 22, 38, .66), rgba(14, 22, 38, .5) 72%, rgba(14, 22, 38, .08)); }
+html[data-theme="sky"] .farm-status { background: linear-gradient(270deg, rgba(14, 22, 38, .66), rgba(14, 22, 38, .5) 70%, rgba(14, 22, 38, .1)); }
+html[data-theme="sky"] :is(.panel, .card)::before { display: none; }
+html[data-theme="sky"] .panel h3, html[data-theme="sky"] .sim-body h4 { text-transform: none; letter-spacing: .02em; font-size: 13.5px; font-weight: 700; color: #f2f6ff; }
+html[data-theme="sky"] .panel h3::before { width: 5px; height: 5px; border-radius: 50%; transform: none; background: #9fe3ff; box-shadow: 0 0 6px rgba(159, 227, 255, .9); }
+html[data-theme="sky"] .panel h3::after { background: linear-gradient(90deg, rgba(255, 255, 255, .38), transparent); }
+html[data-theme="sky"] .farm-status .st { border-bottom: 1px solid rgba(255, 255, 255, .12); }
+html[data-theme="sky"] .farm-status .st span:first-child { color: rgba(255, 255, 255, .78); }
+html[data-theme="sky"] .farm-status .st b { color: #fff; }
+html[data-theme="sky"] .wx-status, html[data-theme="sky"] .tc-kicker { color: #ffd84a; }
+/* ชิป: มนโปร่ง ขอบขาวบาง · ที่เลือกเป็นสีขาวเรือง */
+html[data-theme="sky"] :where(.chip, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .lite-actions button, .lite-actions a, .dialog menu button, .mqtt-form button, #mqttBtn) {
+  background: rgba(255, 255, 255, .1) !important; border: 1px solid rgba(255, 255, 255, .28) !important; color: #fff; font-weight: 700; }
+html[data-theme="sky"] :is(.chip.active, .tour-btn.active) { background: linear-gradient(160deg, #ffffff, #e8efff) !important; color: #1b2440 !important; text-shadow: none; box-shadow: 0 0 14px rgba(255, 255, 255, .45); }
+html[data-theme="sky"] :where(.chip, .tour-btn, .kiosk-btn, .panel-toggle, .card .act):not(.active):hover { background: rgba(255, 255, 255, .2) !important; filter: none; }
+html[data-theme="sky"] .theme-chip i { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .7); }
+html[data-theme="sky"] :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: rgba(10, 16, 30, .55) !important; color: #fff !important; border: 1px solid rgba(255, 255, 255, .25) !important; border-radius: 10px !important; }
+/* ปุ่มด้านขวา: สี่เหลี่ยมมนสีเข้มโปร่ง ไอคอนขาว · ที่เปิดอยู่เป็นสีขาว */
+html[data-theme="sky"] .zoom-ctl button { background: rgba(16, 24, 42, .5) !important; border: 1px solid rgba(255, 255, 255, .24) !important; color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html[data-theme="sky"] .zoom-ctl button.active { background: rgba(255, 255, 255, .94) !important; color: #1b2440; }
+/* ปุ่มจำลอง: หกเหลี่ยมขอบขาวเรือง ข้างในฟ้าไล่สี (แบบการ์ดเลือกโหมดในเกม) */
+html[data-theme="sky"] .sim-fab { width: 62px; height: 56px; border-radius: 0 !important; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%) !important;
+  background: linear-gradient(160deg, #ffffff, #d6e6ff); color: #fff; box-shadow: none; text-shadow: none; }
+html[data-theme="sky"] .sim-fab::before { content: ""; position: absolute; inset: 2.5px; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%);
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, .45), transparent 55%), linear-gradient(170deg, #7fc8f5, #5a7fd6 60%, #6b5cff); }
+html[data-theme="sky"] .sim-fab .ic { position: relative; z-index: 1; }
+html[data-theme="sky"] .tour-on .sim-fab { width: 52px; height: 46px; }
+/* เมนูจำลอง */
+html[data-theme="sky"] .sim-panel { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, .18); }
+html[data-theme="sky"] .sim-btn { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px; }
+html[data-theme="sky"] .sim-btn.on { background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .7); }
+html[data-theme="sky"] .sim-btn.on .sim-state { background: #ffd84a; color: #1b2440; }
+html[data-theme="sky"] .sim-ico { color: #fff !important; background: rgba(10, 16, 30, .45); border-radius: 12px; padding: 6px; }
+html[data-theme="sky"] .sim-body h4::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #9fe3ff; box-shadow: 0 0 6px rgba(159, 227, 255, .9); }
+/* แท็กเล็ก ๆ: แคปซูลเข้ม */
+html[data-theme="sky"] .pill { border-radius: 999px; clip-path: none; background: rgba(10, 16, 30, .6); color: #fff; }
+html[data-theme="sky"] .card-h .ico, html[data-theme="sky"] .hub-grid .card:nth-child(n) .card-h .ico { clip-path: none; border-radius: 12px; color: #fff; background: rgba(10, 16, 30, .45); border-color: rgba(255, 255, 255, .25); }
+html[data-theme="sky"] .zone-label { background: rgba(14, 22, 38, .55); border-color: rgba(255, 255, 255, .45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html[data-theme="sky"] .toast { background: rgba(14, 22, 38, .72) !important; border: 1px solid rgba(255, 255, 255, .22) !important; }
+html[data-theme="sky"] .mini-radar { border-color: rgba(255, 255, 255, .75); box-shadow: 0 0 16px rgba(255, 255, 255, .25); }
+html[data-theme="sky"] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .35); border-radius: 8px; }
+html[data-theme="sky"] input[type=range] { accent-color: #ffffff; }
+html[data-theme="sky"] input[type=checkbox] { accent-color: #9fe3ff; }
+/* Nunito กว้างกว่าฟอนต์อื่น: แท็บเล็ตย่อชื่อแอปลงนิดให้ไม่โดนตัด */
+@media (min-width: 761px) and (max-width: 1100px) { html[data-theme="sky"] .brand-name { font-size: 15px; } html[data-theme="sky"] .tab { padding: 8px 10px; } }
