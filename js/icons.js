@@ -120,12 +120,13 @@ function scan(root) {
 export function initIcons() {
   sprite();
   scan(document.body);
-  let queued = new Set(), timer = 0;
+  let queued = new Set();
   new MutationObserver(list => {
     for (const m of list) {
       if (m.type === 'childList') m.addedNodes.forEach(n => queued.add(n.nodeType === 3 ? n.parentElement : n));
       else if (m.type === 'characterData') queued.add(m.target.parentElement);
     }
-    if (!timer) timer = requestAnimationFrame(() => { timer = 0; const q = queued; queued = new Set(); q.forEach(n => n && scan(n.closest?.(SEL) || n)); });
+    // แปลงทันทีใน callback (ทำงานก่อนเบราว์เซอร์วาดภาพ) → ไม่เห็นอีโมจิโผล่ 1 เฟรมก่อนเปลี่ยนเป็นไอคอน (ที่ทำให้ดูกระพริบ)
+    const q = queued; queued = new Set(); q.forEach(n => n && n.isConnected && scan(n.closest?.(SEL) || n));
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 }

@@ -14,7 +14,19 @@ import { MiniRadar } from './miniradar.js';
 import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 import { Fishermen } from './fishermen.js';
 import { Simulator } from './simulate.js';
-initIcons(); // ไอคอนเส้นวาดเองแทนอีโมจิ (ธีม Aether)
+initIcons(); // ไอคอนเส้นวาดเองแทนอีโมจิ
+// เลือกธีม (Aether / Siam Mystic / Solar Punk / Neon Cyber) — จำไว้ในเครื่อง
+{
+  const chips = document.querySelectorAll('[data-theme-pick]');
+  const mark = () => { const cur = document.documentElement.getAttribute('data-theme') || 'aether'; chips.forEach(c => c.classList.toggle('active', c.dataset.themePick === cur)); };
+  chips.forEach(c => c.addEventListener('click', () => {
+    const t = c.dataset.themePick;
+    if (t === 'aether') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('theme', t); } catch {}
+    mark();
+  }));
+  mark();
+}
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);

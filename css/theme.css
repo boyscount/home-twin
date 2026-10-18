@@ -11,31 +11,39 @@
   --grad: linear-gradient(115deg, var(--jade), var(--cyan) 48%, var(--violet));
   --grad-soft: linear-gradient(115deg, rgba(61, 242, 180, .22), rgba(90, 215, 255, .16) 50%, rgba(169, 139, 255, .2));
   --cut: 9px;
+  --edge: linear-gradient(115deg, rgba(61, 242, 180, .55), rgba(90, 215, 255, .35) 50%, rgba(169, 139, 255, .55));
+  --edge-soft: linear-gradient(135deg, rgba(61, 242, 180, .4), rgba(90, 215, 255, .18) 55%, rgba(169, 139, 255, .4));
+  --active: linear-gradient(115deg, var(--jade), var(--cyan)); --on-active: #04121a;
+  --btn-text: #dbe9fb; --tab-text: #9db0c9; --head: #9fd8ff; --glow: rgba(90, 215, 255, .45);
+  --surface: rgba(12, 20, 38, .92); --panel-bg: linear-gradient(160deg, rgba(14, 24, 44, .8), rgba(7, 12, 24, .78));
+  --topbar-bg: linear-gradient(180deg, rgba(12, 20, 38, .96), rgba(6, 10, 19, .94)); --sheet-bg: linear-gradient(170deg, rgba(14, 22, 42, .97), rgba(7, 11, 22, .98));
+  --bracket1: var(--jade); --bracket2: var(--violet); --brand-grad: linear-gradient(90deg, #fff, #bdf7e3 60%, var(--cyan));
   --display: "Chakra Petch", "IBM Plex Sans Thai", system-ui, sans-serif;
 }
 html, body { background: radial-gradient(1200px 600px at 15% -10%, rgba(61, 242, 180, .08), transparent 60%), radial-gradient(900px 500px at 100% 0%, rgba(169, 139, 255, .1), transparent 60%), var(--bg); }
 
 /* ---------- ไอคอน ---------- */
-.ic { width: 1.18em; height: 1.18em; flex: none; vertical-align: -.24em; margin-right: .42em; filter: drop-shadow(0 0 5px color-mix(in srgb, currentColor 55%, transparent)); }
+/* ไม่ใส่ filter เรืองแสงที่ไอคอน: filter บน SVG เล็ก ๆ ที่ลอยเหนือฉาก 3D (วาดใหม่ทุกเฟรม) ทำให้กระพริบบนบางเครื่อง */
+.ic { width: 1.18em; height: 1.18em; flex: none; vertical-align: -.24em; margin-right: .42em; }
 button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-right: 0; }
 .sim-ico .ic, .card-h .ico .ic { margin: 0; width: 26px; height: 26px; }
 
 /* ---------- แถบบน ---------- */
-.topbar { background: linear-gradient(180deg, rgba(12, 20, 38, .96), rgba(6, 10, 19, .94)); border-bottom: 0; }
+.topbar { background: var(--topbar-bg); border-bottom: 0; }
 .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--grad); opacity: .65; box-shadow: 0 0 12px rgba(90, 215, 255, .5); }
 .brand-mark { font-size: 0; width: 30px; height: 30px; position: relative; flex: none; }
 .brand-mark::before, .brand-mark::after { content: ""; position: absolute; inset: 0; border-radius: 50%; }
 .brand-mark::before { border: 1.6px solid transparent; background: var(--grad) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spin 9s linear infinite; }
 .brand-mark::after { inset: 8px; background: radial-gradient(circle, #fff, var(--jade) 45%, transparent 70%); box-shadow: 0 0 14px var(--jade); }
 @keyframes spin { to { transform: rotate(360deg); } }
-.brand-name { font-family: var(--display); font-weight: 700; letter-spacing: .02em; background: linear-gradient(90deg, #fff, #bdf7e3 60%, var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand-name { font-family: var(--display); font-weight: 700; letter-spacing: .02em; background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .brand-sub { font-family: var(--display); letter-spacing: .14em; text-transform: uppercase; font-size: 10px; color: #7f97b5; }
-.clock { font-family: var(--display); font-weight: 600; letter-spacing: .08em; color: #dff6ff; text-shadow: 0 0 10px rgba(90, 215, 255, .45); }
+.clock { font-family: var(--display); font-weight: 600; letter-spacing: .08em; color: var(--text); text-shadow: 0 0 10px var(--glow); }
 
 /* แท็บ: แถบโฮโลแกรม มุมตัด แท็บที่เลือกมีเส้นเรืองแสงด้านล่าง */
 .tabs { background: rgba(8, 14, 27, .7); border: 1px solid var(--line); border-radius: 0; padding: 4px; gap: 2px;
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
-.tab { font-family: var(--display); font-weight: 600; letter-spacing: .02em; border-radius: 0; color: #9db0c9; padding: 8px 18px; transition: color .2s, background .2s;
+.tab { font-family: var(--display); font-weight: 600; letter-spacing: .02em; border-radius: 0; color: var(--tab-text); padding: 8px 18px; transition: color .2s, background .2s;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .tab:hover { color: #fff; background: rgba(90, 215, 255, .07); }
 .tab.active { background: var(--grad-soft); color: #fff; box-shadow: inset 0 -2px 0 var(--jade), inset 0 0 18px rgba(61, 242, 180, .18); }
@@ -45,8 +53,8 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
 /* ---------- ปุ่มทั่วไป: มุมตัดเฉียง + ขอบไล่สี + แสงกวาดตอน hover ---------- */
 .chip, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .lite-actions button, .lite-actions a, .dialog menu button, .mqtt-form button, #mqttBtn {
   font-family: var(--display); font-weight: 600; letter-spacing: .01em; border-radius: 0 !important; position: relative; overflow: hidden;
-  border: 1px solid transparent !important; color: #dbe9fb;
-  background: linear-gradient(var(--panel-solid), var(--panel-solid)) padding-box, linear-gradient(115deg, rgba(61, 242, 180, .55), rgba(90, 215, 255, .35) 50%, rgba(169, 139, 255, .55)) border-box !important;
+  border: 1px solid transparent !important; color: var(--btn-text);
+  background: linear-gradient(var(--panel-solid), var(--panel-solid)) padding-box, var(--edge) border-box !important;
   clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
   transition: color .2s, filter .2s, transform .12s;
 }
@@ -59,7 +67,7 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
 .chip:hover, .tour-btn:hover, .kiosk-btn:hover, .panel-toggle:hover, .card .act:hover { color: #fff; filter: brightness(1.15); }
 .chip:active, .tour-btn:active, .sim-btn:active, .zoom-ctl button:active { transform: scale(.97); }
 .chip.active, .tour-btn.active {
-  color: #04121a !important; background: linear-gradient(115deg, var(--jade), var(--cyan)) padding-box, var(--grad) border-box !important;
+  color: var(--on-active) !important; background: var(--active) padding-box, var(--grad) border-box !important;
   box-shadow: 0 0 18px rgba(61, 242, 180, .35);
 }
 .chip.active .ic, .tour-btn.active .ic { filter: none; }
@@ -68,16 +76,15 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
 .kiosk-btn { color: #cfe3ff; }
 
 /* ---------- แผง: กระจก + วงเล็บมุม HUD ---------- */
-.panel, .card { background: linear-gradient(160deg, rgba(14, 24, 44, .8), rgba(7, 12, 24, .78)); border: 1px solid var(--line); border-radius: 4px; position: absolute; }
+.panel, .card { background: var(--panel-bg); border: 1px solid var(--line); border-radius: 4px; position: absolute; }
 .card { position: relative; }
 .panel::before, .card::before, .sim-panel::before, .alert-card::before {
   content: ""; position: absolute; inset: -1px; pointer-events: none;
   background:
-    linear-gradient(var(--jade), var(--jade)) top left / 18px 2px no-repeat, linear-gradient(var(--jade), var(--jade)) top left / 2px 18px no-repeat,
-    linear-gradient(var(--violet), var(--violet)) bottom right / 18px 2px no-repeat, linear-gradient(var(--violet), var(--violet)) bottom right / 2px 18px no-repeat;
-  filter: drop-shadow(0 0 4px rgba(90, 215, 255, .6));
+    linear-gradient(var(--bracket1), var(--bracket1)) top left / 18px 2px no-repeat, linear-gradient(var(--bracket1), var(--bracket1)) top left / 2px 18px no-repeat,
+    linear-gradient(var(--bracket2), var(--bracket2)) bottom right / 18px 2px no-repeat, linear-gradient(var(--bracket2), var(--bracket2)) bottom right / 2px 18px no-repeat;
 }
-.panel h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .16em; font-size: 11.5px; color: #9fd8ff; display: flex; align-items: center; gap: 8px; }
+.panel h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .16em; font-size: 11.5px; color: var(--head); display: flex; align-items: center; gap: 8px; }
 .panel h3::before { content: ""; width: 7px; height: 7px; background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 8px var(--gold); flex: none; }
 .panel h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(126, 214, 255, .35), transparent); }
 .farm-status .st { border-bottom: 1px solid rgba(126, 214, 255, .1); }
@@ -85,12 +92,12 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
 
 /* ---------- ปุ่มซูมด้านขวา: แท่งปุ่มมุมตัด ---------- */
 .zoom-ctl button {
-  border-radius: 0; color: #d7ecff; font-size: 18px; position: relative; overflow: hidden;
-  border: 1px solid transparent; background: linear-gradient(rgba(10, 17, 32, .86), rgba(10, 17, 32, .86)) padding-box, linear-gradient(140deg, rgba(90, 215, 255, .6), rgba(169, 139, 255, .45)) border-box;
+  border-radius: 0; color: var(--btn-text); font-size: 18px; position: relative; overflow: hidden;
+  border: 1px solid transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--edge) border-box;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
 .zoom-ctl button:hover { color: #fff; }
-.zoom-ctl button.active, .zoom-ctl button:active { color: #04121a; background: linear-gradient(140deg, var(--jade), var(--cyan)) padding-box, var(--grad) border-box; }
+.zoom-ctl button.active, .zoom-ctl button:active { color: var(--on-active); background: var(--active) padding-box, var(--grad) border-box; }
 .zoom-ctl button.active .ic, .zoom-ctl button:active .ic { filter: none; }
 
 /* ---------- ปุ่มจำลอง (FAB): ผลึกพลังงาน ---------- */
@@ -99,18 +106,16 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
   background: linear-gradient(115deg, #6f5cff, #2fb7ff 55%, #2ff2b8);
   clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   box-shadow: 0 10px 30px rgba(60, 120, 255, .45); text-shadow: 0 1px 6px rgba(0, 0, 0, .35);
-  animation: fabGlow 3.2s ease-in-out infinite;
 }
-@keyframes fabGlow { 50% { filter: brightness(1.15) saturate(1.15); } }
 
 /* ---------- เมนูจำลอง ---------- */
-.sim-panel { background: linear-gradient(170deg, rgba(14, 22, 42, .97), rgba(7, 11, 22, .98)); border: 1px solid var(--line); border-radius: 0; position: relative;
+.sim-panel { background: var(--sheet-bg); border: 1px solid var(--line); border-radius: 0; position: relative;
   clip-path: polygon(22px 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%, 0 22px); }
 .sim-head b { font-family: var(--display); font-size: 17px; letter-spacing: .03em; display: inline-flex; align-items: center; }
-.sim-body h4 { font-family: var(--display); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; color: #9fd8ff; display: flex; align-items: center; gap: 6px; }
+.sim-body h4 { font-family: var(--display); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; color: var(--head); display: flex; align-items: center; gap: 6px; }
 .sim-btn {
   border-radius: 0; overflow: hidden; border: 1px solid transparent;
-  background: linear-gradient(rgba(12, 20, 38, .92), rgba(12, 20, 38, .92)) padding-box, linear-gradient(135deg, rgba(61, 242, 180, .4), rgba(90, 215, 255, .18) 55%, rgba(169, 139, 255, .4)) border-box;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--edge-soft) border-box;
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); transition: filter .2s, transform .12s;
 }
 .sim-btn:hover { filter: brightness(1.2); }
@@ -119,7 +124,7 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
 .sim-btn:nth-child(3n) .sim-ico { color: var(--violet); }
 .sim-label { font-size: 13px; }
 .sim-btn.on { background: linear-gradient(rgba(16, 40, 44, .95), rgba(16, 40, 44, .95)) padding-box, var(--grad) border-box; }
-.sim-btn.on .sim-state { background: var(--jade); color: #04121a; }
+.sim-btn.on .sim-state { background: var(--jade); color: var(--on-active); }
 .sim-close { border-radius: 0 !important; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
 
 /* ---------- การ์ดแจ้งเตือนคนแปลกหน้า: โฮโลแกรมแดง ---------- */
@@ -130,7 +135,7 @@ button > .ic:only-child, .zoom-ctl .ic, .ac-close .ic, .sim-close .ic { margin-r
     linear-gradient(var(--gold), var(--gold)) bottom right / 22px 2px no-repeat, linear-gradient(var(--gold), var(--gold)) bottom right / 2px 22px no-repeat; }
 .ac-title { font-family: var(--display); letter-spacing: .03em; }
 .ac-actions button { font-family: var(--display); border-radius: 0; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
-.ac-radar { background: linear-gradient(115deg, var(--jade), var(--cyan)); color: #04121a; }
+.ac-radar { background: var(--active); color: var(--on-active); }
 .ac-ok { background: linear-gradient(115deg, #1fae74, #1a8a6a); }
 .ac-bad { background: linear-gradient(115deg, #ff4f6d, #c2185b); box-shadow: 0 0 14px rgba(255, 79, 109, .5); }
 .ac-close { border-radius: 0; background: rgba(255, 255, 255, .1); }
@@ -164,3 +169,84 @@ input[type=checkbox] { accent-color: var(--jade); }
 .tc-title { font-family: var(--display); letter-spacing: .02em; text-shadow: 0 0 18px rgba(90, 215, 255, .35); }
 .tc-title .ic { color: var(--cyan); }
 .tc-bar { border-radius: 0 !important; } .tc-bar i { background: var(--grad) !important; box-shadow: 0 0 10px rgba(90, 215, 255, .6); border-radius: 0 !important; }
+
+/* ============================================================================
+   ธีมอื่น ๆ (สลับได้ที่แผงควบคุม → ธีม หรือใส่ ?theme=siam|solar|neon ท้ายลิงก์)
+   ========================================================================== */
+
+/* ---------- Siam Mystic: มรกตเข้ม + ทองไทย หรูแบบแฟนตาซีไทย ---------- */
+html[data-theme="siam"] {
+  --bg: #06110d; --panel-solid: #0a1a14; --line: rgba(233, 196, 106, .22); --text: #f6edd7; --dim: #b8aa8b;
+  --jade: #4fd1a1; --cyan: #f0c96a; --violet: #c98b3a; --gold: #f4d27a; --rose: #e2574c;
+  --grad: linear-gradient(115deg, #f4d27a, #e2a83e 50%, #4fd1a1); --grad-soft: linear-gradient(115deg, rgba(244, 210, 122, .2), rgba(79, 209, 161, .14));
+  --edge: linear-gradient(115deg, rgba(244, 210, 122, .75), rgba(201, 139, 58, .45) 50%, rgba(79, 209, 161, .45)); --edge-soft: linear-gradient(135deg, rgba(244, 210, 122, .5), rgba(79, 209, 161, .22));
+  --active: linear-gradient(115deg, #f7dc8e, #e2a83e); --on-active: #1d1404; --btn-text: #f3e6c4; --tab-text: #c9b98f; --head: #f4d27a; --glow: rgba(244, 210, 122, .45);
+  --surface: rgba(10, 26, 20, .93); --panel-bg: linear-gradient(160deg, rgba(14, 34, 26, .86), rgba(6, 16, 12, .82));
+  --topbar-bg: linear-gradient(180deg, rgba(12, 30, 23, .97), rgba(5, 14, 10, .95)); --sheet-bg: linear-gradient(170deg, rgba(14, 32, 25, .97), rgba(6, 15, 11, .98));
+  --bracket1: #f4d27a; --bracket2: #f4d27a; --brand-grad: linear-gradient(90deg, #fff4d6, #f4d27a 55%, #e2a83e); --cut: 12px;
+}
+html[data-theme="siam"] .brand-name { font-family: "Charmonman", var(--display); font-size: 22px; letter-spacing: 0; }
+html[data-theme="siam"] .tab.active { box-shadow: inset 0 -2px 0 var(--gold), inset 0 0 18px rgba(244, 210, 122, .16); }
+html[data-theme="siam"] .tab.active .ic, html[data-theme="siam"] .sim-ico, html[data-theme="siam"] .card-h .ico { color: var(--gold); }
+html[data-theme="siam"] .sim-fab { background: linear-gradient(115deg, #8a5a14, #e2a83e 55%, #f7dc8e); color: #1d1404; text-shadow: none; box-shadow: 0 10px 30px rgba(226, 168, 62, .4); }
+html[data-theme="siam"] .panel h3::before { background: var(--jade); box-shadow: 0 0 8px var(--jade); }
+html[data-theme="siam"] .brand-mark::after { background: radial-gradient(circle, #fff, var(--gold) 45%, transparent 70%); box-shadow: 0 0 14px var(--gold); }
+
+/* ---------- Solar Punk: สว่าง สีครีม + เขียวใบไม้ + ส้มดินเผา มุมโค้งมน อ่านง่ายกลางแดด ---------- */
+html[data-theme="solar"] {
+  --bg: #eef1e6; --panel-solid: #fbf8ef; --line: rgba(60, 90, 60, .18); --text: #1e3326; --dim: #5d7466;
+  --jade: #2f9e6b; --cyan: #3c8dbc; --violet: #d9822b; --gold: #e0a83c; --rose: #d64545;
+  --grad: linear-gradient(115deg, #2f9e6b, #7cb342 50%, #e0a83c); --grad-soft: linear-gradient(115deg, rgba(47, 158, 107, .16), rgba(224, 168, 60, .14));
+  --edge: linear-gradient(115deg, rgba(47, 158, 107, .4), rgba(224, 168, 60, .4)); --edge-soft: linear-gradient(135deg, rgba(47, 158, 107, .28), rgba(224, 168, 60, .28));
+  --active: linear-gradient(115deg, #2f9e6b, #5bb36f); --on-active: #ffffff; --btn-text: #24402f; --tab-text: #4f6a58; --head: #2f7a55; --glow: rgba(47, 158, 107, .2);
+  --surface: rgba(251, 248, 239, .96); --panel-bg: linear-gradient(160deg, rgba(253, 251, 244, .94), rgba(240, 238, 226, .92));
+  --topbar-bg: linear-gradient(180deg, #fbf8ef, #eef0e2); --sheet-bg: linear-gradient(170deg, #fdfbf4, #eff0e4);
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #1e5b3c, #2f9e6b);
+  --display: "Mitr", "IBM Plex Sans Thai", system-ui, sans-serif;
+}
+html[data-theme="solar"] :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: 12px !important; }
+html[data-theme="solar"] :is(.tabs, .chip, .tab, .sim-fab, .kiosk-btn, .panel-toggle, .pill) { border-radius: 999px !important; }
+html[data-theme="solar"] .tabs { clip-path: none; background: rgba(255, 255, 255, .6); }
+html[data-theme="solar"] :is(.panel, .card) { border-radius: 16px; box-shadow: 0 8px 24px rgba(40, 60, 40, .12); }
+html[data-theme="solar"] .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
+html[data-theme="solar"] .tab.active { box-shadow: none; background: var(--active); color: #fff; }
+html[data-theme="solar"] .tab.active .ic { color: #fff; }
+html[data-theme="solar"] .topbar::after { opacity: .35; box-shadow: none; }
+html[data-theme="solar"] .brand-sub { color: #6f8476; }
+html[data-theme="solar"] .clock { text-shadow: none; }
+html[data-theme="solar"] .zone-label { background: rgba(255, 255, 255, .92); color: var(--text); border-color: rgba(47, 158, 107, .45); }
+html[data-theme="solar"] .sim-fab { background: linear-gradient(115deg, #2f9e6b, #7cb342 55%, #e0a83c); box-shadow: 0 8px 22px rgba(47, 158, 107, .35); }
+html[data-theme="solar"] .panel h3::before { background: var(--violet); box-shadow: none; border-radius: 50%; transform: none; }
+html[data-theme="solar"] .panel h3::after { background: linear-gradient(90deg, rgba(47, 158, 107, .35), transparent); }
+html[data-theme="solar"] .brand-mark::before { animation-duration: 20s; }
+html[data-theme="solar"] .brand-mark::after { background: radial-gradient(circle, #fff7d6, #e0a83c 45%, transparent 70%); box-shadow: 0 0 10px rgba(224, 168, 60, .6); }
+html[data-theme="solar"] .card-h .ico { border-radius: 50%; clip-path: none; color: var(--jade); }
+html[data-theme="solar"] .mini-radar { border-color: rgba(47, 158, 107, .6); }
+
+html[data-theme="solar"] :is(.chip, .kiosk-btn, .tour-btn, .panel-toggle, .card .act, .zoom-ctl button) { color: var(--btn-text) !important; }
+html[data-theme="solar"] :is(.chip.active, .tour-btn.active, .zoom-ctl button.active) { color: #fff !important; }
+html[data-theme="solar"] :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: #fff !important; color: var(--text) !important; border: 1px solid rgba(60, 90, 60, .25) !important; }
+html[data-theme="solar"] .tour-btn { color: var(--jade) !important; }
+
+/* ---------- Neon Cyber: ดำ + ชมพู/ฟ้านีออน มุมคมกริบ ไซไฟจัด ---------- */
+html[data-theme="neon"] {
+  --bg: #05040a; --panel-solid: #0b0912; --line: rgba(255, 62, 165, .24); --text: #f4eaff; --dim: #a493b8;
+  --jade: #00f0ff; --cyan: #00f0ff; --violet: #ff3ea5; --gold: #ffe14d; --rose: #ff3ea5;
+  --grad: linear-gradient(115deg, #00f0ff, #ff3ea5); --grad-soft: linear-gradient(115deg, rgba(0, 240, 255, .18), rgba(255, 62, 165, .18));
+  --edge: linear-gradient(115deg, #00f0ff, #ff3ea5); --edge-soft: linear-gradient(135deg, rgba(0, 240, 255, .6), rgba(255, 62, 165, .6));
+  --active: linear-gradient(115deg, #00f0ff, #ff3ea5); --on-active: #05040a; --btn-text: #f0e6ff; --tab-text: #b8a6d6; --head: #00f0ff; --glow: rgba(255, 62, 165, .5);
+  --surface: rgba(11, 9, 18, .94); --panel-bg: linear-gradient(160deg, rgba(16, 12, 28, .9), rgba(6, 5, 12, .88));
+  --topbar-bg: linear-gradient(180deg, #0d0a18, #05040a); --sheet-bg: linear-gradient(170deg, #100c1e, #05040a);
+  --bracket1: #00f0ff; --bracket2: #ff3ea5; --brand-grad: linear-gradient(90deg, #00f0ff, #ff3ea5); --cut: 4px;
+}
+html[data-theme="neon"] :is(.tab, .chip, .panel h3, .sim-body h4) { text-transform: uppercase; letter-spacing: .08em; }
+html[data-theme="neon"] :is(.panel, .card)::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px); }
+html[data-theme="neon"] .tab.active { box-shadow: inset 0 -2px 0 #ff3ea5, inset 0 0 18px rgba(255, 62, 165, .2); }
+html[data-theme="neon"] .tab.active .ic, html[data-theme="neon"] .sim-btn:nth-child(3n) .sim-ico { color: #ff3ea5; }
+html[data-theme="neon"] .sim-fab { background: linear-gradient(115deg, #ff3ea5, #7b2cff 55%, #00f0ff); box-shadow: 0 0 24px rgba(255, 62, 165, .55); }
+html[data-theme="neon"] .panel h3::before { background: #ff3ea5; box-shadow: 0 0 8px #ff3ea5; }
+html[data-theme="neon"] .brand-mark::after { background: radial-gradient(circle, #fff, #ff3ea5 45%, transparent 70%); box-shadow: 0 0 14px #ff3ea5; }
+
+/* ปุ่มเลือกธีม (ตัวอย่างสีในปุ่ม) */
+.theme-chip { display: inline-flex; align-items: center; gap: 6px; }
+.theme-chip i { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
