@@ -14,7 +14,7 @@ import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
 import { freezeStatic } from './freeze.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeHuman, animateWalk, animateIdle } from './human.js';
+import { makeHuman, animateWalk, animateIdle, SKIN_MAT } from './human.js';
 import { makePig, makeChicken, makeFish, makeCat, makeDog } from './animals.js';
 import { FOL, windU, makeFoliageTextures, leafMaterial, canopyGeometry, frondGeometry } from './foliage.js';
 
@@ -1564,6 +1564,18 @@ export class Farm3D {
     this.scene.add(im, tr);
   }
 
+  async swapDad(r) {
+    const old = this.dad.h, g = old.group;
+    try { await this.renderer.compileAsync(r.mesh, this.camera, this.scene); } catch { /* วาดตรง ๆ ก็ได้ */ }
+    // ของที่ติดตัวพ่อ (ถังอาหาร, ไฟฉายคาดหัว) ย้ายไปไว้บนกระดูกใหม่ — ไฟฉายขยับไปอยู่บนยอดหมวกตามโมเดล
+    r.bones.armR.add(this.dad.bucket);
+    const shift = new THREE.Vector3(0, 0.25, -0.08);
+    for (const c of [...old.head.children]) { if (c.isMesh && c.material === SKIN_MAT) continue; c.position.add(shift); r.head.add(c); }
+    for (const c of [...g.children]) if ((c.isMesh && c.material === SKIN_MAT) || [old.legL, old.legR, old.armL, old.armR, old.head].includes(c)) g.remove(c);
+    g.add(r.mesh);
+    for (const k of ['legL', 'legR', 'armL', 'armR', 'head', 'kneeL', 'kneeR', 'elbowL', 'elbowR']) old[k] = r[k];
+  }
+
   buildCharacters() {
     // พ่อ
     const dad = makeHuman({ shirt: '#4d6b8a', pants: '#3a3226', hat: 'straw', skin: '#a8714a' });
@@ -1587,6 +1599,8 @@ export class Farm3D {
     const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: '#fff1c4', alphaMap: new THREE.CanvasTexture(bc), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     beam.position.set(0, 0.06, 0.16); beam.renderOrder = 3; beam.castShadow = false; dad.head.add(beam);
     this.headlamp = { light: lamp, mat: lampM, beam };
+    // พ่อตัวจริงจากโมเดล 3D (Hunyuan3D + ใส่กระดูกด้วยโค้ด) — โหลดตามหลัง ระหว่างนั้นใช้พ่อแบบปั้นด้วยโค้ดไปก่อน
+    if (!this.lite) import('./rigged.js').then(m => m.loadRiggedHuman('models/dad.glb')).then(r => this.swapDad(r)).catch(e => console.warn('dad model', e));
     this.dadAct = 'free'; this.dadActId = 0; this.tapState = { col: 9, row: 0, tapped: 0, latex: 0 }; this.familyAsleep = false; this.sleepers = new Set();
     this.entities.push({ id: 'H-DAD', type: 'human', label: 'พ่อ', resident: true, obj: dad.group, h: dad });
     // แม่ในบ้าน
