@@ -227,12 +227,12 @@ html[data-theme="neon"] .brand-mark::after { background: radial-gradient(circle,
 .theme-chip i { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
 
 /* ---------- ธีมมุมโค้งมน (ใช้ร่วม: Lanna Night / Monsoon Glass) ---------- */
-html:is([data-theme="lanna"], [data-theme="monsoon"]) :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: var(--round, 12px) !important; }
-html:is([data-theme="lanna"], [data-theme="monsoon"]) .tabs { clip-path: none; border-radius: calc(var(--round, 12px) + 4px); }
-html:is([data-theme="lanna"], [data-theme="monsoon"]) :is(.panel, .card) { border-radius: calc(var(--round, 12px) + 4px); }
-html:is([data-theme="lanna"], [data-theme="monsoon"]) .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
-html:is([data-theme="lanna"], [data-theme="monsoon"]) .alert-card { clip-path: none; border-radius: 18px; }
-html:is([data-theme="lanna"], [data-theme="monsoon"]) .card-h .ico { clip-path: none; border-radius: 50%; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: var(--round, 12px) !important; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .tabs { clip-path: none; border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) :is(.panel, .card) { border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .alert-card { clip-path: none; border-radius: 18px; }
+html:is([data-theme="lanna"], [data-theme="monsoon"], [data-theme="jade"], [data-theme="canopy"]) .card-h .ico { clip-path: none; border-radius: 50%; }
 
 /* ---------- Lanna Night: ล้านนายามค่ำ ไม้สัก + แสงโคมยี่เป็ง อบอุ่นลึกลับ ---------- */
 html[data-theme="lanna"] {
@@ -257,7 +257,7 @@ html[data-theme="lanna"] .brand-mark::before { animation-duration: 16s; }
 html[data-theme="lanna"] .brand-mark::after { background: radial-gradient(circle, #fff3d6, #ffb35a 45%, transparent 72%); box-shadow: 0 0 18px #ff9a3c; }
 html[data-theme="lanna"] .topbar::after { box-shadow: 0 0 14px rgba(255, 150, 60, .6); }
 
-/* ---------- Monsoon Glass: หน้าฝน เมฆเทาฟ้า กระจกฝ้าเบลอ เม็ดฝนเรืองแสงสีฟ้าน้ำทะเล ---------- */
+/* ---------- Monsoon Glass (กระจกฝ้า ใช้ร่วมกับ Jade Rain Glass): หน้าฝน เมฆเทาฟ้า กระจกฝ้าเบลอ เม็ดฝนเรืองแสงสีฟ้าน้ำทะเล ---------- */
 html[data-theme="monsoon"] {
   --bg: #0b141c; --panel-solid: #142230; --line: rgba(200, 230, 255, .2); --text: #eef6fb; --dim: #a6bccb;
   --jade: #6fe3d6; --cyan: #8ecbff; --violet: #9fb3c8; --gold: #cfe8ff; --rose: #ff7a8a;
@@ -270,19 +270,74 @@ html[data-theme="monsoon"] {
   --display: "Bai Jamjuree", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 14px;
 }
 /* กระจกฝ้า: เบลอฉากหลังแรง ๆ + ขอบบนสว่างเหมือนแสงลอดเมฆ */
-html[data-theme="monsoon"] :is(.panel, .card, .topbar, .tabs, .sim-panel, .chip, .tab, .kiosk-btn, .panel-toggle, .sim-btn, .zoom-ctl button, .tour-btn) { -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); }
-html[data-theme="monsoon"] :is(.panel, .card) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 12px 32px rgba(0, 10, 20, .35); }
+html:is([data-theme="monsoon"], [data-theme="jade"]) :is(.panel, .card, .topbar, .tabs, .sim-panel, .chip, .tab, .kiosk-btn, .panel-toggle, .sim-btn, .zoom-ctl button, .tour-btn) { -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); }
+html:is([data-theme="monsoon"], [data-theme="jade"]) :is(.panel, .card) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 12px 32px rgba(0, 10, 20, .35); }
 /* สายฝนจาง ๆ ไหลเฉียงในแผง */
-html[data-theme="monsoon"] :is(.panel, .card)::before { inset: 0; border-radius: inherit; background: repeating-linear-gradient(105deg, transparent 0 14px, rgba(200, 235, 255, .045) 14px 15px, transparent 15px 31px); filter: none; }
-html[data-theme="monsoon"] .tab.active { background: rgba(255, 255, 255, .14); box-shadow: inset 0 -2px 0 #8ecbff, inset 0 1px 0 rgba(255, 255, 255, .3); }
+html:is([data-theme="monsoon"], [data-theme="jade"]) :is(.panel, .card)::before { inset: 0; border-radius: inherit; background: repeating-linear-gradient(105deg, transparent 0 14px, rgba(200, 235, 255, .045) 14px 15px, transparent 15px 31px); filter: none; }
+html:is([data-theme="monsoon"], [data-theme="jade"]) .tab.active { background: rgba(255, 255, 255, .14); box-shadow: inset 0 -2px 0 #8ecbff, inset 0 1px 0 rgba(255, 255, 255, .3); }
 html[data-theme="monsoon"] .tab.active .ic, html[data-theme="monsoon"] .sim-ico, html[data-theme="monsoon"] .card-h .ico { color: #8ecbff; }
 html[data-theme="monsoon"] .sim-btn:nth-child(3n+2) .sim-ico { color: #6fe3d6; }
 html[data-theme="monsoon"] .sim-btn:nth-child(3n) .sim-ico { color: #cfe8ff; }
 html[data-theme="monsoon"] .sim-fab { background: linear-gradient(160deg, rgba(255, 255, 255, .9), rgba(142, 203, 255, .85) 55%, rgba(111, 227, 214, .9)); color: #0b1a26; text-shadow: none; box-shadow: inset 0 1px 0 #fff, 0 10px 28px rgba(80, 160, 220, .4); }
 html[data-theme="monsoon"] .panel h3::before { background: #8ecbff; box-shadow: 0 0 8px #8ecbff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }
 html[data-theme="monsoon"] .panel h3::after { background: linear-gradient(90deg, rgba(200, 235, 255, .35), transparent); }
-html[data-theme="monsoon"] .brand-mark::before { animation-duration: 12s; }
+html:is([data-theme="monsoon"], [data-theme="jade"]) .brand-mark::before { animation-duration: 12s; }
 html[data-theme="monsoon"] .brand-mark::after { background: radial-gradient(circle, #fff, #8ecbff 45%, transparent 70%); box-shadow: 0 0 14px #6fe3d6; }
 html[data-theme="monsoon"] .topbar::after { box-shadow: 0 0 10px rgba(142, 203, 255, .5); }
 html[data-theme="monsoon"] .zone-label { background: rgba(20, 34, 48, .55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-html[data-theme="monsoon"] :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: rgba(10, 20, 30, .45) !important; border-color: rgba(200, 230, 255, .25) !important; color: var(--text) !important; }
+html:is([data-theme="monsoon"], [data-theme="jade"]) :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: rgba(10, 20, 30, .45) !important; border-color: rgba(200, 230, 255, .25) !important; color: var(--text) !important; }
+
+/* ---------- Jade Rain Glass: กระจกฝ้าแบบ Monsoon แต่โทนเขียวหยก ฝนในสวนยาง ---------- */
+html[data-theme="jade"] {
+  --bg: #08140f; --panel-solid: #12251c; --line: rgba(200, 255, 225, .2); --text: #eefaf3; --dim: #a3c2b2;
+  --jade: #5fe0a8; --cyan: #9ef0c8; --violet: #a7c9b5; --gold: #d8f5c8; --rose: #ff7a8a;
+  --grad: linear-gradient(115deg, #f0fff6, #9ef0c8 45%, #3fbf8a); --grad-soft: linear-gradient(115deg, rgba(240, 255, 246, .16), rgba(63, 191, 138, .16));
+  --edge: linear-gradient(160deg, rgba(255, 255, 255, .55), rgba(158, 240, 200, .2) 45%, rgba(63, 191, 138, .35)); --edge-soft: linear-gradient(160deg, rgba(255, 255, 255, .35), rgba(158, 240, 200, .12));
+  --active: linear-gradient(115deg, rgba(240, 255, 246, .95), rgba(140, 230, 185, .92)); --on-active: #08201a; --btn-text: #e4f6ec; --tab-text: #a6c7b6; --head: #b8f0d2; --glow: rgba(95, 224, 168, .35);
+  --surface: rgba(24, 52, 40, .42); --panel-bg: linear-gradient(165deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03) 40%, rgba(14, 36, 26, .32));
+  --topbar-bg: linear-gradient(180deg, rgba(18, 42, 32, .62), rgba(8, 22, 16, .5)); --sheet-bg: linear-gradient(170deg, rgba(26, 58, 44, .7), rgba(8, 22, 16, .78));
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #ffffff, #c8f5dc 50%, #5fe0a8);
+  --display: "Bai Jamjuree", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 14px;
+}
+html[data-theme="jade"] .tab.active { box-shadow: inset 0 -2px 0 #5fe0a8, inset 0 1px 0 rgba(255, 255, 255, .3); }
+html[data-theme="jade"] .tab.active .ic, html[data-theme="jade"] .sim-ico, html[data-theme="jade"] .card-h .ico { color: #5fe0a8; }
+html[data-theme="jade"] .sim-btn:nth-child(3n+2) .sim-ico { color: #b8f0d2; }
+html[data-theme="jade"] .sim-btn:nth-child(3n) .sim-ico { color: #e6d58a; }
+html[data-theme="jade"] .sim-fab { background: linear-gradient(160deg, rgba(255, 255, 255, .9), rgba(158, 240, 200, .88) 55%, rgba(63, 191, 138, .92)); color: #08201a; text-shadow: none; box-shadow: inset 0 1px 0 #fff, 0 10px 28px rgba(63, 191, 138, .4); }
+html[data-theme="jade"] .panel h3::before { background: #5fe0a8; box-shadow: 0 0 8px #5fe0a8; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); }
+html[data-theme="jade"] .panel h3::after { background: linear-gradient(90deg, rgba(200, 255, 225, .35), transparent); }
+html[data-theme="jade"] .brand-mark::after { background: radial-gradient(circle, #fff, #9ef0c8 45%, transparent 70%); box-shadow: 0 0 14px #5fe0a8; }
+html[data-theme="jade"] .topbar::after { box-shadow: 0 0 10px rgba(95, 224, 168, .5); }
+html[data-theme="jade"] .zone-label { background: rgba(14, 36, 26, .55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+
+/* ---------- Rainforest Canopy: ใต้ร่มไม้ป่าดิบ เขียวมอสลึก แสงแดดลอดใบเป็นดวง ๆ ปุ่มทรงใบไม้ ---------- */
+html[data-theme="canopy"] {
+  --bg: #07110a; --panel-solid: #0f1f13; --line: rgba(190, 230, 140, .2); --text: #f1f7e6; --dim: #a9bd96;
+  --jade: #9ed65a; --cyan: #d9f27a; --violet: #5f9e4a; --gold: #f2d675; --rose: #e86a4f;
+  --grad: linear-gradient(115deg, #f2e98a, #b6e06a 45%, #4f9a3e); --grad-soft: linear-gradient(115deg, rgba(242, 233, 138, .16), rgba(79, 154, 62, .2));
+  --edge: linear-gradient(115deg, rgba(217, 242, 122, .6), rgba(95, 158, 74, .45) 55%, rgba(242, 214, 117, .45)); --edge-soft: linear-gradient(135deg, rgba(217, 242, 122, .4), rgba(95, 158, 74, .25));
+  --active: linear-gradient(115deg, #e6f28a, #9ed65a); --on-active: #102008; --btn-text: #e9f2d8; --tab-text: #aec29a; --head: #d9f27a; --glow: rgba(182, 224, 106, .4);
+  --surface: rgba(16, 32, 20, .92);
+  --panel-bg: radial-gradient(60% 40% at 85% 8%, rgba(242, 233, 138, .12), transparent 70%), radial-gradient(35% 25% at 15% 70%, rgba(182, 224, 106, .07), transparent 70%), linear-gradient(165deg, rgba(22, 44, 26, .9), rgba(8, 18, 10, .88));
+  --topbar-bg: linear-gradient(180deg, rgba(20, 40, 24, .97), rgba(8, 18, 10, .95)); --sheet-bg: linear-gradient(170deg, rgba(22, 44, 26, .97), rgba(8, 18, 10, .98));
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #fffbe0, #d9f27a 50%, #9ed65a);
+  --display: "Mitr", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 14px;
+}
+/* ปุ่มทรงใบไม้: มุมบนซ้าย-ล่างขวามน อีกสองมุมแหลม */
+html[data-theme="canopy"] :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .card .act, .zoom-ctl button, .sim-btn, .sim-close, .ac-actions button) { border-radius: 14px 3px 14px 3px !important; }
+html[data-theme="canopy"] :is(.panel, .card) { border-radius: 20px 6px 20px 6px; box-shadow: inset 0 1px 0 rgba(217, 242, 122, .12), 0 12px 30px rgba(0, 8, 0, .4); }
+/* เงาใบไม้และดวงแดดจาง ๆ มุมบนขวาของแผง */
+html[data-theme="canopy"] :is(.panel, .card)::before { inset: 0; border-radius: inherit; filter: none; background:
+  radial-gradient(ellipse 18px 9px at 92% 14%, rgba(0, 0, 0, .14), transparent 70%), radial-gradient(ellipse 22px 10px at 78% 4%, rgba(0, 0, 0, .12), transparent 70%),
+  radial-gradient(ellipse 14px 7px at 96% 30%, rgba(0, 0, 0, .1), transparent 70%), radial-gradient(circle 4px at 70% 18%, rgba(255, 245, 170, .25), transparent 80%), radial-gradient(circle 3px at 88% 40%, rgba(255, 245, 170, .2), transparent 80%); }
+html[data-theme="canopy"] .tab.active { background: var(--grad-soft); box-shadow: inset 0 -2px 0 #d9f27a, 0 0 16px rgba(182, 224, 106, .2); }
+html[data-theme="canopy"] .tab.active .ic, html[data-theme="canopy"] .sim-ico, html[data-theme="canopy"] .card-h .ico { color: #b6e06a; }
+html[data-theme="canopy"] .sim-btn:nth-child(3n+2) .sim-ico { color: #f2d675; }
+html[data-theme="canopy"] .sim-btn:nth-child(3n) .sim-ico { color: #7fc8a0; }
+html[data-theme="canopy"] .sim-fab { border-radius: 22px 6px 22px 6px !important; background: radial-gradient(circle at 75% 20%, #fffbd0, transparent 40%), linear-gradient(135deg, #2f6b2a, #6fae45 55%, #c9e36a); color: #0c1a06; text-shadow: none; box-shadow: 0 10px 28px rgba(111, 174, 69, .45); }
+html[data-theme="canopy"] .panel h3::before { background: #9ed65a; box-shadow: 0 0 8px rgba(158, 214, 90, .7); border-radius: 0 50% 0 50%; transform: none; width: 9px; height: 9px; }
+html[data-theme="canopy"] .panel h3::after { background: linear-gradient(90deg, rgba(190, 230, 140, .35), transparent); }
+html[data-theme="canopy"] .brand-mark::before { animation-duration: 18s; }
+html[data-theme="canopy"] .brand-mark::after { background: radial-gradient(circle, #fffbe0, #d9f27a 45%, transparent 70%); box-shadow: 0 0 14px #9ed65a; }
+html[data-theme="canopy"] .topbar::after { box-shadow: 0 0 12px rgba(217, 242, 122, .45); }
+html[data-theme="canopy"] .card-h .ico { border-radius: 0 50% 0 50%; }
