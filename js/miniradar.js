@@ -3,6 +3,7 @@
 import { bus } from './bus.js';
 
 const BIG_MS = 10000; // เด้งใหญ่ค้างไว้กี่มิลลิวินาทีก่อนหดกลับมุมจอ
+const SQUARE = matchMedia('(max-width: 760px)'); // ต้องตรงกับ CSS ที่ทำให้เรดาร์จิ๋วเป็นสี่เหลี่ยมบนมือถือ
 
 export class MiniRadar {
   constructor({ radar, farm, open }) {
@@ -48,7 +49,17 @@ export class MiniRadar {
     // แผนที่ใต้เรดาร์: ในแท็บ 3D ถ่ายใหม่ทุก 2 นาทีพอ (การถ่ายแต่ละครั้งต้องวาดฉากเพิ่ม 1 รอบ)
     if (!this.radar.mapImg || now - (this.mapAt || 0) > 120000) { this.mapAt = now; this.radar.refreshMap(true); }
     const big = el.classList.contains('big'), R = size / 2;
-    this.radar.drawScope(c, R, R, R - 1, now, { mini: true, labels: big && size > 260 });
+    // มือถือ: กรอบสี่เหลี่ยมมุมขวาบน → เติมตารางพิกัดจาง ๆ + วงเล็บมุม ให้มุมที่วงกลมไม่ถึงไม่โล่ง
+    if (!big && SQUARE.matches) {
+      c.strokeStyle = 'rgba(57,255,106,.16)'; c.lineWidth = 1; c.beginPath();
+      for (let i = 1; i < 4; i++) { const p = Math.round(size * i / 4) + .5; c.moveTo(p, 0); c.lineTo(p, size); c.moveTo(0, p); c.lineTo(size, p); }
+      c.stroke();
+      c.strokeStyle = 'rgba(57,255,106,.75)'; c.lineWidth = 1.5; c.beginPath();
+      const k = 9, e = 3;
+      for (const [x, y, sx, sy] of [[e, e, 1, 1], [size - e, e, -1, 1], [e, size - e, 1, -1], [size - e, size - e, -1, -1]]) { c.moveTo(x, y + sy * k); c.lineTo(x, y); c.lineTo(x + sx * k, y); }
+      c.stroke();
+    }
+    this.radar.drawScope(c, R, R, R - (!big && SQUARE.matches ? 4 : 1), now, { mini: true, labels: big && size > 260 });
     // จุดติดตั้งเรดาร์ตรงกลาง
     c.fillStyle = '#39ff6a'; c.beginPath(); c.arc(R, R, big ? 3.5 : 2.2, 0, Math.PI * 2); c.fill();
     const threats = [...this.radar.tracked.values()].filter(t => t.status === 'pending' || t.status === 'threat').length;
