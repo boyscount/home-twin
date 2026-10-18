@@ -359,3 +359,10 @@ html[data-theme="canopy"] .card-h .ico { border-radius: 0 50% 0 50%; }
   .kiosk-btn .ic { width: 16px; height: 16px; margin: 0; }
   .tabs .tab { font-size: 12px; padding: 8px 4px; }
 }
+
+/* ปุ่มจำลองเหตุการณ์: เหลือแค่ไอคอน (ปุ่มสี่เหลี่ยมจัตุรัส) */
+.sim-fab { width: 54px; height: 54px; padding: 0 !important; display: grid; place-items: center; }
+.sim-fab .ic { width: 28px; height: 28px; margin: 0; }
+.tour-on .sim-fab { width: 46px; height: 46px; }
+.tour-on .sim-fab .ic { width: 24px; height: 24px; }
+@media (max-width: 760px) { .sim-fab { width: 50px; height: 50px; } .sim-fab .ic { width: 26px; height: 26px; } }
