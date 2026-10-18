@@ -104,6 +104,40 @@ export function hillHeight(x, z) {
   const ramp = sstep(200, 300, r), road = sstep(25, 70, Math.abs(z - 46));
   return 28 * n * ramp * road - 0.3 * (1 - ramp);
 }
+// นาแต่ละแปลง (ตามตารางคันนา 60×50 ม.) อยู่คนละระยะ: ข้าวเขียว ~50% · ข้าวสุกเหลือง ~33% · แปลงเพิ่งไขน้ำ/ปักดำ ~17% (น้ำสะท้อนฟ้า)
+// → มองจากมุมสูงเห็นเป็นผืนลายตารางหลายสีแบบทุ่งนาจริง
+// ระยะของแต่ละแปลง: 0 = ข้าวเขียว · 1 = ข้าวสุกเหลือง · 2 = เพิ่งไขน้ำ/ปักดำ — เก็บเป็นตาราง (ภาพ 32×32) ใช้ร่วมกันทั้ง shader และกอข้าว 3 มิติ
+const PLOT_N = 32, PLOT_OFF = 16;
+const plotIx = x => Math.floor((x - 3) / 60), plotIz = z => Math.floor((z + 40) / 50);
+const plotHash = (ix, iz, salt) => { let h = (Math.imul(ix + 101 + salt, 73856093) ^ Math.imul(iz + 211, 19349663)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const plotStage = (ix, iz) => { const r = plotHash(ix, iz, 0); return r < 0.5 ? 0 : r < 0.83 ? 1 : 2; };
+const PLOT_TEX = (() => {
+  const d = new Uint8Array(PLOT_N * PLOT_N * 4);
+  for (let j = 0; j < PLOT_N; j++) for (let i = 0; i < PLOT_N; i++) d.set([plotStage(i - PLOT_OFF, j - PLOT_OFF) * 100, plotHash(i - PLOT_OFF, j - PLOT_OFF, 7) * 255, 0, 255], (j * PLOT_N + i) * 4);
+  const t = new THREE.DataTexture(d, PLOT_N, PLOT_N); t.magFilter = t.minFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
+})();
+const RICE = { gold: { value: null }, goldOn: { value: 0 }, plots: { value: PLOT_TEX } };
+function riceStages(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uGold = RICE.gold; sh.uniforms.uGoldOn = RICE.goldOn; sh.uniforms.uPlots = RICE.plots;
+    sh.fragmentShader = 'uniform sampler2D uGold; uniform sampler2D uPlots; uniform float uGoldOn; float riceStage;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec2 ricePid = floor(vec2((vWP.x - 3.0) / 60.0, (vWP.z + 40.0) / 50.0));
+        vec4 ricePlot = texture2D(uPlots, (ricePid + ${PLOT_OFF}.5) / ${PLOT_N}.0);
+        riceStage = floor(ricePlot.r * 2.55 + 0.5); float riceVar = ricePlot.g;
+        #ifdef USE_MAP
+          if (riceStage > 0.5 && riceStage < 1.5 && uGoldOn > 0.5) diffuseColor.rgb = texture2D(uGold, vMapUv).rgb * mix(0.9, 1.06, riceVar);
+        #endif
+        if (riceStage > 1.5) diffuseColor.rgb = mix(diffuseColor.rgb * 0.45, vec3(0.05, 0.075, 0.08), 0.62);
+        else diffuseColor.rgb *= mix(0.9, 1.08, riceVar);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        if (riceStage > 1.5) roughnessFactor = 0.18;`);
+  };
+  const key = mat.customProgramCacheKey?.bind(mat);
+  mat.customProgramCacheKey = () => (key ? key() : '') + 'rice';
+}
 const TEX = {};
 function makeTextures() {
   TEX.grass = canvasTex(256, 256, (c, w, h) => {
@@ -182,7 +216,7 @@ function makeMaterials() {
   // normal map แบนรอไว้ก่อน → พอโหลดภาพพื้นผิวจาก Blender เสร็จ สลับภาพได้เลยไม่ต้องคอมไพล์ shader ใหม่ (ไม่กระตุก)
   const flatN = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1); flatN.needsUpdate = true; TEX.flatN = flatN;
   M.grass = std({ map: TEX.grass, roughness: 1, normalMap: flatN });
-  M.rice = std({ map: TEX.rice, roughness: 1 });
+  M.rice = std({ map: TEX.rice, roughness: 1, normalMap: flatN });
   M.litter = std({ map: TEX.litter, roughness: 1, normalMap: flatN });
   // ด่างเข้ม-อ่อนเป็นหย่อมใหญ่ ๆ ตามตำแหน่งจริง → สนามไม่เขียวเรียบเท่ากันทั้งผืน (เหมือนแดดเผา/ร่มไม้/ดินชื้น)
   const patchy = (mat, dry, lush, scale) => {
@@ -195,6 +229,7 @@ function makeMaterials() {
   };
   patchy(M.grass, '1.12, 1.04, 0.80', '0.86, 0.94, 0.86', [0.09, 0.075, 0.23, 0.17, 0.55, 0.41]);
   patchy(M.rice, '1.10, 1.02, 0.78', '0.88, 0.96, 0.9', [0.012, 0.017, 0.031, 0.027, 0.07, 0.06]);
+  riceStages(M.rice);
   const nrm = (k, s = 1) => ({ normalMap: TEX[k + 'N'], normalScale: new THREE.Vector2(s, s) });
   M.concrete = std({ map: TEX.concrete, roughness: 0.9, ...nrm('concrete', 0.6) });
   M.asphalt = std({ map: TEX.asphalt, roughness: 0.95, ...nrm('asphalt', 0.8) });
@@ -628,6 +663,9 @@ export class Farm3D {
     };
     set(M.grass, 'media/tex/grass.jpg', 'media/tex/grass_n.jpg', [1 / 2.5, 1 / 2.5], 0.7); // สนามบ้าน: UV เป็นเมตร
     set(M.litter, 'media/tex/litter.jpg', 'media/tex/litter_n.jpg', [64 / 2.2, 142 / 2.2], 0.8); // พื้นสวนยาง 64×142 ม.
+    // ทุ่งนา: กอข้าวปักดำเป็นแถว (เรนเดอร์จาก Blender ช่องละ 2 ม.) + แปลงข้าวสุกใช้ภาพที่สอง
+    set(M.rice, 'media/tex/paddy_green.jpg', 'media/tex/paddy_green_n.jpg', [1 / 2, 1 / 2], 0.6);
+    L.load('media/tex/paddy_gold.jpg', t => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; RICE.gold.value = t; RICE.goldOn.value = 1; });
   }
 
   buildGround() {
@@ -645,11 +683,14 @@ export class Farm3D {
     const yard = new THREE.Mesh(holed(-46, -24, 50, 38), M.grass);
     yard.position.y = 0.02; yard.receiveShadow = true; s.add(yard);
     M.grass.map.repeat.set(1 / 4, 1 / 4);
-    // คันนา
+    // คันนา (แบบเรียบง่ายก่อน — พอโหลดคันนาจาก Blender เสร็จจะแทนที่ด้วยแบบนูนมีหญ้า ดู buildBunds)
+    this.dikeBoxes = [];
     for (let i = -6; i <= 6; i++) {
       const d = box(0.6, 0.18, 400, M.mud, i * 60 + 3, 0.05, -200, s); d.castShadow = false;
       const d2 = box(400, 0.18, 0.6, M.mud, 0, 0.05, -40 - i * 50 - 300, s); d2.castShadow = false;
+      this.dikeBoxes.push(d, d2);
     }
+    if (!this.lite) this.later(() => this.buildBunds());
     // ถนน + ไหล่ทาง
     const road = new THREE.Mesh(new THREE.PlaneGeometry(1600, 9), M.asphalt);
     road.rotation.x = -Math.PI / 2; road.position.set(0, 0.04, 46); road.receiveShadow = true; s.add(road);
@@ -673,6 +714,46 @@ export class Farm3D {
     }
     im.receiveShadow = true; s.add(im);
     this.riceBlades = im;
+  }
+
+  // คันนานูน (หน้าตัดคางหมู สันมีหญ้า ข้างเป็นดินโคลน) + กอข้าวใบโค้ง จาก Blender (models/env/paddy.glb)
+  // วางคันนาตามตารางแปลง 60×50 ม. ทั่วทุ่งที่มองเห็น (เว้นบ้าน ถนน สวนยาง) · ใกล้บ้านใช้แบบละเอียด ไกลใช้แบบเบา
+  buildBunds() {
+    import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/paddy.glb', g => {
+      const geo = {}; g.scene.traverse(o => { if (o.isMesh) geo[o.name] = o.geometry; });
+      if (!geo.bund_hi || !geo.bund_lo || !geo.rice_clump) return;
+      const skip = (x, z) => (x > -48 && x < 52 && z > -26 && z < 40) || (z > 39 && z < 53) || (x > -34 && x < 34 && z > -170 && z < -14) || Math.hypot(x, z) > 440;
+      const segs = { hi: [], lo: [] };
+      const add = (x, z, ry) => { if (!skip(x, z)) segs[Math.hypot(x, z) < 130 ? 'hi' : 'lo'].push([x, z, ry]); };
+      for (let k = -7; k <= 7; k++) for (let z = -435; z <= 435; z += 10) add(3 + 60 * k, z, 0);          // แนวเหนือ-ใต้
+      for (let k = -9; k <= 9; k++) for (let x = -435; x <= 435; x += 10) add(x, -40 - 50 * k, Math.PI / 2); // แนวตะวันออก-ตะวันตก
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), sc = new THREE.Vector3();
+      for (const kind of ['hi', 'lo']) {
+        const list = segs[kind]; if (!list.length) continue;
+        const im = new THREE.InstancedMesh(kind === 'hi' ? geo.bund_hi : geo.bund_lo, mat, list.length);
+        list.forEach(([x, z, ry], i) => { q.setFromAxisAngle(up, ry + (Math.random() < 0.5 ? Math.PI : 0)); m4.compose(v.set(x, 0.01, z), q, sc.set(1, 1, 1.01)); im.setMatrixAt(i, m4); }); // ความสูงเท่ากันทุกท่อน (ต่อกันไม่เป็นปุ่ม)
+        im.receiveShadow = true; im.frustumCulled = false; this.scene.add(im);
+      }
+      for (const d of this.dikeBoxes || []) d.parent?.remove(d);
+      // กอข้าว: ใบโค้งแทนกรวย · สีตามระยะของแปลง (แปลงข้าวสุกเป็นสีทอง แปลงเพิ่งปักดำเป็นต้นกล้าเล็ก)
+      const rb = this.riceBlades;
+      if (rb) {
+        const col = new THREE.Color(), p = new THREE.Vector3(), rq = new THREE.Quaternion(), rs = new THREE.Vector3();
+        for (let i = 0; i < rb.count; i++) {
+          rb.getMatrixAt(i, m4); m4.decompose(p, rq, rs);
+          const st = plotStage(plotIx(p.x), plotIz(p.z));
+          if (st === 2) rs.multiplyScalar(0.45);
+          rb.setMatrixAt(i, m4.compose(p, rq, rs));
+          rb.setColorAt(i, st === 1 ? col.setHSL(rand(0.11, 0.14), rand(0.5, 0.62), rand(0.5, 0.6)) : col.setHSL(rand(0.2, 0.26), rand(0.38, 0.5), rand(0.36, 0.46)));
+        }
+        rb.instanceMatrix.needsUpdate = true; if (rb.instanceColor) rb.instanceColor.needsUpdate = true;
+        rb.geometry = geo.rice_clump; rb.material.side = THREE.DoubleSide; rb.material.needsUpdate = true;
+        rb.count = Math.min(rb.count, 6000); // กอข้าวละเอียดกว่ากรวยเดิม → ลดจำนวนลงให้สามเหลี่ยมรวมใกล้เดิม
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+      this.bundInfo = { hi: segs.hi.length, lo: segs.lo.length };
+    }));
   }
 
   buildHouse() {
