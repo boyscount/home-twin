@@ -150,20 +150,19 @@ export async function loadHumanTemplates(url) {
   const gltf = await new GLTFLoader().loadAsync(url);
   const t = {}; gltf.scene.traverse(o => { if (o.isMesh) t[o.name] = o.geometry; });
   for (const k of ['torso_m', 'torso_f', 'head', 'hair_short', 'hair_long', 'hair_bun', 'upper', 'fore_L', 'fore_R', 'thigh', 'shin']) if (!t[k] || !t[k].attributes.color) throw new Error('human part missing: ' + k);
-  TPL = t;
-  for (const [key, P] of cache) {
-    const [skin, shirt, pants, hair, hat, hatColor, longHair, glasses, child, shoe] = JSON.parse(key);
-    P.hi = buildPartsTpl({ skin, shirt, pants, hair, hat, hatColor, longHair, glasses, child, shoe });
-  }
+  TPL = t; // ร่างละเอียดของแต่ละแบบสร้างตอนมีคนเข้ามาใกล้กล้องครั้งแรก (ไม่สร้างทีเดียวทุกแบบ → ไม่กระตุก)
 }
 // ระดับรายละเอียดตามระยะ (LOD): คนใกล้กล้องใช้ร่างละเอียด คนไกลใช้ร่างเดิม (เบา ดูต่างกันไม่ออกเมื่ออยู่ไกล)
 const HUMANS = new Set(), _wp = new THREE.Vector3();
 export function updateHumanLOD(camera, near = 16) {
   if (!TPL) return;
   const cp = camera.getWorldPosition(new THREE.Vector3());
+  let built = 0;
   for (const g of HUMANS) {
     if (!g.parent) { HUMANS.delete(g); continue; }
-    const { P, parts } = g.userData, hi = P.hi && g.getWorldPosition(_wp).distanceTo(cp) < near;
+    const { P, parts } = g.userData, close = g.getWorldPosition(_wp).distanceTo(cp) < near;
+    if (close && !P.hi && built < 1) { P.hi = buildPartsTpl(P.o); built++; } // สร้างได้รอบละ 1 แบบ
+    const hi = close && !!P.hi;
     if (g.userData.hi === hi) continue; g.userData.hi = hi;
     for (const m of parts) m.geometry = hi ? P.hi[m.userData.part] : P[m.userData.part];
   }
@@ -172,7 +171,7 @@ export function updateHumanLOD(camera, near = 16) {
 export function makeHuman(o = {}) {
   const key = JSON.stringify([o.skin, o.shirt, o.pants, o.hair, o.hat, o.hatColor, o.longHair, o.glasses, o.child, o.shoe]);
   let P = cache.get(key);
-  if (!P) { P = buildParts(o); if (TPL) P.hi = buildPartsTpl(o); cache.set(key, P); }
+  if (!P) { P = buildParts(o); P.o = o; cache.set(key, P); }
   const parts = [];
   const mk = (part, parent, y = 0, x = 0) => { const m = new THREE.Mesh(P[part], SKIN_MAT); m.userData.part = part; m.position.set(x, y, 0); m.castShadow = true; parent.add(m); parts.push(m); return m; };
   const g = new THREE.Group(); g.userData.P = P; g.userData.parts = parts; g.userData.hi = false; HUMANS.add(g);

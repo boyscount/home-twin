@@ -509,9 +509,9 @@ export class Farm3D {
     // ภาพเงาซอกมุมที่อบจาก Blender: ระหว่างโหลดใช้สีขาว (ไม่มีผล)
     const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true; BAKED_AO.map.value = white;
     this.bakedAO = BAKED_AO; // (ไว้เทียบเปิด/ปิดตอนตรวจ)
-    if (!this.lite) new THREE.TextureLoader().load('media/ground_ao.jpg', t => { t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; BAKED_AO.map.value = t; });
+    if (!this.lite) this.later(() => new THREE.TextureLoader().load('media/ground_ao.jpg', t => { t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; BAKED_AO.map.value = t; }));
     this.buildGround();
-    if (!this.lite) this.loadGroundTextures();
+    if (!this.lite) this.later(() => this.loadGroundTextures());
     this.buildHouse();
     this.buildRooftop();
     this.buildCarport();
@@ -528,7 +528,7 @@ export class Farm3D {
     this.grassPending = !this.lite; // หญ้าสร้างทีหลัง (หลังเห็นภาพแล้ว) เพื่อให้เปิดเว็บเร็วขึ้น
     this.buildCharacters();
     // คนแบบปั้นละเอียดจาก Blender (หน้า มือมีนิ้ว รอยพับผ้า) — โหลดตามหลัง แล้วเปลี่ยนร่างทุกคนในที่
-    if (!this.lite) loadHumanTemplates('models/env/human_parts.glb').then(() => { updateHumanLOD(this.camera); this.renderer.shadowMap.needsUpdate = true; }).catch(e => console.warn('human parts', e));
+    if (!this.lite) this.later(() => loadHumanTemplates('models/env/human_parts.glb').then(() => { updateHumanLOD(this.camera); this.renderer.shadowMap.needsUpdate = true; }).catch(e => console.warn('human parts', e)));
     this.updateHumanLOD = updateHumanLOD; // (ไว้ให้กล้องถ่ายคลิป/ตรวจ สั่งตามกล้องของตัวเองได้)
     this.buildLabels();
     this.gen = 0;
@@ -537,7 +537,7 @@ export class Farm3D {
     this.buildSprinkler();
     this.buildFarmLights();
     this.buildBedroom();
-    this.buildProps();
+    this.later(() => this.buildProps());
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     // คนเดินถามก่อนข้าม: มีรถกำลังวิ่งเข้ามาในระยะ 45 ม. ไหม (รถที่จอดรออยู่แล้วไม่นับ)
@@ -589,7 +589,7 @@ export class Farm3D {
       }, 120));
       // งานที่ไม่จำเป็นต่อภาพแรก ทำตอนเครื่องว่าง
       const idle = window.requestIdleCallback ? fn => requestIdleCallback(fn, { timeout: 2500 }) : fn => setTimeout(fn, 400);
-      idle(() => { if (this.grassPending) { this.grassPending = false; this.buildGrass(); this.renderer.shadowMap.needsUpdate = true; } this.freeze(); });
+      idle(() => { if (this.grassPending) { this.grassPending = false; this.buildGrass(); this.renderer.shadowMap.needsUpdate = true; } this.freeze(); this.runLater(); });
     };
     // ให้หน้าโหลดได้วาดข้อความ/แถบความคืบหน้าก่อน (rAF เดียว ไม่ใช้ setTimeout ที่โดนหน่วงในแท็บพื้นหลัง)
     requestAnimationFrame(start);
@@ -606,6 +606,17 @@ export class Farm3D {
   }
 
   setVisible(v) { if (this.lite) { this.visible = false; return; } this.visible = v; if (v) requestAnimationFrame(() => this.resize()); }
+
+  // ---------------------------------------------------------------- โหลดของตกแต่งตามหลัง
+  // ไฟล์ที่ไม่จำเป็นต่อภาพแรก (พื้นผิว เนินเขา ต้นยาง ของประกอบ ร่างคนละเอียด) รอจนเห็นฉากแล้วค่อยโหลดทีละอย่างตอนเครื่องว่าง
+  // → ไฟล์หลักโหลดก่อน เปิดเว็บเร็วขึ้น โดยเฉพาะมือถือ/เน็ตช้า
+  later(fn) { if (this.laterQ === null) fn(); else (this.laterQ ||= []).push(fn); }
+  runLater() {
+    const q = this.laterQ || []; this.laterQ = null;
+    const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 1500 }) : f => setTimeout(f, 200);
+    const next = () => { const fn = q.shift(); if (!fn) return; try { fn(); } catch (e) { console.warn('later', e); } setTimeout(() => idle(next), 300); };
+    idle(next);
+  }
 
   // ---------------------------------------------------------------- world
   // พื้นผิวหญ้า/ใบยางแห้งที่ปั้น 3 มิติแล้วเรนเดอร์จาก Blender (media/tex) — ต่อกันไร้รอยต่อ ช่องละ 2.5 / 2.2 ม.
@@ -1448,7 +1459,7 @@ export class Farm3D {
     // ลำต้นยางจาก Blender (โคนบาน คดนิด ๆ + เปลือก/รอยกรีด/น้ำยางอบลงภาพ) — โหลดตามหลัง ระหว่างนั้นใช้ทรงกระบอกเดิม
     const barkMat = new THREE.MeshStandardMaterial({ map: TEX.bark, normalMap: TEX.flatN, roughness: 1 }); groundAO(barkMat);
     const trunks = new THREE.InstancedMesh(trunkGeo, barkMat, total);
-    if (!this.lite) {
+    if (!this.lite) this.later(() => {
       const L = new THREE.TextureLoader();
       import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/rubber_trunk.glb', g => {
         let geo; g.scene.traverse(o => { if (o.isMesh && !geo) geo = o.geometry; });
@@ -1456,7 +1467,7 @@ export class Farm3D {
         L.load('media/tex/rubber_bark.jpg', t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.flipY = false; barkMat.map = t;
           L.load('media/tex/rubber_bark_n.jpg', nt => { nt.flipY = false; barkMat.normalMap = nt; barkMat.normalScale.set(0.9, 0.9); trunks.geometry = geo; this.renderer.shadowMap.needsUpdate = true; }); });
       }));
-    }
+    });
     const canopy = new THREE.InstancedMesh(canopyGeo, leafMaterial(FOL.rubber, '#ffffff', 0.8), total * 3);
     const cups = new THREE.InstancedMesh(cupGeo, M.white, total);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
@@ -1638,10 +1649,10 @@ export class Farm3D {
     }
     this.scene.add(im, tr);
     // เนินเขาวงแหวน 190–430 ม. ปั้น + อบเงาใน Blender (สีจุดยอด) — โหลดตามหลัง
-    if (!this.lite) import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/hills.glb', g => {
+    if (!this.lite) this.later(() => import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/hills.glb', g => {
       g.scene.traverse(o => { if (o.isMesh) { o.receiveShadow = false; o.castShadow = false; o.material.roughness = 1; o.material.metalness = 0; o.frustumCulled = false; } });
       this.scene.add(g.scene); this.hills = g.scene;
-    }));
+    })));
   }
 
   // ของประกอบฉากที่ปั้นใน Blender (models/env/props.glb): โอ่งมังกร กระถางต้นไม้ กองฟืน กระสอบปุ๋ย ราวตากยางแผ่น
