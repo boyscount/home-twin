@@ -80,7 +80,7 @@ export class Tour {
     const awake = who => who && !who.h.sleeping && who.h.group.visible;
     const onDeck = () => f.cats.filter(c => c.group.position.y > 0.4).length;
     const doing = () => {
-      if (f.familyAsleep) return f.dadAct === 'tap' ? 'ทุกคนหลับ มีแค่พ่อออกไปกรีดยาง' : 'ทุกคนหลับแล้ว เรดาร์เฝ้าบ้านอยู่';
+      if (f.familyAsleep) return f.dadAct === 'tap' ? 'ทุกคนหลับ มีแค่พ่อออกไปกรีดยาง' : f.dadAct === 'camp-sleep' ? 'ทุกคนหลับแล้ว พ่อนอนในเต็นท์กลางสวน' : 'ทุกคนหลับแล้ว เรดาร์เฝ้าบ้านอยู่';
       if (f.bbq.active) return 'ครอบครัวกำลังกินหมูกะทะหน้าบ้าน';
       if (f.school.active) return 'พี่สาวกำลังสอนภาษาอังกฤษที่ศาลา';
       if (f.fishers?.present().length) return `ชาวบ้าน ${f.fishers.present().length} คนกำลังปักเบ็ดในทุ่งนา`;

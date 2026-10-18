@@ -47,6 +47,12 @@ export class Simulator {
           if (f.familyAsleep) f.wakeFamily();
           if (!f.startStargaze('manual')) return 'ตอนนี้ขึ้นดาดฟ้าไม่ได้ (มีกิจกรรมอื่นอยู่)';
         } },
+        { icon: '⛺', label: 'พ่อกางเต็นท์นอนในสวน', cam: 'tent', state: () => f.camp.tonight, run: () => {
+          if (f.camp.tonight) { f.camp.tonight = false; f.updateSchedule(); setTimeout(() => f.packCamp(), 6000); return '⛺ พ่อเก็บเต็นท์ กลับไปนอนในบ้าน'; }
+          if (!(f.hour >= 19.5 || f.hour < 1.75)) this.setHour(20);
+          f.camp.tonight = true; f.camp.decided = true; f.updateSchedule();
+          return '⛺ พ่อแบกเต็นท์ไปกางในสวนหน้าบ้าน';
+        } },
         { icon: '🪑', label: 'น้องสาวขึ้นไปนั่งเล่นบนดาดฟ้า', cam: 'roof', run: () => {
           if (f.stargazing || f.familyAsleep) return 'ตอนนี้น้องสาวไม่ว่าง';
           f.kidGen = (f.kidGen || 0) + 1; f.kidRoofSit(f.kidToken());

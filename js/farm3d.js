@@ -422,6 +422,7 @@ const CAMS = {
   carport: { pos: [22, 5, 18], target: [14, 1, 5.5] },
   field: { pos: [74, 9, 54], target: [58, 0, 30] },
   bbq: { pos: [8, 4, 22], target: [2, 0.8, 15.5] },
+  tent: { pos: [-1.5, 3.2, 24], target: [-6.6, 0.7, 17] },
   gate: { pos: [9, 5, 50], target: [0, 1, 34] },
   roof: { pos: [12, 9.5, 9], target: [3.6, 4.3, -0.5] },
   // กล้องวงจรปิดบนเสาไฟต้นที่ x=48 มองไปตามถนน: หน้าบ้านด้านขวา ถนนตรงกลาง ทุ่งนาฝั่งตรงข้ามด้านซ้าย
@@ -572,6 +573,7 @@ export class Farm3D {
     this.buildSprinkler();
     this.buildFarmLights();
     this.buildBedroom();
+    this.buildCamp();
     this.later(() => this.buildProps());
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
@@ -802,6 +804,8 @@ export class Farm3D {
     box(11.7, 0.9, 0.2, M.wood, -2.25, y0 + H + 0.45, 1.6, g);
     this.glassPane(g, -2.25, y0 + H + 0.45, 1.75, 11, 0.6);
     const r2 = box(13.4, 0.15, 7.4, M.roof, -3.1, 3.95, 5.2, g); r2.rotation.x = 0.08;
+    // แผงโซลาร์เซลล์บนหลังคาทั้ง 2 ชั้น
+    this.addSolar(g, r1, 12, 4); this.addSolar(g, r2, 12, 4, -0.15);
     box(13.4, 0.35, 0.12, M.wallDark, -3.1, 3.62, 8.9, g);
     box(0.2, 3.3, 0.2, M.frame, -9.4, 1.95, 8.6, g); box(0.2, 3.3, 0.2, M.frame, 7.5, 1.95, 8.6, g);
     // ฝ้าชายคา + ไฟดาวน์ไลท์
@@ -1225,12 +1229,49 @@ export class Farm3D {
     const bot = box(side ? 0.06 : w, 0.06, side ? w : 0.06, M.frame, x, y - h / 2, z, parent); bot.castShadow = false;
   }
 
+  // แผงโซลาร์เซลล์: วางเรียงเป็นตารางตามความลาดของหลังคา (cols × rows แผง ขนาดแผงละ ~1 × 1.7 ม.)
+  // ใส่ในกลุ่มเดียวกับหลังคา (ไม่ใช่ลูกของหลังคา เพราะหลังคาจะถูกรวม mesh ทิ้งตอน freeze)
+  addSolar(parent, roof, cols, rows, dz = 0) {
+    if (!TEX.solar) {
+      TEX.solar = canvasTex(128, 208, (c, w, h) => {
+        c.fillStyle = '#c9ced6'; c.fillRect(0, 0, w, h); // กรอบอะลูมิเนียม
+        const gr = c.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#1d3260'); gr.addColorStop(0.5, '#142450'); gr.addColorStop(1, '#0e1b3d');
+        c.fillStyle = gr; c.fillRect(4, 4, w - 8, h - 8);
+        const cw = (w - 8) / 6, ch = (h - 8) / 10;
+        c.strokeStyle = 'rgba(150,175,215,.55)'; c.lineWidth = 1.2; // ร่องระหว่างเซลล์
+        for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo(4 + i * cw, 4); c.lineTo(4 + i * cw, h - 4); c.stroke(); }
+        for (let j = 1; j < 10; j++) { c.beginPath(); c.moveTo(4, 4 + j * ch); c.lineTo(w - 4, 4 + j * ch); c.stroke(); }
+        c.strokeStyle = 'rgba(205,215,230,.28)'; c.lineWidth = 0.7; // บัสบาร์บาง ๆ ในแต่ละเซลล์
+        for (let i = 0; i < 6; i++) for (const f of [0.33, 0.66]) { c.beginPath(); c.moveTo(4 + (i + f) * cw, 4); c.lineTo(4 + (i + f) * cw, h - 4); c.stroke(); }
+      });
+      M.solar = new THREE.MeshStandardMaterial({ map: TEX.solar, roughness: 0.22, metalness: 0.55, color: '#ffffff' });
+    }
+    const pw = 1.0, pd = 1.68, gap = 0.04;
+    const holder = new THREE.Group(); holder.position.copy(roof.position); holder.rotation.copy(roof.rotation); parent.add(holder);
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(pw, 0.045, pd), M.solar, cols * rows);
+    im.castShadow = false; im.receiveShadow = true;
+    const m4 = new THREE.Matrix4(), top = roof.geometry.parameters.height / 2 + 0.06;
+    let n = 0;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      m4.makeTranslation((i - (cols - 1) / 2) * (pw + gap), top, (j - (rows - 1) / 2) * (pd + gap) - dz);
+      im.setMatrixAt(n++, m4);
+    }
+    holder.add(im);
+    // รางยึดแผง 2 เส้นต่อแถว
+    const rail = new THREE.MeshStandardMaterial({ color: '#9aa1aa', metalness: 0.7, roughness: 0.4 });
+    for (let j = 0; j < rows; j++) for (const f of [-0.3, 0.3]) {
+      const r = box(cols * (pw + gap), 0.04, 0.05, rail, 0, top - 0.04, (j - (rows - 1) / 2) * (pd + gap) - dz + f * pd, holder); r.castShadow = false;
+    }
+    return im;
+  }
+
   buildCarport() {
     const g = new THREE.Group(); g.position.set(14, 0, 5.5); this.scene.add(g);
     const slab = box(8.4, 0.08, 7.4, M.concrete, 0, 0.04, 0, g); slab.castShadow = false;
     for (const [x, z] of [[-4, -3.5], [4, -3.5], [-4, 3.5], [4, 3.5]]) box(0.2, 3, 0.2, M.wallDark, x, 1.5, z, g);
     const roof = box(9, 0.15, 8, M.roof, 0, 3.1, 0, g); roof.rotation.x = 0.06;
     box(9, 0.45, 0.12, M.wood, 0, 2.85, 3.9, g);
+    this.addSolar(g, roof, 8, 4); // หลังคาโรงรถเป็นแผงโซลาร์เซลล์
     // ผนังระแนงไม้ด้านหลัง
     for (let x = -3.9; x <= 3.9; x += 0.3) box(0.15, 2.8, 0.06, M.wood, x, 1.45, -3.6, g);
     for (let z = -3.4; z <= 3.4; z += 0.3) box(0.06, 2.8, 0.15, M.wood, 4, 1.45, z, g);
@@ -2372,6 +2413,7 @@ export class Farm3D {
     M.water.normalMap.offset.set(t * 0.02, t * 0.013);
     this.tv.material.emissiveIntensity = this.familyAsleep ? 0 : 0.5 + Math.sin(t * 7) * 0.15 + Math.sin(t * 2.3) * 0.1;
     this.updateBedroom(dt, t);
+    this.updateCamp(dt, t);
     this.updateRooftop(dt, t);
     this.updateMomCar(dt);
     this.updatePoles();
@@ -2739,6 +2781,7 @@ export class Farm3D {
   // พ่อ: 02:00–06:00 กรีดยาง (ไฟฉายคาดหัว) · 06:30 ให้อาหารหมู · 07:00–09:00 เก็บน้ำยาง · 12:00–13:30 พักกลางวัน
   //      16:30 ให้อาหารหมู · 21:45–01:45 นอน    ครอบครัว: 21:45–05:45 นอน
   dadPlan(h) {
+    if (this.camp?.tonight) { if (h >= 19.5 && h < 21.75) return 'camp'; if (h >= 21.75 || h < 1.75) return 'camp-sleep'; }
     if (h >= 21.75 || h < 1.75) return 'sleep';
     if (h < 6) return 'tap';
     if (h >= 6.5 && h < 7) return 'feed-am';
@@ -2758,6 +2801,14 @@ export class Farm3D {
       else if (h < 17.6 && this.momState === 'away') this.startMomReturn(); else this.syncMomInstant(h);
     }
     if (this.bbq.active) return;
+    // คืนนี้พ่อกางเต็นท์ไหม: ตัดสินตอน 18:30 (คืนศุกร์/เสาร์ ฟ้าโปร่ง) · เก็บเต็นท์ 09:00
+    const camp = this.camp;
+    if (h >= 9 && h < 18.5) { camp.tonight = false; camp.decided = false; if (camp.pitched && !camp.sleeping) this.packCamp(); }
+    else if (!camp.decided) {
+      camp.decided = true;
+      const day = new Date(Date.now() - (h < 9 ? 864e5 : 0)).getDay(), clear = (this.wx?.cur.rain || 0) < 0.2 && (this.wx?.cur.clouds ?? 0) < 0.7;
+      if ((day === 5 || day === 6) && clear) camp.tonight = true;
+    }
     const famSleep = h >= 21.75 || h < 5.75;
     // นอนดูดาว 19:45–21:40 ถ้าฟ้าไม่ฝน (ลงมาก่อนเข้านอน) · วันละครั้ง
     const starHour = h >= 19.75 && h < 21.66, clearSky = (this.wx?.cur.rain || 0) < 0.2 && (this.wx?.cur.clouds ?? 0) < 0.85;
@@ -2783,6 +2834,8 @@ export class Farm3D {
     const alive = () => id === this.dadActId;
     this.dadAct = act;
     const wasAsleep = this.sleepers.has('dad');
+    this.leaveTent(h);
+    if (act !== 'camp' && act !== 'camp-sleep' && this.camp.fire) this.camp.fire = 0;
     if (h.sleeping) this.standUp('dad', h);
     h.group.visible = true; this.sleepers.delete('dad');
     h.sitting = false; h.tapping = false; d.bucket.visible = false; h.holding = false; d.bucket.rotation.x = 0;
@@ -2799,6 +2852,31 @@ export class Farm3D {
       this.fatherState = 'เข้านอน';
       this.bed.group.visible = true;
       d.w.go(this.isInside(h.group) ? [this.bed.slots.dad.side] : this.pathIn(this.bed.slots.dad.side), () => { if (!alive()) return; this.lieDown('dad', h); this.fatherState = 'นอนหลับในมุ้ง 💤'; }, true);
+    } else if (act === 'camp' || act === 'camp-sleep') {
+      const c = this.camp, sleepNow = act === 'camp-sleep';
+      const settle = () => {
+        if (!alive()) return;
+        if (sleepNow) {
+          c.fire = this.hour >= 21.5 && this.hour < 23.5 ? 0.3 : 0; // เหลือถ่านแดง ๆ
+          h.group.position.set(c.pos.x + 0.1, 0, c.pos.z + 0.8); h.group.rotation.set(-Math.PI / 2, 0, 0); // เท้าอยู่ฝั่งประตู
+          h.baseY = 0.05 + 0.06 * h.group.scale.y; h.sleeping = true; c.sleeping = true;
+          this.fatherState = 'นอนในเต็นท์กลางสวน ⛺💤';
+        } else {
+          d.w.go([c.chair], () => {
+            if (!alive()) return;
+            h.group.rotation.y = Math.atan2(c.fireW.x - c.chair[0], c.fireW.z - c.chair[2]); h.baseY = 0; h.sitting = true;
+            c.fire = 1; this.fatherState = 'นั่งผิงไฟหน้าเต็นท์ 🔥';
+          }, true);
+        }
+      };
+      this.fatherState = sleepNow ? 'มุดเข้าเต็นท์ไปนอน' : 'แบกเต็นท์ไปกางในสวนหน้าบ้าน';
+      d.w.go([...out, c.front], () => {
+        if (!alive()) return;
+        if (c.pitched) { settle(); return; }
+        this.pitchCamp(); h.group.rotation.y = Math.PI; this.fatherState = 'กำลังกางเต็นท์ ⛺';
+        bus.emit('farm-event', '⛺ พ่อกางเต็นท์ในสวนหน้าบ้าน คืนนี้นอนแคมป์ปิ้ง');
+        setTimeout(settle, 2800);
+      }, true);
     } else if (act === 'rest') {
       this.fatherState = 'พักกลางวันบนระเบียง';
       d.w.go([...out, [3.2, 0, 10], [3.2, 0.65, 7.6], [-6.5, 0.65, 8.3]], () => {
@@ -2834,6 +2912,105 @@ export class Farm3D {
   }
 
   // ---------------------------------------------------------------- ห้องนอน: ฟูก 4 ผืนในมุ้ง (หลังประตูกระจกหน้าบ้าน มองเห็นจากข้างนอก)
+  // ---------------------------------------------------------------- พ่อกางเต็นท์นอนในสวนหน้าบ้าน (คืนศุกร์/เสาร์ที่ฟ้าโปร่ง หรือสั่งจากเมนูจำลอง)
+  // 19:30 กางเต็นท์ + ก่อกองไฟ นั่งเก้าอี้สนาม · 21:45 มุดเข้าเต็นท์นอน (ไฟตะเกียงในเต็นท์เรือง ๆ) · 01:45 ออกไปกรีดยางตามปกติ · 09:00 เก็บเต็นท์
+  buildCamp() {
+    const pos = new THREE.Vector3(-7.5, 0, 16.5);
+    const g = new THREE.Group(); g.position.copy(pos); g.visible = false; this.scene.add(g);
+    const tent = new THREE.Group(); g.add(tent);
+    const sheet = box(2.7, 0.02, 2.2, new THREE.MeshStandardMaterial({ color: '#2f4a33', roughness: 1 }), 0, 0.01, 0.1, tent); sheet.castShadow = false;
+    // ตัวเต็นท์โดม (ผ้าสีส้ม) + ฟลายชีทคลุมด้านบน (เขียวเข้ม)
+    const fabric = new THREE.MeshStandardMaterial({ color: '#e0702c', roughness: 0.85, side: THREE.DoubleSide, emissive: '#ffb468', emissiveIntensity: 0 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), fabric);
+    body.scale.set(1.2, 1.12, 0.95); body.castShadow = true; tent.add(body);
+    const flyM = new THREE.MeshStandardMaterial({ color: '#3f5e3c', roughness: 0.8, side: THREE.DoubleSide });
+    const fly = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 6, 0, Math.PI * 2, 0, Math.PI / 4.2), flyM);
+    fly.scale.set(1.24, 1.16, 0.99); fly.castShadow = true; tent.add(fly);
+    // เสาโครงไขว้ 2 เส้น
+    const poleM = new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.5, metalness: 0.4 });
+    for (const a of [Math.PI / 4.6, -Math.PI / 4.6]) {
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(1, 0.016, 5, 28, Math.PI), poleM);
+      const holder = new THREE.Group(); holder.rotation.y = a; holder.scale.set(1.24, 1.15, 1.24); holder.add(arc); tent.add(holder);
+    }
+    // ประตู (ช่องมืด ๆ เอียงตามผ้า) + ผ้าประตูม้วนเก็บไว้ด้านบน
+    const arch = new THREE.Shape(); arch.moveTo(-0.42, 0); arch.lineTo(0.42, 0); arch.quadraticCurveTo(0.42, 0.9, 0, 0.92); arch.quadraticCurveTo(-0.42, 0.9, -0.42, 0);
+    const door = new THREE.Mesh(new THREE.ShapeGeometry(arch, 10), new THREE.MeshStandardMaterial({ color: '#1e130b', roughness: 1, emissive: '#ffa04a', emissiveIntensity: 0, polygonOffset: true, polygonOffsetFactor: -2 }));
+    door.position.set(0, 0.02, 0.955); door.rotation.x = -0.36; tent.add(door);
+    cyl(0.07, 0.07, 0.86, flyM, 0, 0.92, 0.66, tent, 8).rotation.z = Math.PI / 2;
+    // เชือกโยง + สมอบก
+    const ropeM = new THREE.LineBasicMaterial({ color: '#e8e2d0', transparent: true, opacity: 0.7 });
+    const pegM = new THREE.MeshStandardMaterial({ color: '#b0b4b8', metalness: 0.6, roughness: 0.4 });
+    for (const [x, z, px, pz] of [[0.85, 0.5, 1.75, 1.15], [-0.85, 0.5, -1.75, 1.15], [0.85, -0.5, 1.75, -1.15], [-0.85, -0.5, -1.75, -1.15]]) {
+      const y = 1.12 * Math.sqrt(Math.max(0, 1 - (x / 1.2) ** 2 - (z / 0.95) ** 2));
+      tent.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, y, z), new THREE.Vector3(px, 0.03, pz)]), ropeM));
+      cyl(0.012, 0.012, 0.16, pegM, px, 0.05, pz, tent, 4).castShadow = false;
+    }
+    // กองไฟล้อมหิน
+    const fire = new THREE.Group(); fire.position.set(1.7, 0, 2.0); g.add(fire);
+    const stoneM = new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 1 });
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 + (i % 3) * 0.02), stoneM); st.position.set(Math.cos(a) * 0.36, 0.06, Math.sin(a) * 0.36); st.rotation.set(i, i * 2, 0); fire.add(st); }
+    const logM = new THREE.MeshStandardMaterial({ color: '#4a3020', roughness: 1 });
+    for (const a of [0, 2.1, 4.2]) { const l = cyl(0.045, 0.05, 0.55, logM, Math.cos(a) * 0.1, 0.12, Math.sin(a) * 0.1, fire, 6); l.rotation.order = 'YZX'; l.rotation.set(0, -a, 1.05); }
+    const flameM = new THREE.MeshBasicMaterial({ color: '#ffae3a', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    const flames = [0, 1, 2].map(i => { const f = new THREE.Mesh(new THREE.ConeGeometry(0.13 - i * 0.03, 0.45 - i * 0.1, 7), flameM); f.position.set((i - 1) * 0.06, 0.32, (i % 2) * 0.05 - 0.02); f.castShadow = false; fire.add(f); return f; });
+    const embers = cyl(0.17, 0.17, 0.03, new THREE.MeshStandardMaterial({ color: '#3a1c0c', emissive: '#ff4a0a', emissiveIntensity: 0 }), 0, 0.05, 0, fire, 12); embers.castShadow = false;
+    const light = new THREE.PointLight('#ff9a4a', 0, 9, 2); light.position.set(0, 0.6, 0); light.castShadow = false; fire.add(light);
+    // เก้าอี้สนามพับได้ หันหน้าเข้ากองไฟ
+    const chair = new THREE.Group(); chair.position.set(2.75, 0, 1.25); g.add(chair);
+    const canvasM = new THREE.MeshStandardMaterial({ color: '#2d5b8a', roughness: 0.9 });
+    box(0.5, 0.04, 0.45, canvasM, 0, 0.42, 0, chair); box(0.5, 0.5, 0.04, canvasM, 0, 0.68, -0.22, chair).rotation.x = -0.15;
+    for (const [x, z] of [[-0.24, -0.2], [0.24, -0.2], [-0.24, 0.2], [0.24, 0.2]]) cyl(0.012, 0.012, 0.44, poleM, x, 0.21, z, chair, 4);
+    const fireW = fire.position.clone().add(pos), chairW = chair.position.clone().add(pos);
+    chair.rotation.y = Math.atan2(fireW.x - chairW.x, fireW.z - chairW.z);
+    // ตัว Z ลอยขึ้นจากเต็นท์ตอนพ่อหลับ
+    const zs = [0, 1, 2].map(k => { const sp = new THREE.Sprite(this.zMat.clone()); sp.scale.setScalar(0.25); sp.visible = false; g.add(sp); return { sp, t: k / 3 }; });
+    this.camp = {
+      group: g, tent, fabric, door, flames, flameM, embers, light, zs, pos,
+      front: [pos.x + 0.2, 0, pos.z + 1.9], chair: [chairW.x, 0, chairW.z], fireW,
+      tonight: false, decided: false, pitched: false, k: 0, fire: 0, sleeping: false,
+    };
+  }
+
+  pitchCamp(instant) {
+    const c = this.camp; if (c.pitched) return;
+    c.pitched = true; c.group.visible = true; c.k = instant ? 1 : 0;
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+  packCamp() {
+    const c = this.camp; if (!c.pitched) return;
+    c.pitched = false; c.group.visible = false; c.fire = 0; c.sleeping = false; c.light.intensity = 0;
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
+  updateCamp(dt, t) {
+    const c = this.camp; if (!c?.pitched) return;
+    if (c.k < 1) { c.k = Math.min(1, c.k + dt / 2.5); const e = 1 - (1 - c.k) ** 3; c.tent.scale.set(1, Math.max(0.02, e), 1); if (c.k === 1) this.renderer.shadowMap.needsUpdate = true; }
+    // กองไฟ: 1 = ลุกโชน · 0.3 = เหลือถ่านแดง · 0 = ดับ
+    const f = c.fire, flick = 0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7.3) * 0.07;
+    c.flames.forEach((m, i) => { m.visible = f > 0.5; m.scale.set(1, flick * (1 + Math.sin(t * 9 + i * 2) * 0.15), 1); m.rotation.y = t * (1 + i); });
+    c.embers.material.emissiveIntensity = f > 0 ? 1.4 + Math.sin(t * 3) * 0.3 : 0;
+    c.light.intensity = (f > 0.5 ? 9 * flick : f * 4) * Math.max(0.25, this.nightFactor);
+    // ตะเกียงในเต็นท์: ผ้าเรืองเป็นสีส้มอุ่น ๆ ช่วงหัวค่ำที่พ่อเข้าเต็นท์ (ปิดตอนห้าทุ่ม)
+    const lamp = c.sleeping && (this.hour >= 21.5 && this.hour < 23) ? this.nightFactor : 0;
+    c.fabric.emissiveIntensity = lerp(c.fabric.emissiveIntensity, lamp * 0.55, 0.05);
+    c.door.material.emissiveIntensity = lerp(c.door.material.emissiveIntensity, lamp * 0.9, 0.05);
+    c.zs.forEach(z => {
+      z.sp.visible = c.sleeping;
+      if (!c.sleeping) return;
+      z.t = (z.t + dt * 0.28) % 1;
+      z.sp.position.set(0.2 + Math.sin(z.t * 6) * 0.1, 1.25 + z.t * 1.0, 0.3);
+      z.sp.material.opacity = Math.sin(z.t * Math.PI);
+      z.sp.scale.setScalar(0.14 + z.t * 0.18);
+    });
+  }
+
+  // พ่อออกจากเต็นท์ (ก่อนไปทำกิจกรรมอื่น)
+  leaveTent(h) {
+    const c = this.camp; if (!c?.sleeping) return;
+    c.sleeping = false; h.sleeping = false; h.group.rotation.set(0, 0, 0); h.baseY = 0;
+    h.group.position.set(c.front[0], 0, c.front[2]);
+  }
+
   buildBedroom() {
     const g = new THREE.Group(); this.house.add(g); g.visible = false;
     const mattM = new THREE.MeshStandardMaterial({ color: '#e9e4d8', roughness: 0.95 });

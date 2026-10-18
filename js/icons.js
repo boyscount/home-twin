@@ -26,6 +26,7 @@ const P = {
   rotl: '<path d="M4.5 9.5A8 8 0 1 1 4 14"/><path d="M4 4.5v5h5"/>',
   rotr: '<path d="M19.5 9.5A8 8 0 1 0 20 14"/><path d="M20 4.5v5h-5"/>',
   orbit: '<circle cx="12" cy="12" r="2.6"/><ellipse cx="12" cy="12" rx="9.5" ry="4.5" transform="rotate(-25 12 12)"/><circle cx="19.2" cy="8.4" r="1.1" fill="currentColor" stroke="none"/>',
+  tent: '<path d="M2.5 20 12 4l9.5 16z"/><path d="M12 4v16" opacity=".55"/><path d="M12 11.5 8.6 20M12 11.5l3.4 8.5"/><path d="M1.5 20h21"/>',
   sim: '<path d="M12 2.5c.6 4.5 2 5.9 6.5 6.5-4.5.6-5.9 2-6.5 6.5-.6-4.5-2-5.9-6.5-6.5 4.5-.6 5.9-2 6.5-6.5z"/><path d="M18.5 15c.3 2 .9 2.6 3 3-2.1.4-2.7 1-3 3-.3-2-.9-2.6-3-3 2.1-.4 2.7-1 3-3z" opacity=".75"/>',
   check: '<circle cx="12" cy="12" r="9"/><path d="m7.8 12.3 2.8 2.8 5.6-5.8"/>',
   alert: '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.2" r=".9" fill="currentColor" stroke="none"/>',
@@ -81,7 +82,7 @@ const P = {
 // อีโมจิ → ชื่อไอคอน
 const MAP = {
   '🏡': 'farm', '📡': 'radar', '🛰️': 'hub', '📺': 'tv', '☰': 'menu', '🎬': 'tour', '📹': 'cam', '🌐': 'globe', '☀️': 'sun', '☁️': 'cloud', '🌧️': 'rain', '⛈️': 'storm',
-  '📍': 'pin', '＋': 'plus', '−': 'minus', '⌂': 'reset', '🏷️': 'tag', '⟲': 'rotl', '⟳': 'rotr', '🔄': 'orbit', '🎮': 'sim', '✅': 'check', '🚨': 'siren', '✕': 'close',
+  '📍': 'pin', '＋': 'plus', '−': 'minus', '⌂': 'reset', '🏷️': 'tag', '⟲': 'rotl', '⟳': 'rotr', '🔄': 'orbit', '🎮': 'sim', '⛺': 'tent', '✅': 'check', '🚨': 'siren', '✕': 'close',
   '✋': 'hand', '🚶': 'walk', '👋': 'wave', '📚': 'book', '🎣': 'hook', '🚗': 'car', '🏠': 'homein', '🍖': 'flame', '🌌': 'stars', '🪑': 'chair', '🐖': 'pig', '🐟': 'fish',
   '🥚': 'egg', '🐕': 'paw', '⚡': 'bolt', '🌫️': 'fog', '🌇': 'sunset', '🌙': 'moon', '💤': 'sleep', '🔦': 'torch', '🥬': 'leaf', '💧': 'drop', '🌾': 'rice', '🌡️': 'temp',
   '💡': 'bulb', '🚪': 'door', '🐔': 'bird', '🌀': 'vortex', '🫧': 'bubbles', '🎆': 'burst', '🪷': 'lotus', '💦': 'splash', '↩️': 'undo', '👥': 'users', '🐾': 'paw',
