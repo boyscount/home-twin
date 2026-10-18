@@ -171,7 +171,7 @@ input[type=checkbox] { accent-color: var(--jade); }
 .tc-bar { border-radius: 0 !important; } .tc-bar i { background: var(--grad) !important; box-shadow: 0 0 10px rgba(90, 215, 255, .6); border-radius: 0 !important; }
 
 /* ============================================================================
-   ธีมอื่น ๆ (สลับได้ที่แผงควบคุม → ธีม หรือใส่ ?theme=siam|solar|neon ท้ายลิงก์)
+   ธีมอื่น ๆ (สลับได้ที่แผงควบคุม → ธีม หรือใส่ ?theme=siam|neon|lanna|monsoon ท้ายลิงก์)
    ========================================================================== */
 
 /* ---------- Siam Mystic: มรกตเข้ม + ทองไทย หรูแบบแฟนตาซีไทย ---------- */
@@ -192,8 +192,6 @@ html[data-theme="siam"] .sim-fab { background: linear-gradient(115deg, #8a5a14, 
 html[data-theme="siam"] .panel h3::before { background: var(--jade); box-shadow: 0 0 8px var(--jade); }
 html[data-theme="siam"] .brand-mark::after { background: radial-gradient(circle, #fff, var(--gold) 45%, transparent 70%); box-shadow: 0 0 14px var(--gold); }
 
-/* ---------- Solar Punk: สว่าง สีครีม + เขียวใบไม้ + ส้มดินเผา มุมโค้งมน อ่านง่ายกลางแดด ---------- */
-html[data-theme="solar"] {
   --bg: #eef1e6; --panel-solid: #fbf8ef; --line: rgba(60, 90, 60, .18); --text: #1e3326; --dim: #5d7466;
   --jade: #2f9e6b; --cyan: #3c8dbc; --violet: #d9822b; --gold: #e0a83c; --rose: #d64545;
   --grad: linear-gradient(115deg, #2f9e6b, #7cb342 50%, #e0a83c); --grad-soft: linear-gradient(115deg, rgba(47, 158, 107, .16), rgba(224, 168, 60, .14));
@@ -204,29 +202,6 @@ html[data-theme="solar"] {
   --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #1e5b3c, #2f9e6b);
   --display: "Mitr", "IBM Plex Sans Thai", system-ui, sans-serif;
 }
-html[data-theme="solar"] :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: 12px !important; }
-html[data-theme="solar"] :is(.tabs, .chip, .tab, .sim-fab, .kiosk-btn, .panel-toggle, .pill) { border-radius: 999px !important; }
-html[data-theme="solar"] .tabs { clip-path: none; background: rgba(255, 255, 255, .6); }
-html[data-theme="solar"] :is(.panel, .card) { border-radius: 16px; box-shadow: 0 8px 24px rgba(40, 60, 40, .12); }
-html[data-theme="solar"] .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
-html[data-theme="solar"] .tab.active { box-shadow: none; background: var(--active); color: #fff; }
-html[data-theme="solar"] .tab.active .ic { color: #fff; }
-html[data-theme="solar"] .topbar::after { opacity: .35; box-shadow: none; }
-html[data-theme="solar"] .brand-sub { color: #6f8476; }
-html[data-theme="solar"] .clock { text-shadow: none; }
-html[data-theme="solar"] .zone-label { background: rgba(255, 255, 255, .92); color: var(--text); border-color: rgba(47, 158, 107, .45); }
-html[data-theme="solar"] .sim-fab { background: linear-gradient(115deg, #2f9e6b, #7cb342 55%, #e0a83c); box-shadow: 0 8px 22px rgba(47, 158, 107, .35); }
-html[data-theme="solar"] .panel h3::before { background: var(--violet); box-shadow: none; border-radius: 50%; transform: none; }
-html[data-theme="solar"] .panel h3::after { background: linear-gradient(90deg, rgba(47, 158, 107, .35), transparent); }
-html[data-theme="solar"] .brand-mark::before { animation-duration: 20s; }
-html[data-theme="solar"] .brand-mark::after { background: radial-gradient(circle, #fff7d6, #e0a83c 45%, transparent 70%); box-shadow: 0 0 10px rgba(224, 168, 60, .6); }
-html[data-theme="solar"] .card-h .ico { border-radius: 50%; clip-path: none; color: var(--jade); }
-html[data-theme="solar"] .mini-radar { border-color: rgba(47, 158, 107, .6); }
-
-html[data-theme="solar"] :is(.chip, .kiosk-btn, .tour-btn, .panel-toggle, .card .act, .zoom-ctl button) { color: var(--btn-text) !important; }
-html[data-theme="solar"] :is(.chip.active, .tour-btn.active, .zoom-ctl button.active) { color: #fff !important; }
-html[data-theme="solar"] :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: #fff !important; color: var(--text) !important; border: 1px solid rgba(60, 90, 60, .25) !important; }
-html[data-theme="solar"] .tour-btn { color: var(--jade) !important; }
 
 /* ---------- Neon Cyber: ดำ + ชมพู/ฟ้านีออน มุมคมกริบ ไซไฟจัด ---------- */
 html[data-theme="neon"] {
@@ -246,11 +221,6 @@ html[data-theme="neon"] .tab.active .ic, html[data-theme="neon"] .sim-btn:nth-ch
 html[data-theme="neon"] .sim-fab { background: linear-gradient(115deg, #ff3ea5, #7b2cff 55%, #00f0ff); box-shadow: 0 0 24px rgba(255, 62, 165, .55); }
 html[data-theme="neon"] .panel h3::before { background: #ff3ea5; box-shadow: 0 0 8px #ff3ea5; }
 html[data-theme="neon"] .brand-mark::after { background: radial-gradient(circle, #fff, #ff3ea5 45%, transparent 70%); box-shadow: 0 0 14px #ff3ea5; }
-
-/* Solar Punk: บังคับสีตัวอักษรให้อ่านชัดบนพื้นสว่าง */
-html[data-theme="solar"] :is(.chip, .kiosk-btn, .tour-btn, .panel-toggle, .card .act, .zoom-ctl button) { color: var(--btn-text) !important; }
-html[data-theme="solar"] :is(.chip.active, .tour-btn.active, .zoom-ctl button.active) { color: #fff !important; }
-html[data-theme="solar"] :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: #fff !important; color: var(--text) !important; border: 1px solid rgba(60, 70, 100, .2) !important; }
 
 /* ปุ่มเลือกธีม (ตัวอย่างสีในปุ่ม) */
 .theme-chip { display: inline-flex; align-items: center; gap: 6px; }

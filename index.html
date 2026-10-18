@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/theme.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&family=Srisakdi:wght@700&family=Bai+Jamjuree:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|solar|neon|lanna|monsoon)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(!/^(aether|siam|solar|neon|lanna|monsoon)$/.test(t)) t="siam"; if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
+  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|neon|lanna|monsoon)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(!/^(aether|siam|neon|lanna|monsoon)$/.test(t)) t="siam"; if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
   <!-- ตัวช่วย import map สำหรับเบราว์เซอร์รุ่นเก่า (เช่น สมาร์ททีวี) — เบราว์เซอร์ใหม่จะข้ามไปเอง -->
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
@@ -106,7 +106,6 @@
         <div class="chips" id="themeChips">
           <button class="chip theme-chip" data-theme-pick="aether"><i style="background:linear-gradient(135deg,#3df2b4,#5ad7ff,#a98bff)"></i>Aether</button>
           <button class="chip theme-chip" data-theme-pick="siam"><i style="background:linear-gradient(135deg,#0a1a14,#f4d27a)"></i>Siam Mystic</button>
-          <button class="chip theme-chip" data-theme-pick="solar"><i style="background:linear-gradient(135deg,#fbf8ef,#2f9e6b,#e0a83c)"></i>Solar Punk</button>
           <button class="chip theme-chip" data-theme-pick="neon"><i style="background:linear-gradient(135deg,#00f0ff,#ff3ea5)"></i>Neon Cyber</button>
           <button class="chip theme-chip" data-theme-pick="lanna"><i style="background:radial-gradient(circle at 35% 35%,#ffd08a,#ff8f3a 55%,#3a1f0e)"></i>Lanna Night</button>
           <button class="chip theme-chip" data-theme-pick="monsoon"><i style="background:linear-gradient(160deg,#e8f6ff,#8ecbff 45%,#2a4458)"></i>Monsoon Glass</button>
