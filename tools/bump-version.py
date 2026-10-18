@@ -7,7 +7,7 @@ import json, pathlib, re, time
 root = pathlib.Path(__file__).resolve().parent.parent
 html_path = root / 'index.html'
 html = html_path.read_text(encoding='utf-8')
-ver = time.strftime('%y%m%d%H%M')
+ver = time.strftime('%y%m%d%H%M%S')
 
 # ไฟล์ของเราเองที่อ้างใน HTML (js/…, css/…) → ?v=ver
 html = re.sub(r'((?:href|src)=")((?:js|css)/[\w.-]+\.(?:js|css))(?:\?v=\w+)?(")', rf'\g<1>\g<2>?v={ver}\g<3>', html)
