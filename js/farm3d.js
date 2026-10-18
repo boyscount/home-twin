@@ -1572,16 +1572,15 @@ export class Farm3D {
     import('./rigged.js').then(async R => {
       this.rig = R;
       const rigs = await fetch('models/rigs.json').then(r => r.json());
-      let compiled = false;
       const fam = [['dad', this.dad.h, new THREE.Vector3(0, 0.25, -0.08)], ['mom', this.mom.h], ['sis', this.sis.h], ['kid', this.kid.h]]; // ไฟฉายพ่อไปอยู่บนยอดหมวก
-      for (const [name, h, shift] of fam) {
-        if (!rigs[name]) continue;
+      let compiled = null; // โหลดพร้อมกันทุกตัว · คอมไพล์ shader ครั้งเดียว (ทุกตัวใช้วัสดุเดียวกัน)
+      await Promise.all(fam.filter(([name]) => rigs[name]).map(async ([name, h, shift]) => {
         try {
           const r = (await R.loadRigFactory(name))();
-          if (!compiled) { compiled = true; await this.renderer.compileAsync(r.mesh, this.camera, this.scene).catch(() => {}); }
+          await (compiled ||= this.renderer.compileAsync(r.mesh, this.camera, this.scene).catch(() => {}));
           R.reskin(h, r, SKIN_MAT, shift);
         } catch (e) { console.warn('model', name, e); }
-      }
+      }));
       for (const p of PERSONAS) {
         const key = p.id.replace('-', '').toLowerCase();
         if (rigs[key]) R.loadRigFactory(key).then(f => (this.rigFactories[p.id] = f)).catch(e => console.warn('model', key, e));

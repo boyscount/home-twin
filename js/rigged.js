@@ -18,7 +18,7 @@ function segDist(p, a, b) {
 export async function loadRigFactory(name) {
   const [gltf, all] = await Promise.all([new GLTFLoader().loadAsync(`models/${name}.glb`), rigs()]);
   const rig = all[name]; if (!rig) throw new Error('no rig for ' + name);
-  const J = rig.joints, SCALE = rig.scale, TH = rig.torsoHalf;
+  const J = rig.joints, SCALE = rig.scale;
   let src; gltf.scene.traverse(o => { if (o.isMesh && !src) src = o; });
   const geo = src.geometry.clone();
   // สีจุดยอดจาก trimesh เป็นค่า sRGB แต่ three อ่านเป็น linear → แปลงกลับ ไม่งั้นสีซีด
@@ -37,27 +37,54 @@ export async function loadRigFactory(name) {
     [9, P('neck'), P('headTop')],
   ];
   const pos = geo.attributes.position, n = pos.count;
-  const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), p = new THREE.Vector3();
+  const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), p = new THREE.Vector3(), q = new THREE.Vector3();
+  const sm = (a, b, x) => { const t = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  // ---- แขน: ตัดระนาบเลยรักแร้ไปนิด แล้ว "ไหลตามผิว" จากปลายนิ้วเข้ามา — ผิวข้างลำตัวไม่ต่อกับแขนหลังระนาบ จึงไม่ถูกนับเป็นแขน
+  const adj = Array.from({ length: n }, () => []), ix = geo.index ? geo.index.array : null;
+  if (ix) for (let k = 0; k < ix.length; k += 3) { const a = ix[k], b = ix[k + 1], c3 = ix[k + 2]; adj[a].push(b, c3); adj[b].push(a, c3); adj[c3].push(a, b); }
+  const arm = side => {
+    const sh = side < 0 ? P('shL') : Pm('shL'), hd = side < 0 ? P('handL') : Pm('handL');
+    const d = hd.clone().sub(sh), len = d.length(); d.normalize();
+    const t = new Float32Array(n), inArm = new Uint8Array(n), t0 = 0.22 * len;
+    let seed = -1, best = 1e9;
+    for (let k = 0; k < n; k++) {
+      p.fromBufferAttribute(pos, k); t[k] = (p.x - sh.x) * d.x + (p.y - sh.y) * d.y;
+      const dd = (p.x - hd.x) ** 2 + (p.y - hd.y) ** 2; if (dd < best && Math.sign(p.x) === side) { best = dd; seed = k; }
+    }
+    let cnt = 0;
+    if (ix && seed >= 0) { const st = [seed]; inArm[seed] = 1; while (st.length) { const v = st.pop(); cnt++; for (const w of adj[v]) if (!inArm[w] && t[w] > t0) { inArm[w] = 1; st.push(w); } } }
+    if (cnt > 0.14 * n) inArm.fill(0); // แขนแนบตัวจนผิวติดกัน (ไหลเลยเข้าลำตัว) → ใช้วิธีระยะทางแบบเดิมแทน
+    return { t, inArm, len, t0, ok: cnt > 0 && cnt <= 0.14 * n };
+  };
+  const AL = arm(-1), AR = arm(1);
   for (let i = 0; i < n; i++) {
-    p.fromBufferAttribute(pos, i); p.z = 0; // ใช้มุมหน้า (x,y) เป็นหลัก — ตัวบาง แกนลึกไม่สำคัญ
+    p.fromBufferAttribute(pos, i); q.set(p.x, p.y, 0);
     let cand = [];
-    if (p.y > yNeck + 0.01) cand = [[9, 1]];
+    const A = AL.inArm[i] ? [AL, 5, 7] : AR.inArm[i] ? [AR, 6, 8] : null;
+    if (A) {
+      const [R, bu, bf] = A, tr = R.t[i] / R.len;
+      const f = sm(0.38, 0.52, tr), a = sm(R.t0 / R.len, R.t0 / R.len + 0.14, tr); // ศอก / โคนแขนผสมกับลำตัว
+      cand = [[bu, a * (1 - f)], [bf, a * f], [0, 1 - a]].filter(c => c[1] > 1e-3);
+    } else if (p.y > yNeck + 0.01) cand = [[9, 1]];
     else {
+      const legacy = !(p.x < 0 ? AL.ok : AR.ok); // ด้านนี้ใช้วิธีระยะทาง (แขนแนบตัว)
       for (const [b, a, e] of segs) {
-        if ((b === 1 || b === 3 || b === 5 || b === 7) && p.x > 0.01) continue; // ซ้ายอยู่ฝั่ง -x
-        if ((b === 2 || b === 4 || b === 6 || b === 8) && p.x < -0.01) continue;
+        if (b >= 5 && b <= 8 && (!legacy || p.y < yHand - 0.04)) continue;
+        if ((b === 5 || b === 7) && p.x > 0.01) continue;
+        if ((b === 6 || b === 8) && p.x < -0.01) continue;
+        if ((b === 1 || b === 3) && p.x > 0.01) continue; // ซ้ายอยู่ฝั่ง -x
+        if ((b === 2 || b === 4) && p.x < -0.01) continue;
         if (b >= 1 && b <= 4 && p.y > yHip + 0.06) continue; // ขาไม่ดึงลำตัวบน
-        if (b >= 5 && b <= 8 && p.y < yHand - 0.04) continue;
-        let w = 1 / Math.max(segDist(p, a, e), 0.004) ** 4;
+        let w = 1 / Math.max(segDist(q, a, e), 0.004) ** 4;
         if (b === 0 && p.y < yHip) w *= Math.max(0, (p.y - (yHip - 0.08)) / 0.08) ** 2; // ใต้สะโพกเป็นของขา
         if (b === 9) w *= 0.3;
         cand.push([b, w]);
       }
-      // นอกแนวลำตัวและอยู่ระดับแขน → เป็นของแขนล้วน (ลำตัวไม่ยืดตามตอนแกว่งแขน)
-      if (Math.abs(p.x) > TH + 0.03 && p.y < ySh - 0.03 && p.y > yHand - 0.04) cand = cand.filter(([b]) => b >= 5 && b <= 8);
+      if (legacy && Math.abs(p.x) > (rig.torsoHalf || 0.1) + 0.03 && p.y < ySh - 0.03 && p.y > yHand - 0.04) cand = cand.filter(([b]) => b >= 5 && b <= 8);
+      const tot0 = cand.reduce((s, c) => s + c[1], 0) || 1; cand = cand.map(([b, w]) => [b, w / tot0]);
       cand.sort((x, y) => y[1] - x[1]); cand = cand.slice(0, 3);
     }
-    const tot = cand.reduce((s, q) => s + q[1], 0) || 1;
+    const tot = cand.reduce((s, c) => s + c[1], 0) || 1;
     cand.forEach(([b, w], k) => { si[i * 4 + k] = b; sw[i * 4 + k] = w / tot; });
   }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
