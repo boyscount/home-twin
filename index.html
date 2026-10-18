@@ -13,8 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- ฟอนต์ไม่บล็อกการแสดงผล (โหลดเสร็จค่อยสลับ) -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/style.css?v=2610182034">
+  <link rel="stylesheet" href="css/theme.css?v=2610182034">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&family=Srisakdi:wght@700&family=Bai+Jamjuree:wght@500;600;700&family=Nunito:wght@600;700;800&family=Prompt:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
   <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|neon|lanna|monsoon|jade|canopy|sky)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(!/^(aether|siam|neon|lanna|monsoon|jade|canopy|sky)$/.test(t)) t="siam"; if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
   <!-- ตัวช่วย import map สำหรับเบราว์เซอร์รุ่นเก่า (เช่น สมาร์ททีวี) — เบราว์เซอร์ใหม่จะข้ามไปเอง -->
@@ -23,7 +23,30 @@
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "./js/ambient.js": "./js/ambient.js?v=2610182034",
+      "./js/animals.js": "./js/animals.js?v=2610182034",
+      "./js/bus.js": "./js/bus.js?v=2610182034",
+      "./js/farm3d.js": "./js/farm3d.js?v=2610182034",
+      "./js/festivals.js": "./js/festivals.js?v=2610182034",
+      "./js/fishermen.js": "./js/fishermen.js?v=2610182034",
+      "./js/foliage.js": "./js/foliage.js?v=2610182034",
+      "./js/freeze.js": "./js/freeze.js?v=2610182034",
+      "./js/hub.js": "./js/hub.js?v=2610182034",
+      "./js/human.js": "./js/human.js?v=2610182034",
+      "./js/icons.js": "./js/icons.js?v=2610182034",
+      "./js/kiosk.js": "./js/kiosk.js?v=2610182034",
+      "./js/main.js": "./js/main.js?v=2610182034",
+      "./js/miniradar.js": "./js/miniradar.js?v=2610182034",
+      "./js/radar.js": "./js/radar.js?v=2610182034",
+      "./js/rigged.js": "./js/rigged.js?v=2610182034",
+      "./js/simulate.js": "./js/simulate.js?v=2610182034",
+      "./js/sky.js": "./js/sky.js?v=2610182034",
+      "./js/summary.js": "./js/summary.js?v=2610182034",
+      "./js/telegram.js": "./js/telegram.js?v=2610182034",
+      "./js/tour.js": "./js/tour.js?v=2610182034",
+      "./js/weather.js": "./js/weather.js?v=2610182034",
+      "./js/weatherfx.js": "./js/weatherfx.js?v=2610182034"
     }
   }
   </script>
@@ -32,10 +55,10 @@
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js" crossorigin>
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js" crossorigin>
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js" crossorigin>
-  <link rel="modulepreload" href="js/main.js">
-  <link rel="modulepreload" href="js/farm3d.js">
-  <link rel="modulepreload" href="js/radar.js">
-  <link rel="modulepreload" href="js/hub.js">
+  <link rel="modulepreload" href="js/main.js?v=2610182034">
+  <link rel="modulepreload" href="js/farm3d.js?v=2610182034">
+  <link rel="modulepreload" href="js/radar.js?v=2610182034">
+  <link rel="modulepreload" href="js/hub.js?v=2610182034">
 </head>
 <body>
   <header class="topbar">
@@ -315,7 +338,7 @@
     if (!Array.prototype.at) Object.defineProperty(Array.prototype, 'at', { configurable: true, writable: true, value: function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return this[i]; } });
     if (!String.prototype.replaceAll) String.prototype.replaceAll = function (a, b) { return this.split(a).join(b); };
   </script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=2610182034"></script>
   <!-- เปิดแอปไม่ขึ้น (เบราว์เซอร์เก่า เช่น ทีวีบางรุ่น) → บอกผู้ใช้แทนการค้างหน้าโหลด (เขียนแบบ ES5 ให้รันได้ทุกเบราว์เซอร์) -->
   <script>
     (function () {
