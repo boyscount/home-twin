@@ -250,3 +250,93 @@ html[data-theme="neon"] .brand-mark::after { background: radial-gradient(circle,
 /* ปุ่มเลือกธีม (ตัวอย่างสีในปุ่ม) */
 .theme-chip { display: inline-flex; align-items: center; gap: 6px; }
 .theme-chip i { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
+
+/* ---------- ธีมมุมโค้งมน (ใช้ร่วม: Solar Punk / Lanna Night / Rice Dawn) ---------- */
+html:is([data-theme="lanna"], [data-theme="dawn"]) :is(.chip, .tab, .tour-btn, .kiosk-btn, .panel-toggle, .tour-stop, .k-exit, .card .act, .zoom-ctl button, .sim-btn, .sim-fab, .sim-close, .ac-actions button, .zone-label, .toast, .pill) { clip-path: none !important; border-radius: var(--round, 12px) !important; }
+html:is([data-theme="lanna"], [data-theme="dawn"]) .tabs { clip-path: none; border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="dawn"]) :is(.panel, .card) { border-radius: calc(var(--round, 12px) + 4px); }
+html:is([data-theme="lanna"], [data-theme="dawn"]) .sim-panel { clip-path: none; border-radius: 22px 22px 0 0; }
+html:is([data-theme="lanna"], [data-theme="dawn"]) .alert-card { clip-path: none; border-radius: 18px; }
+html:is([data-theme="lanna"], [data-theme="dawn"]) .card-h .ico { clip-path: none; border-radius: 50%; }
+
+/* ---------- Lanna Night: ล้านนายามค่ำ ไม้สัก + แสงโคมยี่เป็ง อบอุ่นลึกลับ ---------- */
+html[data-theme="lanna"] {
+  --bg: #120a05; --panel-solid: #1c110a; --line: rgba(255, 170, 90, .22); --text: #f8ead4; --dim: #c1a687;
+  --jade: #ffb35a; --cyan: #f2c46d; --violet: #d0583c; --gold: #f2c46d; --rose: #e2574c;
+  --grad: linear-gradient(115deg, #ff8f3a, #f2c46d 55%, #d0583c); --grad-soft: linear-gradient(115deg, rgba(255, 143, 58, .2), rgba(242, 196, 109, .14));
+  --edge: linear-gradient(115deg, rgba(255, 170, 90, .7), rgba(208, 88, 60, .5)); --edge-soft: linear-gradient(135deg, rgba(255, 170, 90, .45), rgba(208, 88, 60, .3));
+  --active: linear-gradient(115deg, #ffb35a, #ff7a3a); --on-active: #2a1406; --btn-text: #f5e2c6; --tab-text: #c9a985; --head: #ffc27a; --glow: rgba(255, 150, 60, .5);
+  --surface: rgba(30, 18, 10, .93); --panel-bg: radial-gradient(120% 90% at 20% 0%, rgba(255, 140, 50, .1), transparent 60%), linear-gradient(160deg, rgba(38, 22, 12, .9), rgba(18, 10, 5, .86));
+  --topbar-bg: linear-gradient(180deg, rgba(36, 20, 10, .97), rgba(16, 9, 4, .95)); --sheet-bg: linear-gradient(170deg, rgba(40, 23, 12, .97), rgba(16, 9, 4, .98));
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #fff1d6, #ffc27a 55%, #ff8f3a);
+  --display: "Bai Jamjuree", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 10px;
+}
+html[data-theme="lanna"] .brand-name { font-family: "Srisakdi", var(--display); font-size: 22px; letter-spacing: 0; }
+/* ลายฉลุจุดเล็ก ๆ ตามขอบแผง แบบโคมกระดาษ */
+html[data-theme="lanna"] :is(.panel, .card)::before { inset: 5px; border: 1px dashed rgba(255, 180, 100, .28); border-radius: 12px; background: none; filter: none; }
+html[data-theme="lanna"] .tab.active { background: var(--grad-soft); box-shadow: inset 0 -2px 0 #ffb35a, 0 0 18px rgba(255, 150, 60, .25); }
+html[data-theme="lanna"] .tab.active .ic, html[data-theme="lanna"] .sim-ico, html[data-theme="lanna"] .card-h .ico { color: #ffb35a; }
+html[data-theme="lanna"] .sim-fab { background: radial-gradient(circle at 30% 30%, #ffd08a, #ff8f3a 55%, #c2410c); color: #2a1406; text-shadow: none; box-shadow: 0 0 26px rgba(255, 140, 50, .55); }
+html[data-theme="lanna"] .panel h3::before { background: #ff8f3a; box-shadow: 0 0 10px #ff8f3a; border-radius: 50%; transform: none; }
+html[data-theme="lanna"] .brand-mark::before { animation-duration: 16s; }
+html[data-theme="lanna"] .brand-mark::after { background: radial-gradient(circle, #fff3d6, #ffb35a 45%, transparent 72%); box-shadow: 0 0 18px #ff9a3c; }
+html[data-theme="lanna"] .topbar::after { box-shadow: 0 0 14px rgba(255, 150, 60, .6); }
+
+/* ---------- Rice Dawn: รุ่งอรุณทุ่งนา สว่าง สงบ มินิมอลหรู ---------- */
+html[data-theme="dawn"] {
+  --bg: #f5f0ea; --panel-solid: #ffffff; --line: rgba(60, 70, 100, .14); --text: #2b2a33; --dim: #6f6b78;
+  --jade: #c8962f; --cyan: #7aa7d4; --violet: #e29d93; --gold: #d9a441; --rose: #d9534f;
+  --grad: linear-gradient(115deg, #f2c27a, #e8a9a0 50%, #9cc0e6); --grad-soft: linear-gradient(115deg, rgba(242, 194, 122, .2), rgba(156, 192, 230, .18));
+  --edge: linear-gradient(115deg, rgba(217, 164, 65, .35), rgba(122, 167, 212, .35)); --edge-soft: linear-gradient(135deg, rgba(217, 164, 65, .22), rgba(122, 167, 212, .22));
+  --active: linear-gradient(115deg, #e0ad52, #e8a9a0); --on-active: #ffffff; --btn-text: #3a3742; --tab-text: #6f6b78; --head: #9a7a3c; --glow: rgba(217, 164, 65, .2);
+  --surface: rgba(255, 255, 255, .9); --panel-bg: linear-gradient(160deg, rgba(255, 255, 255, .86), rgba(250, 246, 240, .82));
+  --topbar-bg: linear-gradient(180deg, rgba(255, 252, 248, .97), rgba(245, 240, 234, .95)); --sheet-bg: linear-gradient(170deg, #fffdfa, #f4efe8);
+  --bracket1: transparent; --bracket2: transparent; --brand-grad: linear-gradient(90deg, #5a4a2a, #c8962f 60%, #e29d93);
+  --display: "Mitr", "IBM Plex Sans Thai", system-ui, sans-serif; --round: 18px;
+}
+html[data-theme="dawn"] :is(.chip, .tabs, .tab, .sim-fab, .kiosk-btn, .panel-toggle, .pill) { border-radius: 999px !important; }
+html[data-theme="dawn"] :is(.panel, .card) { box-shadow: 0 10px 30px rgba(70, 60, 50, .1); backdrop-filter: blur(14px); }
+html[data-theme="dawn"] .tabs { background: rgba(255, 255, 255, .7); }
+html[data-theme="dawn"] .tab.active { background: var(--active); color: #fff; box-shadow: 0 4px 14px rgba(217, 164, 65, .3); }
+html[data-theme="dawn"] .tab.active .ic { color: #fff; }
+html[data-theme="dawn"] .topbar::after { opacity: .5; box-shadow: none; }
+html[data-theme="dawn"] .clock { text-shadow: none; }
+html[data-theme="dawn"] .brand-sub { color: #8a8494; }
+html[data-theme="dawn"] .zone-label { background: rgba(255, 255, 255, .92); color: var(--text); border-color: rgba(217, 164, 65, .45); }
+html[data-theme="dawn"] .sim-fab { background: linear-gradient(115deg, #f2c27a, #e8a9a0 55%, #9cc0e6); color: #2b2a33; text-shadow: none; box-shadow: 0 8px 22px rgba(232, 169, 160, .45); }
+html[data-theme="dawn"] .panel h3 { color: #9a7a3c; }
+html[data-theme="dawn"] .panel h3::before { background: #e8a9a0; box-shadow: none; border-radius: 50%; transform: none; }
+html[data-theme="dawn"] .panel h3::after { background: linear-gradient(90deg, rgba(217, 164, 65, .35), transparent); }
+html[data-theme="dawn"] .brand-mark::before { animation-duration: 24s; }
+html[data-theme="dawn"] .brand-mark::after { background: radial-gradient(circle, #fffbea, #f2c27a 45%, transparent 72%); box-shadow: 0 0 12px rgba(242, 194, 122, .7); }
+html[data-theme="dawn"] .sim-ico, html[data-theme="dawn"] .card-h .ico { color: #c8962f; }
+html[data-theme="dawn"] .sim-btn:nth-child(3n+2) .sim-ico { color: #7aa7d4; }
+html[data-theme="dawn"] .sim-btn:nth-child(3n) .sim-ico { color: #d98a80; }
+html[data-theme="dawn"] .mini-radar { border-color: rgba(217, 164, 65, .6); }
+html:is([data-theme="dawn"], [data-theme="solar"]) :is(.chip, .kiosk-btn, .tour-btn, .panel-toggle, .card .act, .zoom-ctl button) { color: var(--btn-text) !important; }
+html:is([data-theme="dawn"], [data-theme="solar"]) :is(.chip.active, .tour-btn.active, .zoom-ctl button.active) { color: #fff !important; }
+html:is([data-theme="dawn"], [data-theme="solar"]) :is(select, .sel, input[type=text], input[type=password], .mqtt-form input) { background: #fff !important; color: var(--text) !important; border: 1px solid rgba(60, 70, 100, .2) !important; }
+html[data-theme="dawn"] .tour-btn { color: #9a7a3c !important; }
+
+/* ---------- Royal Indigo: ครามราชสำนัก เงินมุก หรูเป็นทางการ ---------- */
+html[data-theme="indigo"] {
+  --bg: #060920; --panel-solid: #0c1030; --line: rgba(201, 209, 232, .18); --text: #eef1fb; --dim: #9aa3c4;
+  --jade: #c9d1e8; --cyan: #8fa2ff; --violet: #6d7cff; --gold: #e8d9a8; --rose: #ff6b8a;
+  --grad: linear-gradient(115deg, #f2f4fb, #c9d1e8 45%, #6d7cff); --grad-soft: linear-gradient(115deg, rgba(242, 244, 251, .14), rgba(109, 124, 255, .18));
+  --edge: linear-gradient(115deg, rgba(242, 244, 251, .7), rgba(143, 162, 255, .4) 55%, rgba(201, 209, 232, .6)); --edge-soft: linear-gradient(135deg, rgba(242, 244, 251, .4), rgba(109, 124, 255, .3));
+  --active: linear-gradient(115deg, #f2f4fb, #c9d1e8); --on-active: #0c1030; --btn-text: #dde2f5; --tab-text: #9aa3c4; --head: #c9d1e8; --glow: rgba(143, 162, 255, .45);
+  --surface: rgba(12, 16, 48, .93); --panel-bg: linear-gradient(160deg, rgba(18, 24, 64, .88), rgba(7, 10, 32, .86));
+  --topbar-bg: linear-gradient(180deg, rgba(16, 21, 58, .97), rgba(6, 9, 30, .95)); --sheet-bg: linear-gradient(170deg, rgba(18, 23, 62, .97), rgba(6, 9, 30, .98));
+  --bracket1: #e8ecf8; --bracket2: #8fa2ff; --brand-grad: linear-gradient(90deg, #ffffff, #c9d1e8 55%, #8fa2ff);
+  --display: "Bai Jamjuree", "IBM Plex Sans Thai", system-ui, sans-serif; --cut: 6px;
+}
+html[data-theme="indigo"] .brand-name { letter-spacing: .06em; font-weight: 600; }
+html[data-theme="indigo"] :is(.panel h3, .sim-body h4) { letter-spacing: .22em; }
+html[data-theme="indigo"] .tab.active { box-shadow: inset 0 -1px 0 #f2f4fb, inset 0 0 20px rgba(143, 162, 255, .2); }
+html[data-theme="indigo"] .tab.active .ic, html[data-theme="indigo"] .sim-ico, html[data-theme="indigo"] .card-h .ico { color: #c9d1e8; }
+html[data-theme="indigo"] .sim-btn:nth-child(3n+2) .sim-ico { color: #8fa2ff; }
+html[data-theme="indigo"] .sim-btn:nth-child(3n) .sim-ico { color: #e8d9a8; }
+html[data-theme="indigo"] .sim-fab { background: linear-gradient(115deg, #2a3490, #4c5fd5 50%, #9aa8f0); box-shadow: 0 10px 30px rgba(76, 95, 213, .5); }
+html[data-theme="indigo"] .panel h3::before { background: #e8ecf8; box-shadow: 0 0 8px rgba(232, 236, 248, .8); }
+html[data-theme="indigo"] .brand-mark::after { background: radial-gradient(circle, #fff, #c9d1e8 45%, transparent 70%); box-shadow: 0 0 14px #8fa2ff; }
+html[data-theme="indigo"] .topbar::after { box-shadow: 0 0 10px rgba(201, 209, 232, .5); }

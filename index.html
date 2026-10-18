@@ -15,8 +15,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/theme.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&display=swap" media="print" onload="this.media='all'">
-  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|solar|neon)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Mitr:wght@400;500;600&family=Charmonman:wght@700&family=Srisakdi:wght@700&family=Bai+Jamjuree:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
+  <script>/* ธีม: ?theme=… หรือที่เลือกไว้ล่าสุด (ค่าเริ่มต้น Siam Mystic) — ตั้งก่อนวาดหน้า */ (function(){ try { var q=/[?&]theme=(aether|siam|solar|neon|lanna|dawn|indigo)/.exec(location.search); var t=q?q[1]:(localStorage.getItem("theme")||"siam"); if(t&&t!=="aether") document.documentElement.setAttribute("data-theme",t); } catch(e){} })();</script>
   <!-- ตัวช่วย import map สำหรับเบราว์เซอร์รุ่นเก่า (เช่น สมาร์ททีวี) — เบราว์เซอร์ใหม่จะข้ามไปเอง -->
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
@@ -108,6 +108,9 @@
           <button class="chip theme-chip" data-theme-pick="siam"><i style="background:linear-gradient(135deg,#0a1a14,#f4d27a)"></i>Siam Mystic</button>
           <button class="chip theme-chip" data-theme-pick="solar"><i style="background:linear-gradient(135deg,#fbf8ef,#2f9e6b,#e0a83c)"></i>Solar Punk</button>
           <button class="chip theme-chip" data-theme-pick="neon"><i style="background:linear-gradient(135deg,#00f0ff,#ff3ea5)"></i>Neon Cyber</button>
+          <button class="chip theme-chip" data-theme-pick="lanna"><i style="background:radial-gradient(circle at 35% 35%,#ffd08a,#ff8f3a 55%,#3a1f0e)"></i>Lanna Night</button>
+          <button class="chip theme-chip" data-theme-pick="dawn"><i style="background:linear-gradient(135deg,#f2c27a,#e8a9a0,#9cc0e6)"></i>Rice Dawn</button>
+          <button class="chip theme-chip" data-theme-pick="indigo"><i style="background:linear-gradient(135deg,#0c1030,#4c5fd5,#e8ecf8)"></i>Royal Indigo</button>
         </div>
         <h3>คุณภาพภาพ</h3>
         <select id="qualitySel" class="sel" aria-label="คุณภาพภาพ"></select>
