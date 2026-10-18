@@ -74,6 +74,36 @@ function groundAO(mat, strength = 0.42, height = 0.9) {
   };
   mat.customProgramCacheKey = () => 'gao' + strength + height + (prev ? 'p' : '');
 }
+// เงาซอกมุมที่อบด้วย Blender (Cycles) ลงพื้นทั้งบริเวณบ้าน + สวนยาง (media/ground_ao.jpg)
+// คูณสีเฉพาะผิวที่หงายขึ้น ตามพิกัดโลก XZ → ใต้ชายคา/โคนรั้ว/ใต้ร่มต้นยางเข้มลงแบบนุ่ม ๆ ไม่ขึ้นกับเวลา จึงใช้ได้ทั้งกลางวันกลางคืน
+const BAKED_AO = { map: { value: null }, X0: -75, X1: 75, Z0: -185, Z1: 62 };
+function bakedAO(mat, always = false) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uBakedAO = BAKED_AO.map;
+    sh.vertexShader = 'varying vec2 vAOuv; varying float vAOup;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      vec4 aop = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        aop = instanceMatrix * aop;
+      #endif
+      aop = modelMatrix * aop;
+      vAOuv = vec2((aop.x - (${BAKED_AO.X0.toFixed(1)})) / ${(BAKED_AO.X1 - BAKED_AO.X0).toFixed(1)}, (aop.z - (${BAKED_AO.Z0.toFixed(1)})) / ${(BAKED_AO.Z1 - BAKED_AO.Z0).toFixed(1)});
+      vAOup = ${always ? '1.0' : 'smoothstep(0.55, 0.9, normalize(mat3(modelMatrix) * objectNormal).y)'};`);
+    sh.fragmentShader = 'uniform sampler2D uBakedAO; varying vec2 vAOuv; varying float vAOup;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      if (vAOuv.x > 0.0 && vAOuv.x < 1.0 && vAOuv.y > 0.0 && vAOuv.y < 1.0) diffuseColor.rgb *= mix(1.0, pow(texture2D(uBakedAO, vAOuv).r, 1.5), vAOup);`);
+  };
+  const key = mat.customProgramCacheKey?.bind(mat);
+  mat.customProgramCacheKey = () => (key ? key() : '') + 'bao' + (always ? 1 : 0);
+}
+// ความสูงเนินเขารอบฟาร์ม (ต้องตรงกับ videos/env/gen_hills.py ที่ใช้ปั้นใน Blender) — ไว้วางทิวไม้ไกล ๆ บนเนิน
+const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export function hillHeight(x, z) {
+  const r = Math.hypot(x, z);
+  const n = 0.55 + 0.25 * Math.sin(x * 0.013 + 1.7) * Math.cos(z * 0.011 + 0.4) + 0.15 * Math.sin(x * 0.031 + z * 0.027 + 2.1) + 0.08 * Math.sin(x * 0.071 - z * 0.063 + 0.7);
+  const ramp = sstep(200, 300, r), road = sstep(25, 70, Math.abs(z - 46));
+  return 28 * n * ramp * road - 0.3 * (1 - ramp);
+}
 const TEX = {};
 function makeTextures() {
   TEX.grass = canvasTex(256, 256, (c, w, h) => {
@@ -149,9 +179,11 @@ function makeTextures() {
 const M = {};
 function makeMaterials() {
   const std = (o) => new THREE.MeshStandardMaterial(o);
-  M.grass = std({ map: TEX.grass, roughness: 1 });
+  // normal map แบนรอไว้ก่อน → พอโหลดภาพพื้นผิวจาก Blender เสร็จ สลับภาพได้เลยไม่ต้องคอมไพล์ shader ใหม่ (ไม่กระตุก)
+  const flatN = new THREE.DataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1); flatN.needsUpdate = true; TEX.flatN = flatN;
+  M.grass = std({ map: TEX.grass, roughness: 1, normalMap: flatN });
   M.rice = std({ map: TEX.rice, roughness: 1 });
-  M.litter = std({ map: TEX.litter, roughness: 1 });
+  M.litter = std({ map: TEX.litter, roughness: 1, normalMap: flatN });
   // ด่างเข้ม-อ่อนเป็นหย่อมใหญ่ ๆ ตามตำแหน่งจริง → สนามไม่เขียวเรียบเท่ากันทั้งผืน (เหมือนแดดเผา/ร่มไม้/ดินชื้น)
   const patchy = (mat, dry, lush, scale) => {
     mat.onBeforeCompile = sh => {
@@ -197,6 +229,7 @@ function makeMaterials() {
   M.ledOn = std({ color: '#3f3', emissive: '#3f3', emissiveIntensity: 2 });
   M.ledBad = std({ color: '#f33', emissive: '#f22', emissiveIntensity: 2.5 });
   for (const k of ['wall', 'wallDark', 'wood', 'brick', 'concrete', 'white', 'trunk', 'bark', 'frame']) groundAO(M[k]);
+  for (const k of ['grass', 'rice', 'litter', 'mud', 'concrete']) bakedAO(M[k]);
   // ใบไม้จริง (แผ่นใบโปร่งใส) แต่ละต้นสีต่างกันเล็กน้อย
   M.leaves = ['#ffffff', '#e6efcf', '#d2dcc0', '#f2e7c6', '#c9d8c4'].map(c => leafMaterial(FOL.broad, c));
   M.palmLeaf = ['#ffffff', '#e9e3c4', '#d8e2c2'].map(c => leafMaterial(FOL.palm, c, 1.6));
@@ -473,7 +506,12 @@ export class Farm3D {
     this.grade = new ShaderPass(GradeShader); this.composer.addPass(this.grade);
     this.nightLights = [];
 
+    // ภาพเงาซอกมุมที่อบจาก Blender: ระหว่างโหลดใช้สีขาว (ไม่มีผล)
+    const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true; BAKED_AO.map.value = white;
+    this.bakedAO = BAKED_AO; // (ไว้เทียบเปิด/ปิดตอนตรวจ)
+    if (!this.lite) new THREE.TextureLoader().load('media/ground_ao.jpg', t => { t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; BAKED_AO.map.value = t; });
     this.buildGround();
+    if (!this.lite) this.loadGroundTextures();
     this.buildHouse();
     this.buildRooftop();
     this.buildCarport();
@@ -496,6 +534,7 @@ export class Farm3D {
     this.buildSprinkler();
     this.buildFarmLights();
     this.buildBedroom();
+    this.buildProps();
     bus.on('sensors', v => this.onSensors(v));
     this.vehicles = []; this.nextCar = 2; this.carsToday = 0; this.carSeq = 0;
     // คนเดินถามก่อนข้าม: มีรถกำลังวิ่งเข้ามาในระยะ 45 ม. ไหม (รถที่จอดรออยู่แล้วไม่นับ)
@@ -566,6 +605,17 @@ export class Farm3D {
   setVisible(v) { if (this.lite) { this.visible = false; return; } this.visible = v; if (v) requestAnimationFrame(() => this.resize()); }
 
   // ---------------------------------------------------------------- world
+  // พื้นผิวหญ้า/ใบยางแห้งที่ปั้น 3 มิติแล้วเรนเดอร์จาก Blender (media/tex) — ต่อกันไร้รอยต่อ ช่องละ 2.5 / 2.2 ม.
+  loadGroundTextures() {
+    const L = new THREE.TextureLoader(), aniso = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    const set = (mat, url, nurl, rep, ns) => {
+      L.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; t.repeat.set(...rep); mat.map = t; });
+      L.load(nurl, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; t.repeat.set(...rep); mat.normalMap = t; mat.normalScale.set(ns, ns); });
+    };
+    set(M.grass, 'media/tex/grass.jpg', 'media/tex/grass_n.jpg', [1 / 2.5, 1 / 2.5], 0.7); // สนามบ้าน: UV เป็นเมตร
+    set(M.litter, 'media/tex/litter.jpg', 'media/tex/litter_n.jpg', [64 / 2.2, 142 / 2.2], 0.8); // พื้นสวนยาง 64×142 ม.
+  }
+
   buildGround() {
     const s = this.scene;
     // พื้นมีรูตรงบ่อปลา (x=14, z=22) เพื่อให้มองเห็นน้ำ/ปลาด้านล่าง
@@ -1392,7 +1442,18 @@ export class Farm3D {
     const trunkGeo = new THREE.CylinderGeometry(0.14, 0.2, 7, 7); trunkGeo.translate(0, 3.5, 0);
     const canopyGeo = canopyGeometry(26, 1.6, 1.1, 1.9, 1.35);
     const cupGeo = new THREE.CylinderGeometry(0.08, 0.06, 0.12, 6); cupGeo.translate(0, 1.0, 0.2);
-    const trunks = new THREE.InstancedMesh(trunkGeo, M.bark, total);
+    // ลำต้นยางจาก Blender (โคนบาน คดนิด ๆ + เปลือก/รอยกรีด/น้ำยางอบลงภาพ) — โหลดตามหลัง ระหว่างนั้นใช้ทรงกระบอกเดิม
+    const barkMat = new THREE.MeshStandardMaterial({ map: TEX.bark, normalMap: TEX.flatN, roughness: 1 }); groundAO(barkMat);
+    const trunks = new THREE.InstancedMesh(trunkGeo, barkMat, total);
+    if (!this.lite) {
+      const L = new THREE.TextureLoader();
+      import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/rubber_trunk.glb', g => {
+        let geo; g.scene.traverse(o => { if (o.isMesh && !geo) geo = o.geometry; });
+        // UV จาก glTF นับแถวจากบนลงล่าง → ภาพต้องไม่กลับหัว (flipY = false) ไม่งั้นรอยกรีดไปอยู่ยอดต้น
+        L.load('media/tex/rubber_bark.jpg', t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.flipY = false; barkMat.map = t;
+          L.load('media/tex/rubber_bark_n.jpg', nt => { nt.flipY = false; barkMat.normalMap = nt; barkMat.normalScale.set(0.9, 0.9); trunks.geometry = geo; this.renderer.shadowMap.needsUpdate = true; }); });
+      }));
+    }
     const canopy = new THREE.InstancedMesh(canopyGeo, leafMaterial(FOL.rubber, '#ffffff', 0.8), total * 3);
     const cups = new THREE.InstancedMesh(cupGeo, M.white, total);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
@@ -1466,14 +1527,16 @@ export class Farm3D {
           transformed.z += s * wind * ${(amp * 0.5).toFixed(3)} * hh * hh;`);
       };
     };
-    if (this.riceBlades) sway(this.riceBlades.material, 0.35);
+    if (this.riceBlades) { sway(this.riceBlades.material, 0.35); bakedAO(this.riceBlades.material, true); }
     // ใบหญ้าเล็ก ๆ สูงราว 20–30 ซม. (ของเดิมใหญ่เกินจนดูเป็นหนาม)
     const blade = new THREE.PlaneGeometry(0.045, 0.26, 1, 2);
     const bp = blade.attributes.position;
     for (let i = 0; i < bp.count; i++) { const y = bp.getY(i) + 0.13; bp.setX(i, bp.getX(i) * (1 - y / 0.29)); bp.setY(i, y); }
     blade.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.9 });
-    sway(mat, 0.5);
+    const bc = new Float32Array(bp.count * 4); for (let i = 0; i < bp.count; i++) { const v = 0.45 + 0.55 * bp.getY(i) / 0.26; bc.set([v, v, v, 1], i * 4); }
+    blade.setAttribute('color', new THREE.BufferAttribute(bc, 4)); // โคนเข้ม ปลายสว่าง (เหมือนกอหญ้าจาก Blender)
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.9, vertexColors: true });
+    sway(mat, 0.5); bakedAO(mat, true); // ใบหญ้าใต้ร่มเงาก็เข้มตามพื้น
     const max = QUALITY.high.grass;
     const im = new THREE.InstancedMesh(blade, mat, max);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color(), v = new THREE.Vector3(), sc = new THREE.Vector3();
@@ -1500,7 +1563,7 @@ export class Farm3D {
       e.set(rand(-0.35, 0.35), rand(0, Math.PI), rand(-0.35, 0.35)); q.setFromEuler(e);
       const k = rand(0.55, 1.05) * (1 - d / (c.r * 1.6)); sc.set(k, k * rand(0.7, 1.15), k); // กลางกอสูงกว่าขอบ
       m4.compose(v.set(x, 0.02, z), q, sc);
-      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.2, 0.27), rand(0.25, 0.38), rand(0.27, 0.38))); // โทนเดียวกับพื้นหญ้า
+      im.setMatrixAt(n, m4); im.setColorAt(n, col.setHSL(rand(0.21, 0.27), rand(0.42, 0.58), rand(0.3, 0.42))); // โทนเดียวกับพื้นหญ้า (เขียวสดขึ้นให้เข้ากับพื้นผิวจาก Blender)
       n++;
     }
     im.receiveShadow = true; im.frustumCulled = false;
@@ -1508,6 +1571,15 @@ export class Farm3D {
     try { this.grassOn = localStorage.getItem('grassOn') !== '0'; } catch { this.grassOn = true; }
     im.visible = im.count > 0 && this.grassOn;
     this.scene.add(im); this.grass = im;
+    // กอหญ้าโค้ง 3 ใบจาก Blender แทนใบเดี่ยว → สนามดูหนาฟูขึ้นโดยจำนวนชิ้นเท่าเดิม
+    import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/grass_clump.glb', g => {
+      let geo; g.scene.traverse(o => { if (o.isMesh && !geo) geo = o.geometry; });
+      // ไล่สีโคนเข้ม→ปลายสว่างแบบเดียวกับใบเดิม (สีจาก Blender เป็นคนละ color space)
+      const gp = geo.attributes.position, gc = new Float32Array(gp.count * 4);
+      for (let i = 0; i < gp.count; i++) { const v = 0.45 + 0.55 * Math.min(1, gp.getY(i) / 0.26); gc.set([v, v, v, 1], i * 4); }
+      geo.setAttribute('color', new THREE.BufferAttribute(gc, 4));
+      im.geometry = geo;
+    }));
   }
 
   setGrass(on) {
@@ -1556,12 +1628,40 @@ export class Farm3D {
       const a = rand(0, Math.PI * 2), r = rand(170, 420);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (z > 30 && Math.abs(x) < 400) { i--; continue; }
-      const h = rand(5, 12), w = rand(3, 7);
-      m4.makeScale(1, h, 1); m4.setPosition(x, h / 2, z); tr.setMatrixAt(i, m4);
-      m4.makeScale(w, w * 0.8, w); m4.setPosition(x, h + w * 0.4, z); im.setMatrixAt(i * 2, m4);
-      m4.makeScale(w * 0.7, w * 0.6, w * 0.7); m4.setPosition(x + rand(-2, 2), h + w, z + rand(-2, 2)); im.setMatrixAt(i * 2 + 1, m4);
+      const h = rand(5, 12), w = rand(3, 7), gy = Math.max(0, hillHeight(x, z)) - 0.5; // ยืนบนเนินเขา
+      m4.makeScale(1, h, 1); m4.setPosition(x, gy + h / 2, z); tr.setMatrixAt(i, m4);
+      m4.makeScale(w, w * 0.8, w); m4.setPosition(x, gy + h + w * 0.4, z); im.setMatrixAt(i * 2, m4);
+      m4.makeScale(w * 0.7, w * 0.6, w * 0.7); m4.setPosition(x + rand(-2, 2), gy + h + w, z + rand(-2, 2)); im.setMatrixAt(i * 2 + 1, m4);
     }
     this.scene.add(im, tr);
+    // เนินเขาวงแหวน 190–430 ม. ปั้น + อบเงาใน Blender (สีจุดยอด) — โหลดตามหลัง
+    if (!this.lite) import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/hills.glb', g => {
+      g.scene.traverse(o => { if (o.isMesh) { o.receiveShadow = false; o.castShadow = false; o.material.roughness = 1; o.material.metalness = 0; o.frustumCulled = false; } });
+      this.scene.add(g.scene); this.hills = g.scene;
+    }));
+  }
+
+  // ของประกอบฉากที่ปั้นใน Blender (models/env/props.glb): โอ่งมังกร กระถางต้นไม้ กองฟืน กระสอบปุ๋ย ราวตากยางแผ่น
+  // วางชิดขอบ/มุมที่ไม่ขวางทางเดิน
+  buildProps() {
+    if (this.lite) return;
+    const spots = [
+      ['jar', -13.4, 8.7, 0.3], ['jar', -13.5, 7.4, 1.9], ['jar', 7.7, -6.6, 0.8],
+      ['pot', -12.7, 10.7, 0], ['pot', 6.8, 10.7, 1.2], ['pot', -12.7, -6.6, 2.4],
+      ['woodpile', 19.7, 3.2, Math.PI / 2],
+      ['sacks', 31.2, -15.2, 0.15],
+      ['rack', -34.5, -17.5, Math.PI / 2],
+    ];
+    import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => new GLTFLoader().load('models/env/props.glb', g => {
+      // ชิ้นที่มีหลายวัสดุจะมาเป็นกลุ่ม (Group) ไม่ใช่ Mesh เดี่ยว → อ้างจากลูกชั้นแรกของฉาก
+      const src = {}; for (const o of g.scene.children) src[o.name] = o;
+      for (const [name, x, z, ry] of spots) {
+        const s0 = src[name]; if (!s0) continue;
+        const m = s0.clone(true); m.position.set(x, 0.02, z); m.rotation.set(0, ry, 0); m.name = 'prop-' + name;
+        m.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); this.scene.add(m);
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+    }));
   }
 
   // คนจากโมเดล 3D (Hunyuan3D + ใส่กระดูกด้วยโค้ด) — โหลดตามหลัง ระหว่างนั้นใช้แบบปั้นด้วยโค้ดไปก่อน
