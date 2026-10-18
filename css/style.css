@@ -82,6 +82,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 }
 .farm-panel { top: 16px; left: 16px; width: 270px; max-height: calc(100% - 32px); overflow: auto; }
 .farm-status { right: 16px; bottom: 16px; width: 300px; font-size: 13px; }
+/* จอคอม/แท็บเล็ต: แผงสถานะหลบไปทางซ้ายของแถวปุ่มซูม (จอเตี้ยแถวปุ่มยาวลงมาชนแผงได้) */
+@media (min-width: 761px) { .farm-status { right: calc(16px + 40px + 12px); max-height: calc(100% - 16px - 136px - 16px - 14px); overflow-y: auto; } }
 .farm-status .st { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .farm-status .st:last-child { border-bottom: 0; }
 .zone-label {
