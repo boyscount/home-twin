@@ -15,6 +15,13 @@ import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 import { Fishermen } from './fishermen.js';
 import { Simulator } from './simulate.js';
 initIcons(); // ไอคอนเส้นวาดเองแทนอีโมจิ
+
+// มือถือ: หัวเว็บสูงไม่เท่ากันตามธีม/ฟอนต์/ความกว้างจอ → ให้เนื้อหาเริ่มใต้หัวเว็บพอดีเสมอ (ไม่โดนบัง)
+{
+  const bar = document.querySelector('.topbar'), main = document.querySelector('main');
+  const fit = () => { main.style.top = innerWidth <= 760 && bar.offsetHeight ? bar.offsetHeight + 'px' : ''; };
+  if (bar && main) { new ResizeObserver(fit).observe(bar); addEventListener('resize', fit); fit(); }
+}
 // เลือกธีม (Aether / Siam Mystic / Solar Punk / Neon Cyber) — จำไว้ในเครื่อง
 {
   const chips = document.querySelectorAll('[data-theme-pick]');

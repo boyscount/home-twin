@@ -604,10 +604,17 @@ export class Radar {
     c.shadowBlur = 0;
     const humansIn = [...this.blips.values()].filter(b => b.type === 'human' && b.d <= this.range).length;
     c.fillStyle = threats.length ? '#ff5d5d' : 'rgba(57,255,106,.7)'; c.font = '11px "Share Tech Mono", monospace';
-    c.fillText(`RNG ${this.range}m · SCAN 4.0s · TGT ${humansIn} · ${threats.length ? 'ALERT ' + threats.length : 'SECURE'}`, 16, 46);
+    // จอแคบ (มือถือ): ย่อข้อความให้บรรทัดซ้ายกับโหมดกลางวัน/กลางคืนด้านขวาไม่ทับกัน
+    const stat = `TGT ${humansIn} · ${threats.length ? 'ALERT ' + threats.length : 'SECURE'}`;
+    let mode = this.farm.nightFactor > 0.5 ? 'IR NIGHT MODE' : 'DAY MODE';
+    let hud = `RNG ${this.range}m · SCAN 4.0s · ${stat}`;
+    const fits = () => c.measureText(hud).width + c.measureText(mode).width + 20 <= W - 32;
+    if (!fits()) hud = `RNG ${this.range}m · ${stat}`;
+    if (!fits()) mode = this.farm.nightFactor > 0.5 ? 'IR' : 'DAY';
+    c.fillText(hud, 16, 46);
     c.textAlign = 'right'; c.fillStyle = 'rgba(57,255,106,.7)';
     c.fillText(new Date().toLocaleTimeString('th-TH', { hour12: false }), W - 16, 26);
-    c.fillText(this.farm.nightFactor > 0.5 ? 'IR NIGHT MODE' : 'DAY MODE', W - 16, 44);
+    c.fillText(mode, W - 16, 44);
     c.textAlign = 'left';
 
     // ---- ไม้บรรทัดซ้าย

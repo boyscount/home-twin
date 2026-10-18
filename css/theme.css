@@ -341,3 +341,21 @@ html[data-theme="canopy"] .brand-mark::before { animation-duration: 18s; }
 html[data-theme="canopy"] .brand-mark::after { background: radial-gradient(circle, #fffbe0, #d9f27a 45%, transparent 70%); box-shadow: 0 0 14px #9ed65a; }
 html[data-theme="canopy"] .topbar::after { box-shadow: 0 0 12px rgba(217, 242, 122, .45); }
 html[data-theme="canopy"] .card-h .ico { border-radius: 0 50% 0 50%; }
+
+/* ---------- มือถือ: ชื่อแอป + ปุ่มโหมดทีวี + นาฬิกา อยู่แถวเดียวกัน (หัวเว็บไม่สูงจนบังเนื้อหา) ---------- */
+@media (max-width: 760px) {
+  .topbar .brand { gap: 8px; }
+  .topbar .brand-mark { width: 26px; height: 26px; }
+  .topbar .brand-name { font-size: 15px; }
+  html:is([data-theme="siam"], [data-theme="lanna"]) .topbar .brand-name { font-size: 18px; }
+  .topstat { gap: 6px; }
+  .topstat .clock { margin-left: 2px; font-size: 15px; }
+  .tabs .tab { padding: 8px 6px; min-width: 0; letter-spacing: 0; white-space: nowrap; }
+  .tabs .tab .ic { margin-right: .3em; }
+}
+/* จอแคบมาก (เช่น iPhone SE / Android 360px): ปุ่มโหมดทีวีเหลือแค่ไอคอน */
+@media (max-width: 380px) {
+  .kiosk-btn { font-size: 0 !important; padding: 5px 8px !important; margin-right: 2px; }
+  .kiosk-btn .ic { width: 16px; height: 16px; margin: 0; }
+  .tabs .tab { font-size: 12px; padding: 8px 4px; }
+}
