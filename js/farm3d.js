@@ -1564,16 +1564,29 @@ export class Farm3D {
     this.scene.add(im, tr);
   }
 
-  async swapDad(r) {
-    const old = this.dad.h, g = old.group;
-    try { await this.renderer.compileAsync(r.mesh, this.camera, this.scene); } catch { /* วาดตรง ๆ ก็ได้ */ }
-    // ของที่ติดตัวพ่อ (ถังอาหาร, ไฟฉายคาดหัว) ย้ายไปไว้บนกระดูกใหม่ — ไฟฉายขยับไปอยู่บนยอดหมวกตามโมเดล
-    r.bones.armR.add(this.dad.bucket);
-    const shift = new THREE.Vector3(0, 0.25, -0.08);
-    for (const c of [...old.head.children]) { if (c.isMesh && c.material === SKIN_MAT) continue; c.position.add(shift); r.head.add(c); }
-    for (const c of [...g.children]) if ((c.isMesh && c.material === SKIN_MAT) || [old.legL, old.legR, old.armL, old.armR, old.head].includes(c)) g.remove(c);
-    g.add(r.mesh);
-    for (const k of ['legL', 'legR', 'armL', 'armR', 'head', 'kneeL', 'kneeR', 'elbowL', 'elbowR']) old[k] = r[k];
+  // คนจากโมเดล 3D (Hunyuan3D + ใส่กระดูกด้วยโค้ด) — โหลดตามหลัง ระหว่างนั้นใช้แบบปั้นด้วยโค้ดไปก่อน
+  // ตัวไหนมีไฟล์ใน models/rigs.json ก็เปลี่ยนร่างให้ · คนแปลกหน้าที่มีโมเดลจะใช้ร่างใหม่ตอนเดินเข้ามา
+  loadModels() {
+    if (this.lite) return;
+    this.rigFactories = {};
+    import('./rigged.js').then(async R => {
+      this.rig = R;
+      const rigs = await fetch('models/rigs.json').then(r => r.json());
+      let compiled = false;
+      const fam = [['dad', this.dad.h, new THREE.Vector3(0, 0.25, -0.08)], ['mom', this.mom.h], ['sis', this.sis.h], ['kid', this.kid.h]]; // ไฟฉายพ่อไปอยู่บนยอดหมวก
+      for (const [name, h, shift] of fam) {
+        if (!rigs[name]) continue;
+        try {
+          const r = (await R.loadRigFactory(name))();
+          if (!compiled) { compiled = true; await this.renderer.compileAsync(r.mesh, this.camera, this.scene).catch(() => {}); }
+          R.reskin(h, r, SKIN_MAT, shift);
+        } catch (e) { console.warn('model', name, e); }
+      }
+      for (const p of PERSONAS) {
+        const key = p.id.replace('-', '').toLowerCase();
+        if (rigs[key]) R.loadRigFactory(key).then(f => (this.rigFactories[p.id] = f)).catch(e => console.warn('model', key, e));
+      }
+    }).catch(e => console.warn('models', e));
   }
 
   buildCharacters() {
@@ -1599,8 +1612,6 @@ export class Farm3D {
     const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: '#fff1c4', alphaMap: new THREE.CanvasTexture(bc), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     beam.position.set(0, 0.06, 0.16); beam.renderOrder = 3; beam.castShadow = false; dad.head.add(beam);
     this.headlamp = { light: lamp, mat: lampM, beam };
-    // พ่อตัวจริงจากโมเดล 3D (Hunyuan3D + ใส่กระดูกด้วยโค้ด) — โหลดตามหลัง ระหว่างนั้นใช้พ่อแบบปั้นด้วยโค้ดไปก่อน
-    if (!this.lite) import('./rigged.js').then(m => m.loadRiggedHuman('models/dad.glb')).then(r => this.swapDad(r)).catch(e => console.warn('dad model', e));
     this.dadAct = 'free'; this.dadActId = 0; this.tapState = { col: 9, row: 0, tapped: 0, latex: 0 }; this.familyAsleep = false; this.sleepers = new Set();
     this.entities.push({ id: 'H-DAD', type: 'human', label: 'พ่อ', resident: true, obj: dad.group, h: dad });
     // แม่ในบ้าน
@@ -1628,6 +1639,7 @@ export class Farm3D {
     this.entities.push({ id: 'H-KID', type: 'human', label: 'น้องสาว', resident: true, obj: kid.group, h: kid });
     setTimeout(() => this.sisLoop(), 9000);
     setTimeout(() => this.kidLoop(), 2000);
+    this.loadModels();
     // แมว 6 ตัว
     this.cats = CATS.map((c, i) => {
       const cat = makeCat(c);
@@ -1777,6 +1789,7 @@ export class Farm3D {
     const p = persona || PERSONAS[this.personaIdx++ % PERSONAS.length];
     if (this.visitors.some(v => v.persona.id === p.id)) return;
     const h = makeHuman(p);
+    const fac = this.rigFactories?.[p.id]; if (fac) this.rig.reskin(h, fac(), SKIN_MAT);
     const fromLeft = Math.random() > 0.5;
     h.group.position.set(fromLeft ? -70 : 70, 0, 40.9); // เดินบนไหล่ทางริมรั้ว ไม่เดินกลางถนน
     this.scene.add(h.group);

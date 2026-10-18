@@ -1,45 +1,34 @@
 // ตัวละครจากไฟล์: โมเดลจาก Hunyuan3D (ไม่มีกระดูก) → ใส่กระดูกอัตโนมัติด้วยโค้ด ให้ใช้ท่าทางชุดเดิมของ human.js ได้ทันที
 // คืนค่า API เดียวกับ makeHuman(): group, legL/legR, armL/armR, head, kneeL/kneeR, elbowL/elbowR, phase
+// ข้อมูลข้อต่อของแต่ละโมเดลอยู่ใน models/rigs.json (สร้างโดย videos/hy3d/make_char.py)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const SCALE = 1.86; // โมเดลสูง 1 หน่วย (รวมหมวก) → ไหล่อยู่ที่ ~1.43 เท่าคนในฉาก
-// ข้อต่อ (หน่วยโมเดลก่อนขยาย) วัดจากการตัดแนวนอนของตัวโมเดล
-const J = {
-  hipL: [-0.055, 0.50], kneeL: [-0.052, 0.27], ankleL: [-0.05, 0.05],
-  shL: [-0.14, 0.745], elL: [-0.185, 0.61], wrL: [-0.215, 0.465], handL: [-0.22, 0.39],
-  neck: [0, 0.80], headTop: [0, 0.95], pelvis: [0, 0.50],
-};
-const mir = k => { const [x, y] = J[k]; return [-x, y]; };
+let rigsP = null;
+const rigs = () => rigsP || (rigsP = fetch('models/rigs.json').then(r => r.json()));
+const MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }); // ทุกตัวใช้วัสดุร่วมกัน
+const V = (x, y, z = 0) => new THREE.Vector3(x, y, z);
 
 function segDist(p, a, b) {
   const ab = b.clone().sub(a), t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
   return p.distanceTo(a.clone().addScaledVector(ab, t));
 }
 
-export async function loadRiggedHuman(url) {
-  const gltf = await new GLTFLoader().loadAsync(url);
+// ทำน้ำหนักผิวครั้งเดียวต่อโมเดล — คืน "โรงงาน" ที่สร้างตัวละครได้หลายตัว (ใช้ geometry ร่วมกัน)
+export async function loadRigFactory(name) {
+  const [gltf, all] = await Promise.all([new GLTFLoader().loadAsync(`models/${name}.glb`), rigs()]);
+  const rig = all[name]; if (!rig) throw new Error('no rig for ' + name);
+  const J = rig.joints, SCALE = rig.scale, TH = rig.torsoHalf;
   let src; gltf.scene.traverse(o => { if (o.isMesh && !src) src = o; });
   const geo = src.geometry.clone();
   // สีจุดยอดจาก trimesh เป็นค่า sRGB แต่ three อ่านเป็น linear → แปลงกลับ ไม่งั้นสีซีด
   const col = geo.attributes.color, c = new THREE.Color();
   if (col) for (let i = 0; i < col.count; i++) { c.fromBufferAttribute(col, i).convertSRGBToLinear(); col.setXYZ(i, c.r, c.g, c.b); }
-  const V = (x, y, z = 0) => new THREE.Vector3(x, y, z);
-  const P = k => V(...(J[k] || [0, 0]));
-  const Pm = k => V(...mir(k));
+  const P = k => V(...J[k]), Pm = k => V(-J[k][0], J[k][1]);
+  const yNeck = J.neck[1], yHip = J.hipL[1], ySh = J.shL[1], yHand = J.handL[1];
 
-  // ---- กระดูก (ตำแหน่ง local เทียบพ่อแม่) — ใช้ชื่อ/ลำดับเหมือนคนในฉาก
-  const root = new THREE.Bone();
-  const mkBone = (parent, pos) => { const b = new THREE.Bone(); b.position.copy(pos).multiplyScalar(SCALE); parent.add(b); return b; };
-  const legL = mkBone(root, P('hipL')), legR = mkBone(root, Pm('hipL'));
-  const kneeL = mkBone(legL, P('kneeL').sub(P('hipL'))), kneeR = mkBone(legR, Pm('kneeL').sub(Pm('hipL')));
-  const armL = mkBone(root, P('shL')), armR = mkBone(root, Pm('shL'));
-  const elbowL = mkBone(armL, P('elL').sub(P('shL'))), elbowR = mkBone(armR, Pm('elL').sub(Pm('shL')));
-  const head = mkBone(root, P('neck'));
-  const bones = [root, legL, legR, kneeL, kneeR, armL, armR, elbowL, elbowR, head];
-
-  // ---- น้ำหนักผิว: ระยะถึงแกนกระดูก (1/d^4) + กฎแยกซ้าย/ขวา, หมวกตามหัว
-  const segs = [ // [bone index, a, b]
+  // ---- น้ำหนักผิว: ระยะถึงแกนกระดูก (1/d^4) + กฎแยกซ้าย/ขวา, หัว/ผม/หมวกตามหัว
+  const segs = [ // [bone index, a, b] — ลำดับกระดูกตรงกับ make() ด้านล่าง
     [0, P('pelvis'), P('neck')],
     [1, P('hipL'), P('kneeL')], [2, Pm('hipL'), Pm('kneeL')],
     [3, P('kneeL'), P('ankleL')], [4, Pm('kneeL'), Pm('ankleL')],
@@ -52,45 +41,65 @@ export async function loadRiggedHuman(url) {
   for (let i = 0; i < n; i++) {
     p.fromBufferAttribute(pos, i); p.z = 0; // ใช้มุมหน้า (x,y) เป็นหลัก — ตัวบาง แกนลึกไม่สำคัญ
     let cand = [];
-    if (p.y > 0.81) cand = [[9, 1]]; // หัว + หมวก
+    if (p.y > yNeck + 0.01) cand = [[9, 1]];
     else {
-      for (const [b, a, c] of segs) {
+      for (const [b, a, e] of segs) {
         if ((b === 1 || b === 3 || b === 5 || b === 7) && p.x > 0.01) continue; // ซ้ายอยู่ฝั่ง -x
         if ((b === 2 || b === 4 || b === 6 || b === 8) && p.x < -0.01) continue;
-        if ((b <= 4 && b >= 1) && p.y > 0.56) continue; // ขาไม่ดึงลำตัวบน
-        if ((b >= 5 && b <= 8) && p.y < 0.36) continue;
-        const d = Math.max(segDist(p, a, c), 0.004);
-        let w = 1 / d ** 4;
-        if (b === 0 && p.y < 0.5) w *= Math.max(0, (p.y - 0.42) / 0.08) ** 2; // ใต้สะโพกเป็นของขา
+        if (b >= 1 && b <= 4 && p.y > yHip + 0.06) continue; // ขาไม่ดึงลำตัวบน
+        if (b >= 5 && b <= 8 && p.y < yHand - 0.04) continue;
+        let w = 1 / Math.max(segDist(p, a, e), 0.004) ** 4;
+        if (b === 0 && p.y < yHip) w *= Math.max(0, (p.y - (yHip - 0.08)) / 0.08) ** 2; // ใต้สะโพกเป็นของขา
         if (b === 9) w *= 0.3;
         cand.push([b, w]);
       }
-      // แขนแยกจากลำตัว: ถ้าอยู่นอกแนวลำตัว (|x| > 0.13) และสูงระดับแขน ให้เป็นของแขนล้วน
-      if (Math.abs(p.x) > 0.135 && p.y < 0.72 && p.y > 0.36) cand = cand.filter(([b]) => b >= 5 && b <= 8);
-      cand.sort((a, b) => b[1] - a[1]); cand = cand.slice(0, 3);
+      // นอกแนวลำตัวและอยู่ระดับแขน → เป็นของแขนล้วน (ลำตัวไม่ยืดตามตอนแกว่งแขน)
+      if (Math.abs(p.x) > TH + 0.03 && p.y < ySh - 0.03 && p.y > yHand - 0.04) cand = cand.filter(([b]) => b >= 5 && b <= 8);
+      cand.sort((x, y) => y[1] - x[1]); cand = cand.slice(0, 3);
     }
-    const tot = cand.reduce((s, c) => s + c[1], 0) || 1;
+    const tot = cand.reduce((s, q) => s + q[1], 0) || 1;
     cand.forEach(([b, w], k) => { si[i * 4 + k] = b; sw[i * 4 + k] = w / tot; });
   }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-  geo.scale(SCALE, SCALE, SCALE);
-  geo.computeVertexNormals();
+  geo.scale(SCALE, SCALE, SCALE); geo.computeVertexNormals();
+  geo.boundingSphere = new THREE.Sphere(V(0, 0.9, 0), 1.3);
 
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
-  const mesh = new THREE.SkinnedMesh(geo, mat);
-  mesh.add(root); mesh.bind(new THREE.Skeleton(bones));
-  mesh.castShadow = true; mesh.frustumCulled = false;
-  const group = new THREE.Group(); group.add(mesh);
-  // โมเดลยืนกางแขน (A-pose) → ท่าทางชุดเดิมคิดจากแขนห้อยตรง: ให้โค้ดท่าทางหมุน "ตัวแทน" แล้วค่อยแปลงเป็นกระดูกจริง
-  // กระดูก = การหมุนจากท่าทาง × การหุบแขนลง (ทำทุกครั้งก่อนคำนวณตำแหน่งในฉาก)
-  const PULL = 0.2, fixL = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), PULL), fixR = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), -PULL);
-  const proxyL = new THREE.Object3D(), proxyR = new THREE.Object3D();
-  proxyL.rotation.z = -0.06; proxyR.rotation.z = 0.06;
-  const upd = mesh.updateMatrixWorld;
-  mesh.updateMatrixWorld = function (force) {
-    armL.quaternion.copy(proxyL.quaternion).multiply(fixL); armR.quaternion.copy(proxyR.quaternion).multiply(fixR);
-    upd.call(this, force);
+  const fixL = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), rig.pull), fixR = new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), -rig.pull);
+  return function make() {
+    const root = new THREE.Bone();
+    const mk = (parent, pos) => { const b = new THREE.Bone(); b.position.copy(pos).multiplyScalar(SCALE); parent.add(b); return b; };
+    const legL = mk(root, P('hipL')), legR = mk(root, Pm('hipL'));
+    const kneeL = mk(legL, P('kneeL').sub(P('hipL'))), kneeR = mk(legR, Pm('kneeL').sub(Pm('hipL')));
+    const armL = mk(root, P('shL')), armR = mk(root, Pm('shL'));
+    const elbowL = mk(armL, P('elL').sub(P('shL'))), elbowR = mk(armR, Pm('elL').sub(Pm('shL')));
+    const head = mk(root, P('neck'));
+    const mesh = new THREE.SkinnedMesh(geo, MAT);
+    mesh.add(root); mesh.bind(new THREE.Skeleton([root, legL, legR, kneeL, kneeR, armL, armR, elbowL, elbowR, head]));
+    mesh.castShadow = true;
+    // โมเดลยืนกางแขน (A-pose) → ท่าทางชุดเดิมคิดจากแขนห้อยตรง: โค้ดท่าทางหมุน "ตัวแทน" แล้วแปลงเป็นกระดูกจริง = ท่าทาง × หุบแขนลง
+    const proxyL = new THREE.Object3D(), proxyR = new THREE.Object3D();
+    proxyL.rotation.z = -0.06; proxyR.rotation.z = 0.06;
+    const upd = mesh.updateMatrixWorld;
+    mesh.updateMatrixWorld = function (force) {
+      armL.quaternion.copy(proxyL.quaternion).multiply(fixL); armR.quaternion.copy(proxyR.quaternion).multiply(fixR);
+      upd.call(this, force);
+    };
+    const group = new THREE.Group(); group.add(mesh);
+    return { group, legL, legR, armL: proxyL, armR: proxyR, head, kneeL, kneeR, elbowL, elbowR, phase: Math.random() * 6, mesh, bones: { armL, armR }, headY: J.neck[1] * SCALE };
   };
-  return { group, legL, legR, armL: proxyL, armR: proxyR, head, kneeL, kneeR, elbowL, elbowR, phase: Math.random() * 6, mesh, bones: { armL, armR } };
+}
+
+// ใส่ร่างใหม่ให้คนที่มีอยู่แล้วในฉาก (ตำแหน่ง/สถานะ/การเดินเหมือนเดิม) — ของที่ถืออยู่ย้ายไปบนกระดูกใหม่
+// headShift: เลื่อนของที่ติดหัว (เช่น ไฟฉาย) จากตำแหน่งหัวเดิม (1.68) ไปหัวใหม่
+export function reskin(h, r, SKIN_MAT, headShift) {
+  const g = h.group;
+  for (const c of [...h.armR.children]) if (!(c.isMesh && c.material === SKIN_MAT) && c !== h.elbowR) r.bones.armR.add(c);
+  for (const c of [...h.armL.children]) if (!(c.isMesh && c.material === SKIN_MAT) && c !== h.elbowL) r.bones.armL.add(c);
+  const shift = headShift || V(0, 1.68 - r.headY, 0);
+  for (const c of [...h.head.children]) { if (c.isMesh && c.material === SKIN_MAT) continue; c.position.add(shift); r.head.add(c); }
+  for (const c of [...g.children]) if ((c.isMesh && c.material === SKIN_MAT) || [h.legL, h.legR, h.armL, h.armR, h.head].includes(c)) g.remove(c);
+  g.add(r.mesh);
+  for (const k of ['legL', 'legR', 'armL', 'armR', 'head', 'kneeL', 'kneeR', 'elbowL', 'elbowR']) h[k] = r[k];
+  h.mesh = r.mesh; h.rigged = true;
 }
