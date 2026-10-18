@@ -1,5 +1,6 @@
 // จุดเริ่มของแอป: สลับแท็บ, นาฬิกา, event bus ที่เชื่อม 3D ↔ เรดาร์ ↔ Hub
 import { bus, toast } from './bus.js';
+import { initIcons } from './icons.js';
 import { Farm3D, QUALITY } from './farm3d.js';
 import { Radar } from './radar.js';
 import { Hub } from './hub.js';
@@ -13,6 +14,7 @@ import { MiniRadar } from './miniradar.js';
 import { Festivals, FESTIVALS, festivalFor } from './festivals.js';
 import { Fishermen } from './fishermen.js';
 import { Simulator } from './simulate.js';
+initIcons(); // ไอคอนเส้นวาดเองแทนอีโมจิ (ธีม Aether)
 
 const farm = new Farm3D(document.getElementById('farmCanvas'));
 const tour = farm.tour = new Tour(farm);
