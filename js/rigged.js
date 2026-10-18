@@ -87,6 +87,25 @@ export async function loadRigFactory(name) {
     const tot = cand.reduce((s, c) => s + c[1], 0) || 1;
     cand.forEach(([b, w], k) => { si[i * 4 + k] = b; sw[i * 4 + k] = w / tot; });
   }
+  // เกลี่ยน้ำหนักตามผิว (เพื่อนบ้านบนผิว) สองสามรอบ → ข้อต่อ คอ รักแร้ เป้า งอแบบนุ่ม ไม่หักเป็นรอยแตก
+  if (ix) {
+    const NB = 10; let W = new Float32Array(n * NB);
+    for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) W[i * NB + si[i * 4 + k]] += sw[i * 4 + k];
+    for (let it = 0; it < 3; it++) {
+      const W2 = new Float32Array(n * NB);
+      for (let i = 0; i < n; i++) {
+        const nb = adj[i], m = nb.length; if (!m) { for (let b = 0; b < NB; b++) W2[i * NB + b] = W[i * NB + b]; continue; }
+        for (let b = 0; b < NB; b++) { let acc = 0; for (const j of nb) acc += W[j * NB + b]; W2[i * NB + b] = 0.5 * W[i * NB + b] + 0.5 * acc / m; }
+      }
+      W = W2;
+    }
+    for (let i = 0; i < n; i++) { // เก็บ 4 กระดูกที่มีน้ำหนักมากสุด
+      const top = []; for (let b = 0; b < NB; b++) if (W[i * NB + b] > 1e-4) top.push([b, W[i * NB + b]]);
+      top.sort((x, y) => y[1] - x[1]); top.length = Math.min(4, top.length);
+      const tot = top.reduce((s2, c) => s2 + c[1], 0) || 1;
+      for (let k = 0; k < 4; k++) { si[i * 4 + k] = top[k] ? top[k][0] : 0; sw[i * 4 + k] = top[k] ? top[k][1] / tot : 0; }
+    }
+  }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
   geo.scale(SCALE, SCALE, SCALE); geo.computeVertexNormals();
