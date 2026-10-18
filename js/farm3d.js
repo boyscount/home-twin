@@ -1573,11 +1573,11 @@ export class Farm3D {
       this.rig = R;
       const rigs = await fetch('models/rigs.json').then(r => r.json());
       const fam = [['dad', this.dad.h, new THREE.Vector3(0, 0.25, -0.08)], ['mom', this.mom.h], ['sis', this.sis.h], ['kid', this.kid.h]]; // ไฟฉายพ่อไปอยู่บนยอดหมวก
-      let compiled = null; // โหลดพร้อมกันทุกตัว · คอมไพล์ shader ครั้งเดียว (ทุกตัวใช้วัสดุเดียวกัน)
+      // โหลดพร้อมกันทุกตัว
       await Promise.all(fam.filter(([name]) => rigs[name]).map(async ([name, h, shift]) => {
         try {
           const r = (await R.loadRigFactory(name))();
-          await (compiled ||= this.renderer.compileAsync(r.mesh, this.camera, this.scene).catch(() => {}));
+          await this.renderer.compileAsync(r.mesh, this.camera, this.scene).catch(() => {}); // คอมไพล์ก่อนโชว์ (ตัวที่ใช้วัสดุแบบเดียวกันจะเร็วมาก)
           R.reskin(h, r, SKIN_MAT, shift);
         } catch (e) { console.warn('model', name, e); }
       }));
