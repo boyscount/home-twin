@@ -1667,7 +1667,8 @@ export class Farm3D {
   // คนจากโมเดล 3D (Hunyuan3D + ใส่กระดูกด้วยโค้ด) — โหลดตามหลัง ระหว่างนั้นใช้แบบปั้นด้วยโค้ดไปก่อน
   // ตัวไหนมีไฟล์ใน models/rigs.json ก็เปลี่ยนร่างให้ · คนแปลกหน้าที่มีโมเดลจะใช้ร่างใหม่ตอนเดินเข้ามา
   loadModels() {
-    if (this.lite) return;
+    // ปิดไว้ก่อน: ตัวละครจากโมเดล AI ยังดูไม่ดีพอ → ใช้แบบปั้นด้วยโค้ดเป็นค่าเริ่มต้น · ดูแบบโมเดลได้ด้วย ?models=1
+    if (this.lite || new URLSearchParams(location.search).get('models') !== '1') return;
     this.rigFactories = {};
     import('./rigged.js').then(async R => {
       this.rig = R;
