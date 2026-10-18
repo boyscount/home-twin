@@ -417,13 +417,10 @@ html[data-theme="sky"] :is(select, .sel, input[type=text], input[type=password],
 /* ปุ่มด้านขวา: สี่เหลี่ยมมนสีเข้มโปร่ง ไอคอนขาว · ที่เปิดอยู่เป็นสีขาว */
 html[data-theme="sky"] .zoom-ctl button { background: rgba(16, 24, 42, .5) !important; border: 1px solid rgba(255, 255, 255, .24) !important; color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 html[data-theme="sky"] .zoom-ctl button.active { background: rgba(255, 255, 255, .94) !important; color: #1b2440; }
-/* ปุ่มจำลอง: หกเหลี่ยมขอบขาวเรือง ข้างในฟ้าไล่สี (แบบการ์ดเลือกโหมดในเกม) */
-html[data-theme="sky"] .sim-fab { width: 62px; height: 56px; border-radius: 0 !important; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%) !important;
-  background: linear-gradient(160deg, #ffffff, #d6e6ff); color: #fff; box-shadow: none; text-shadow: none; }
-html[data-theme="sky"] .sim-fab::before { content: ""; position: absolute; inset: 2.5px; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%);
-  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, .45), transparent 55%), linear-gradient(170deg, #7fc8f5, #5a7fd6 60%, #6b5cff); }
-html[data-theme="sky"] .sim-fab .ic { position: relative; z-index: 1; }
-html[data-theme="sky"] .tour-on .sim-fab { width: 52px; height: 46px; }
+/* ปุ่มจำลอง: ไล่สีฟ้า-ม่วงทั้งปุ่ม ไม่มีกรอบขาว */
+html[data-theme="sky"] .sim-fab { border: 0 !important; color: #fff; text-shadow: none;
+  background: radial-gradient(circle at 50% 18%, rgba(255, 255, 255, .4), transparent 55%), linear-gradient(170deg, #7fc8f5, #5a7fd6 60%, #6b5cff);
+  box-shadow: 0 8px 22px rgba(70, 100, 200, .35); }
 /* เมนูจำลอง */
 html[data-theme="sky"] .sim-panel { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, .18); }
 html[data-theme="sky"] .sim-btn { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px; }
