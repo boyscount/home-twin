@@ -99,26 +99,95 @@ function buildParts(o) {
     [C(0.044, 0.04, 0.05), shade(skin, 0.95), 0, -0.415, 0],
     [new THREE.CapsuleGeometry(0.046, 0.12, 4, 10), shoe, 0, -0.45, 0.045, Math.PI / 2, 0, 0, 1.05, 1, 0.62],
   ]);
-  return { torso, head, upper, fore, thigh, shin };
+  return { torso, head, upper, foreL: fore, foreR: fore.clone(), thigh, shin };
+}
+
+// ---------------------------------------------------------------- ชิ้นส่วนแบบปั้นละเอียดจาก Blender (models/env/human_parts.glb)
+// หน้ามีจมูก/ปาก/คาง ตามีตาขาว-ม่านตา มือมีนิ้ว เสื้อผ้ามีรอยพับ · จุดหมุนเหมือนเดิม → ท่าทางเดิมใช้ได้ทั้งหมด
+// สีจุดยอดในไฟล์: R = รหัสส่วน, G = เงาซอกมุม (อบจาก Cycles) → ระบายสีตามแต่ละคนตรงนี้
+let TPL = null;
+const REG = { SKIN: 0, SHIRT: 1, SHIRT_D: 2, PANTS: 3, PANTS_D: 4, HAIR: 5, SHOE: 6, SOLE: 7, EYEW: 8, IRIS: 9, PUPIL: 10, LIPS: 11, NAIL: 12, BROW: 13 };
+const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
+const mixHex = (a, b, t) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString();
+function recolor(src, pal) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', src.attributes.position.clone()); g.setAttribute('normal', src.attributes.normal.clone());
+  if (src.index) g.setIndex(src.index.clone());
+  const c = src.attributes.color, n = c.count, out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const p = pal[Math.min(13, Math.floor(c.getX(i) * 16))], k = 0.4 + 0.6 * c.getY(i);
+    out[i * 3] = p.r * k; out[i * 3 + 1] = p.g * k; out[i * 3 + 2] = p.b * k;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(out, 3));
+  return g;
+}
+const noUV = g => { if (g.attributes.uv) g.deleteAttribute('uv'); return g; };
+function buildPartsTpl(o) {
+  // ผิว: ลดความอิ่มสีส้มลงให้เป็นผิวคนจริง (เงาซอกมุมจาก Blender ทำให้สีเข้มขึ้นอยู่แล้ว)
+  const skin = mixHex(shade(o.skin || '#c68e62', 1.32), '#d9b9a0', 0.32), shirt = o.shirt || '#3b6ea8', pants = o.pants || '#2b2b33', hair = o.hair || '#151210', shoe = o.shoe || '#2b2420';
+  const pal = [];
+  pal[REG.SKIN] = lin(skin); pal[REG.SHIRT] = lin(shirt); pal[REG.SHIRT_D] = lin(shade(shirt, 0.78)); pal[REG.PANTS] = lin(pants); pal[REG.PANTS_D] = lin(shade(pants, 0.55));
+  pal[REG.HAIR] = lin(hair); pal[REG.SHOE] = lin(shoe); pal[REG.SOLE] = lin(mixHex(shoe, '#d8d4cc', 0.55)); pal[REG.EYEW] = lin('#ebe5da'); pal[REG.IRIS] = lin('#3a2416');
+  pal[REG.PUPIL] = lin('#0b0806'); pal[REG.LIPS] = lin(mixHex(shade(skin, 0.88), '#b8645a', 0.3)); pal[REG.NAIL] = lin(shade(skin, 1.12)); pal[REG.BROW] = lin(shade(hair, 0.9));
+  const fem = !!o.longHair;
+  const headParts = [recolor(TPL.head, pal)];
+  if (o.hat !== 'helmet') headParts.push(recolor(TPL[fem ? (o.child ? 'hair_bun' : 'hair_long') : 'hair_short'], pal));
+  // หมวก / แว่น ใช้ชิ้นเดิม (ขนาดหัวใกล้เคียงกัน)
+  const acc = [];
+  if (o.hat === 'straw') acc.push([new THREE.ConeGeometry(0.33, 0.15, 20, 1, true), '#d6bf7a', 0, 0.155, 0], [new THREE.TorusGeometry(0.33, 0.012, 5, 22), '#b89e5c', 0, 0.08, 0, Math.PI / 2], [new THREE.ConeGeometry(0.33, 0.15, 20, 1, true), '#c4ac68', 0, 0.154, 0, Math.PI]); // งอบวางบนผม
+  else if (o.hat === 'cap') { const hc = o.hatColor || '#c0392b'; acc.push([S(0.124, 16, 8, 0, 1.45), hc, 0, 0.018, -0.006, 0, 0, 0, 0.96, 1.02, 1.05], [new THREE.CylinderGeometry(0.1, 0.1, 0.012, 14, 1, false, -Math.PI / 2, Math.PI), shade(hc, 0.85), 0, 0.036, 0.09, 0.12, 0, 0, 1, 1, 1.15]); }
+  else if (o.hat === 'helmet') { const hc = o.hatColor || '#222'; acc.push([S(0.152, 18, 12, 0, 1.9), hc, 0, 0.02, -0.01, -0.15], [S(0.148, 16, 8, 1.15, 0.6), '#1d2a33', 0, 0.0, 0.01, -0.1, 0, 0, 0.98, 1, 1.02]); }
+  if (o.glasses) acc.push([new THREE.TorusGeometry(0.021, 0.0035, 4, 14), '#111', -0.035, 0.012, 0.094], [new THREE.TorusGeometry(0.021, 0.0035, 4, 14), '#111', 0.035, 0.012, 0.094], [new THREE.BoxGeometry(0.028, 0.004, 0.004), '#111', 0, 0.014, 0.098]);
+  if (acc.length) headParts.push(bake(acc));
+  const head = mergeGeometries(headParts.map(noUV)); head.computeBoundingSphere();
+  const P = { torso: recolor(TPL[fem ? 'torso_f' : 'torso_m'], pal), head, upper: recolor(TPL.upper, pal), foreL: recolor(TPL.fore_L, pal), foreR: recolor(TPL.fore_R, pal), thigh: recolor(TPL.thigh, pal), shin: recolor(TPL.shin, pal) };
+  for (const g of Object.values(P)) g.computeBoundingSphere();
+  return P;
+}
+// โหลดชิ้นส่วนแล้วเปลี่ยนร่างทุกคนที่สร้างไปแล้ว (แก้ geometry เดิมในที่ → mesh/ท่าทางเดิมไม่ต้องสร้างใหม่)
+export async function loadHumanTemplates(url) {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const gltf = await new GLTFLoader().loadAsync(url);
+  const t = {}; gltf.scene.traverse(o => { if (o.isMesh) t[o.name] = o.geometry; });
+  for (const k of ['torso_m', 'torso_f', 'head', 'hair_short', 'hair_long', 'hair_bun', 'upper', 'fore_L', 'fore_R', 'thigh', 'shin']) if (!t[k] || !t[k].attributes.color) throw new Error('human part missing: ' + k);
+  TPL = t;
+  for (const [key, P] of cache) {
+    const [skin, shirt, pants, hair, hat, hatColor, longHair, glasses, child, shoe] = JSON.parse(key);
+    P.hi = buildPartsTpl({ skin, shirt, pants, hair, hat, hatColor, longHair, glasses, child, shoe });
+  }
+}
+// ระดับรายละเอียดตามระยะ (LOD): คนใกล้กล้องใช้ร่างละเอียด คนไกลใช้ร่างเดิม (เบา ดูต่างกันไม่ออกเมื่ออยู่ไกล)
+const HUMANS = new Set(), _wp = new THREE.Vector3();
+export function updateHumanLOD(camera, near = 16) {
+  if (!TPL) return;
+  const cp = camera.getWorldPosition(new THREE.Vector3());
+  for (const g of HUMANS) {
+    if (!g.parent) { HUMANS.delete(g); continue; }
+    const { P, parts } = g.userData, hi = P.hi && g.getWorldPosition(_wp).distanceTo(cp) < near;
+    if (g.userData.hi === hi) continue; g.userData.hi = hi;
+    for (const m of parts) m.geometry = hi ? P.hi[m.userData.part] : P[m.userData.part];
+  }
 }
 
 export function makeHuman(o = {}) {
   const key = JSON.stringify([o.skin, o.shirt, o.pants, o.hair, o.hat, o.hatColor, o.longHair, o.glasses, o.child, o.shoe]);
-  const P = cache.get(key) || cache.set(key, buildParts(o)).get(key);
-  const mk = (geo, parent, y = 0, x = 0) => { const m = new THREE.Mesh(geo, SKIN_MAT); m.position.set(x, y, 0); m.castShadow = true; parent.add(m); return m; };
-  const g = new THREE.Group();
-  mk(P.torso, g);
-  const head = new THREE.Group(); head.position.y = 1.68; g.add(head); mk(P.head, head);
+  let P = cache.get(key);
+  if (!P) { P = buildParts(o); if (TPL) P.hi = buildPartsTpl(o); cache.set(key, P); }
+  const parts = [];
+  const mk = (part, parent, y = 0, x = 0) => { const m = new THREE.Mesh(P[part], SKIN_MAT); m.userData.part = part; m.position.set(x, y, 0); m.castShadow = true; parent.add(m); parts.push(m); return m; };
+  const g = new THREE.Group(); g.userData.P = P; g.userData.parts = parts; g.userData.hi = false; HUMANS.add(g);
+  mk('torso', g);
+  const head = new THREE.Group(); head.position.y = 1.68; g.add(head); mk('head', head);
   if (o.child) head.scale.setScalar(1.22);
   const fem = !!o.longHair, sx = fem ? 0.172 : 0.19;
   const arm = x => {
-    const pivot = new THREE.Group(); pivot.position.set(x, 1.43, 0); g.add(pivot); mk(P.upper, pivot);
-    const elbow = new THREE.Group(); elbow.position.y = -0.29; pivot.add(elbow); mk(P.fore, elbow);
+    const pivot = new THREE.Group(); pivot.position.set(x, 1.43, 0); g.add(pivot); mk('upper', pivot);
+    const elbow = new THREE.Group(); elbow.position.y = -0.29; pivot.add(elbow); mk(x < 0 ? 'foreL' : 'foreR', elbow); // มือซ้าย/ขวา (นิ้วโป้งอยู่ด้านหน้า)
     pivot.userData.joint = elbow; return pivot;
   };
   const leg = x => {
-    const pivot = new THREE.Group(); pivot.position.set(x, 0.93, 0); g.add(pivot); mk(P.thigh, pivot);
-    const knee = new THREE.Group(); knee.position.y = -0.45; pivot.add(knee); mk(P.shin, knee);
+    const pivot = new THREE.Group(); pivot.position.set(x, 0.93, 0); g.add(pivot); mk('thigh', pivot);
+    const knee = new THREE.Group(); knee.position.y = -0.45; pivot.add(knee); mk('shin', knee);
     pivot.userData.joint = knee; return pivot;
   };
   const armL = arm(-sx - 0.012), armR = arm(sx + 0.012);

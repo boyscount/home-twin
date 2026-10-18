@@ -14,7 +14,7 @@ import { bus } from './bus.js';
 import { WeatherFX } from './weatherfx.js';
 import { freezeStatic } from './freeze.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeHuman, animateWalk, animateIdle, SKIN_MAT } from './human.js';
+import { makeHuman, animateWalk, animateIdle, SKIN_MAT, loadHumanTemplates, updateHumanLOD } from './human.js';
 import { makePig, makeChicken, makeFish, makeCat, makeDog } from './animals.js';
 import { FOL, windU, makeFoliageTextures, leafMaterial, canopyGeometry, frondGeometry } from './foliage.js';
 
@@ -527,6 +527,9 @@ export class Farm3D {
     this.buildMountains();
     this.grassPending = !this.lite; // หญ้าสร้างทีหลัง (หลังเห็นภาพแล้ว) เพื่อให้เปิดเว็บเร็วขึ้น
     this.buildCharacters();
+    // คนแบบปั้นละเอียดจาก Blender (หน้า มือมีนิ้ว รอยพับผ้า) — โหลดตามหลัง แล้วเปลี่ยนร่างทุกคนในที่
+    if (!this.lite) loadHumanTemplates('models/env/human_parts.glb').then(() => { updateHumanLOD(this.camera); this.renderer.shadowMap.needsUpdate = true; }).catch(e => console.warn('human parts', e));
+    this.updateHumanLOD = updateHumanLOD; // (ไว้ให้กล้องถ่ายคลิป/ตรวจ สั่งตามกล้องของตัวเองได้)
     this.buildLabels();
     this.gen = 0;
     this.buildBBQ();
@@ -2250,6 +2253,7 @@ export class Farm3D {
   tick() {
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.clock.elapsedTime;
+    if (((this.lodFrame = (this.lodFrame || 0) + 1) & 7) === 0) updateHumanLOD(this.camera); // คนใกล้กล้อง = ร่างละเอียด
     if (this.autoTime) { let h = this.hour + dt * 0.05; if (h >= 24) h = 0; this.setTimeThrottled(h); }
     this.wx.update(dt, t);
 
