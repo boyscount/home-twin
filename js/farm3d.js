@@ -387,10 +387,11 @@ const PERSONAS = [
 export const QUALITY = {
   // shadowEvery = วาดเงาใหม่ทุกกี่เฟรม (เงาคือส่วนที่กินเครื่องที่สุด)
   // ao = เงาตามซอกมุม/รอยต่อแบบคำนวณจริง (GTAO) — สวยแต่กินการ์ดจอมาก จึงมีเฉพาะระดับสูงสุดสำหรับคอมแรง ๆ
-  ultra: { label: 'สูงสุด (คอมการ์ดจอแรง)', post: true, ao: true, shadow: 4096, shadowEvery: 1, pr: 2, grass: 14000 },
-  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 1.75, grass: 10000 },
-  medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, grass: 4500 },
-  low: { label: 'ต่ำ (ประหยัดแบต)', post: false, shadow: 1024, shadowEvery: 4, pr: 1, grass: 0 },
+  // mp = งบจำนวนพิกเซลที่วาดต่อเฟรม (ล้านพิกเซล) — จอใหญ่/จอความละเอียดสูงจะไม่วาดเกินนี้ ไม่งั้นจอ 21–27 นิ้วกินการ์ดจอหลายเท่าแล้วหน่วง
+  ultra: { label: 'สูงสุด (คอมการ์ดจอแรง)', post: true, ao: true, shadow: 4096, shadowEvery: 1, pr: 2, mp: 3.7, grass: 14000 },
+  high: { label: 'สูง', post: true, shadow: 2048, shadowEvery: 2, pr: 1.75, mp: 2.2, grass: 10000 },
+  medium: { label: 'กลาง', post: true, shadow: 1024, shadowEvery: 3, pr: 1.25, mp: 1.4, grass: 4500 },
+  low: { label: 'ต่ำ (ประหยัดแบต)', post: false, shadow: 1024, shadowEvery: 4, pr: 1, mp: 0.9, grass: 0 },
 };
 
 // เกรดสี + ขอบมืด (vignette) หลัง tone mapping
@@ -452,6 +453,14 @@ export class Farm3D {
     this.init();
   }
 
+  // ความละเอียดที่วาดจริง = ไม่เกิน pixel ratio ของระดับคุณภาพ · ไม่เกินงบพิกเซล · คูณสเกลปรับอัตโนมัติตามเฟรมเรต (resScale)
+  renderPR(w, h) {
+    if (!w) [w, h] = this.size();
+    const Q = QUALITY[this.quality];
+    const pr = Math.min(devicePixelRatio || 1, Q.pr, Math.sqrt(Q.mp * 1e6 / Math.max(1, w * h)));
+    return Math.max(0.5, pr * (this.resScale || 1));
+  }
+
   size() {
     const w = this.host.clientWidth || window.innerWidth;
     const h = this.host.clientHeight || window.innerHeight - 60;
@@ -475,7 +484,8 @@ export class Farm3D {
     this.tvDevice = /Tizen|Web0S|webOS|SmartTV|SMART-TV|AFT|BRAVIA|Android TV|HbbTV|NetCast|VIDAA|Hisense|Roku/i.test(navigator.userAgent);
     let q = 'high'; try { q = localStorage.getItem('quality') || (this.tvDevice ? 'low' : this.touchDevice ? 'medium' : 'high'); } catch {}
     this.quality = QUALITY[q] ? q : 'medium';
-    r.setPixelRatio(Math.min(devicePixelRatio, QUALITY[this.quality].pr));
+    this.resScale = 1;
+    r.setPixelRatio(this.renderPR(w, h));
     r.setSize(this.lite ? 1 : w, this.lite ? 1 : h);
     r.shadowMap.enabled = !this.lite; r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.shadowMap.autoUpdate = false; this.frameN = 0; // อัปเดตเงาเว้นเฟรม (ดู tick)
@@ -641,6 +651,7 @@ export class Farm3D {
   resize() {
     if (this.lite || !this.host.clientWidth) return;
     const [w, h] = this.size();
+    this.renderer.setPixelRatio(this.renderPR(w, h));
     this.renderer.setSize(w, h); this.labelRenderer.setSize(w, h);
     this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h);
     this.camera.aspect = w / h;
@@ -1751,7 +1762,7 @@ export class Farm3D {
     if (!QUALITY[q]) return;
     this.quality = q; const Q = QUALITY[q];
     try { localStorage.setItem('quality', q); } catch {}
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, Q.pr));
+    this.resScale = 1;
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
     if (this.grass) { this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn; }
@@ -2386,6 +2397,24 @@ export class Farm3D {
       if (this.tickErrors === 1 || this.tickErrors % 600 === 0) bus.emit('app-error', { where: 'ภาพ 3D', error: e, count: this.tickErrors });
     }
     this.frameMs = performance.now() - t0;
+    this.adaptRes(t0);
+  }
+
+  // ปรับความละเอียดอัตโนมัติ: เฟรมเรตต่ำกว่า ~40 fps ต่อเนื่อง → ลดความละเอียดลงทีละขั้น (ต่ำสุด 55%) · ลื่นเกิน ~57 fps นาน ๆ → เพิ่มกลับ
+  // วัดจากช่วงห่างระหว่างเฟรม (รวมเวลาการ์ดจอ) · ข้ามตอนแท็บซ่อน/ไม่ได้ดูภาพ 3D
+  adaptRes(now) {
+    const last = this._lastFrame; this._lastFrame = now;
+    if (!this.visible || document.hidden || !last || this.lite) { this._fpsAcc = 0; this._fpsN = 0; return; }
+    const gap = now - last; if (gap > 250) return; // สะดุดครั้งเดียว (สลับแท็บ/โหลดไฟล์) ไม่นับ
+    this._fpsAcc = (this._fpsAcc || 0) + gap; this._fpsN = (this._fpsN || 0) + 1;
+    if (this._fpsAcc < 2000) return;
+    const fps = 1000 * this._fpsN / this._fpsAcc; this._fpsAcc = 0; this._fpsN = 0;
+    this.fps = Math.round(fps);
+    const s0 = this.resScale;
+    if (fps < 40) { this._goodRuns = 0; this.resScale = Math.max(0.55, s0 * 0.85); }
+    else if (fps > 57) { if (++this._goodRuns >= 3) { this._goodRuns = 0; this.resScale = Math.min(1, s0 * 1.1); } }
+    else this._goodRuns = 0;
+    if (Math.abs(this.resScale - s0) > 0.01) this.resize();
   }
 
   // ---------------------------------------------------------------- loop
