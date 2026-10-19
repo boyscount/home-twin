@@ -1762,7 +1762,7 @@ export class Farm3D {
     if (!QUALITY[q]) return;
     this.quality = q; const Q = QUALITY[q];
     try { localStorage.setItem('quality', q); } catch {}
-    this.resScale = 1;
+    this.resScale = 1; this._resCeil = 0; this._raisedFrom = 0;
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
     if (this.grass) { this.grass.count = Q.grass; this.grass.visible = Q.grass > 0 && this.grassOn; }
@@ -2400,8 +2400,10 @@ export class Farm3D {
     this.adaptRes(t0);
   }
 
-  // ปรับความละเอียดอัตโนมัติ: เฟรมเรตต่ำกว่า ~40 fps ต่อเนื่อง → ลดความละเอียดลงทีละขั้น (ต่ำสุด 55%) · ลื่นเกิน ~57 fps นาน ๆ → เพิ่มกลับ
+  // ปรับความละเอียดอัตโนมัติ: เฟรมเรตต่ำกว่า ~38 fps ต่อเนื่อง → ลดความละเอียดลงทีละขั้น (ต่ำสุด 55%) · ลื่นเกิน ~57 fps นาน ๆ → เพิ่มกลับ
   // วัดจากช่วงห่างระหว่างเฟรม (รวมเวลาการ์ดจอ) · ข้ามตอนแท็บซ่อน/ไม่ได้ดูภาพ 3D
+  // กันจอกระพริบ: เปลี่ยนขนาดตอนต้นเฟรมถัดไปก่อนวาด (ไม่ปล่อยแคนวาสว่างค้าง 1 เฟรม) · เว้นอย่างน้อย 6 วิ/ครั้ง
+  // · ถ้าเพิ่มขึ้นแล้วกลับมาหน่วงอีก จำระดับนั้นเป็นเพดาน ไม่ขยับขึ้น-ลงวนไปมา
   adaptRes(now) {
     const last = this._lastFrame; this._lastFrame = now;
     if (!this.visible || document.hidden || !last || this.lite) { this._fpsAcc = 0; this._fpsN = 0; return; }
@@ -2410,11 +2412,17 @@ export class Farm3D {
     if (this._fpsAcc < 2000) return;
     const fps = 1000 * this._fpsN / this._fpsAcc; this._fpsAcc = 0; this._fpsN = 0;
     this.fps = Math.round(fps);
-    const s0 = this.resScale;
-    if (fps < 40) { this._goodRuns = 0; this.resScale = Math.max(0.55, s0 * 0.85); }
-    else if (fps > 57) { if (++this._goodRuns >= 3) { this._goodRuns = 0; this.resScale = Math.min(1, s0 * 1.1); } }
-    else this._goodRuns = 0;
-    if (Math.abs(this.resScale - s0) > 0.01) this.resize();
+    if (now - (this._resAt || 0) < 6000) return;
+    const s0 = this.resScale, ceil = this._resCeil || 1;
+    if (fps < 38) {
+      this._goodRuns = 0;
+      if (this._raisedFrom && now - this._resAt < 15000) this._resCeil = this._raisedFrom; // เพิ่งเพิ่มแล้วหน่วง → เพดานอยู่ที่ระดับก่อนหน้า
+      this._raisedFrom = 0;
+      this.resScale = Math.max(0.55, s0 * 0.85);
+    } else if (fps > 57 && s0 < ceil) {
+      if (++this._goodRuns >= 4) { this._goodRuns = 0; this._raisedFrom = s0; this.resScale = Math.min(ceil, s0 * 1.1); }
+    } else this._goodRuns = 0;
+    if (Math.abs(this.resScale - s0) > 0.01) { this._resAt = now; this._resizePending = true; }
   }
 
   // ---------------------------------------------------------------- loop
@@ -2467,6 +2475,7 @@ export class Farm3D {
     windU.time.value = t; windU.wind.value = 0.7 + (this.wx?.cur.wind || 1.5) * 0.18;
     if (this.grassU) { this.grassU.time.value = t; this.grassU.wind.value = 0.6 + (this.wx?.cur.wind || 1.5) * 0.12; }
     if (!this.visible) return;
+    if (this._resizePending) { this._resizePending = false; this.resize(); } // เปลี่ยนความละเอียดก่อนวาดเฟรมนี้ (ไม่กระพริบ)
     if (this.flying) this.flying(performance.now());
     this.controls.update();
     this.clampCamera();
