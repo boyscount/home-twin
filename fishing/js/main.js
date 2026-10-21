@@ -22,7 +22,8 @@ const BUILDERS = { paddy, falls, forest, beach, sea, home, fair };
 const VER = new URL(import.meta.url).search;          // ?v=… ของไฟล์นี้ ใช้ต่อท้ายไฟล์โมเดลด้วย
 const $ = id => document.getElementById(id);
 let touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-const mobile = touch || Math.min(screen.width, screen.height) < 700;
+const PROMO = new URLSearchParams(location.search).has('promo');   // โหมดอัดวิดีโอโปรโมท (เดินทีละเฟรม)
+const mobile = touch || PROMO || Math.min(screen.width, screen.height) < 700;
 if (touch) document.body.classList.add('touch');
 // กันพลาด: ถ้าตรวจไม่เจอแต่มีการแตะจอจริง ให้เปิดจอย/ปุ่มบนจอทันที (เช่น iPad ที่ต่อคีย์บอร์ด)
 addEventListener('touchstart', () => {
@@ -939,7 +940,9 @@ function updatePlayer(dt) {
 
 let zoom = 1;
 addEventListener('wheel', e => { if (!modalOpen()) zoom = Math.max(0.65, Math.min(1.6, zoom * (e.deltaY > 0 ? 1.08 : 0.93))); }, { passive: true });
+let camOverride = null;
 function updateCamera(dt, snap = false) {
+  if (camOverride) { camera.position.copy(camOverride.pos); camera.lookAt(camOverride.look); return; }
   if (world.id === 'fair') {
     const c = world.cam, k = snap ? 1 : Math.min(1, dt * (c.speed || 1.6));
     camera.position.lerp(c.pos, k);
@@ -1119,6 +1122,7 @@ function init() {
   $('newBtn').classList.toggle('hidden', !cont);
   $('endBtn').classList.toggle('hidden', !S.endingSeen);
   setTimeout(() => { $('loadBar').classList.add('hidden'); $('titleBtns').classList.remove('hidden'); }, 150);
+  if (PROMO) { ready = false; $('title').classList.add('hidden'); import('./promo.js').then(m => m.run(window.__fish)); }
 }
 async function start() {
   initAudio();
@@ -1310,5 +1314,6 @@ requestAnimationFrame(loop);
 // สำหรับทดสอบ: เรียก tick เองได้ตอนแท็บถูกซ่อน (timer ช้า)
 window.__fish = {
   game, story, get S() { return story.S; }, tick: (dt = 1 / 60, draw = true) => ready && tick(dt, draw), get player() { return player; }, get world() { return world; },
+  get renderer() { return renderer; }, get scene() { return scene; }, thumbs, setCam: c => { camOverride = c; }, setMode: m => { mode = m; }, renderNow: () => renderer.render(scene, camera), step: dt => tick(dt, false), makeFish: id => makeFish(assets, byId[id]),
   actionDown, actionUp, keys, get ready() { return ready; }, get lantern() { return lantern; }, get camera() { return camera; }, get mode() { return mode; }, loadWorld, goFishing, goHome, start, playEnding,
 };
