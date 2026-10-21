@@ -4,6 +4,25 @@ import { toon } from './toon.js';
 
 // pull = แรงดึงพื้นฐาน, dash = แรงพุ่งหนี, prog = ความเร็วกรอเข้า, win = เวลากดดึงทัน (วินาที)
 export const SPECIES = [
+  // ---------- บ่อปลาทุ่งนา ----------
+  { id: 'kradi', stage: 'paddy', price: 60, name: 'ปลากระดี่', en: 'Three-spot gourami', stars: 1, chance: 30, kg: [0.03, 0.15], cm: [6, 14],
+    shape: [0.95, 1.25, 0.7], top: 0x7d8a9a, belly: 0xdde4ea, fin: 0x8a9aa8, pattern: 'dots',
+    pull: 0.14, dash: 0.4, prog: 0.46, win: 1.1, desc: 'ปลาตัวเล็กตามท้องนา มีจุดดำข้างลำตัว ทอดกรอบหรือทำปลาร้าก็อร่อย' },
+  { id: 'mo', stage: 'paddy', price: 110, name: 'ปลาหมอ', en: 'Climbing perch', stars: 1, chance: 28, kg: [0.05, 0.35], cm: [8, 20],
+    shape: [1.0, 1.15, 1.0], top: 0x5a5f48, belly: 0xc9c4a0, fin: 0x6a6a50, pattern: 'scales',
+    pull: 0.2, dash: 0.5, prog: 0.42, win: 1.0, desc: 'ปลาอึดแห่งท้องนา ว่ากันว่าปีนขึ้นบกได้ตอนฝนตก เกล็ดแข็ง ย่างเกลือหอมมาก' },
+  { id: 'salit', stage: 'paddy', price: 160, name: 'ปลาสลิด', en: 'Snakeskin gourami', stars: 1, chance: 22, kg: [0.08, 0.4], cm: [10, 22],
+    shape: [1.0, 1.2, 0.75], top: 0x6d7a5a, belly: 0xd6d8c0, fin: 0x7a8a6a, pattern: 'stripes',
+    pull: 0.22, dash: 0.5, prog: 0.4, win: 1.0, desc: 'ปลาขึ้นชื่อจากนาข้าว ตากแห้งแดดเดียว ทอดกินกับข้าวต้มร้อน ๆ' },
+  { id: 'lai', stage: 'paddy', price: 200, name: 'ปลาไหลนา', en: 'Swamp eel', stars: 2, chance: 12, kg: [0.2, 1.2], cm: [30, 70],
+    shape: [2.0, 0.5, 0.6], top: 0x5a4a2a, belly: 0xc8a860, fin: 0x5a4a2a, pattern: 'none',
+    pull: 0.4, dash: 0.9, prog: 0.32, win: 0.95, desc: 'ลื่นปรื๊ด! มุดอยู่ในรูโคลนริมคันนา ผัดเผ็ดใส่ใบกะเพราอร่อยนัก' },
+  { id: 'chado', stage: 'paddy', price: 160, name: 'ปลาชะโด', en: 'Giant snakehead', stars: 3, chance: 7, kg: [2, 8], cm: [50, 100],
+    shape: [1.6, 0.8, 0.95], top: 0x3a4a3a, belly: 0xb8b8a0, fin: 0xc0603a, pattern: 'blotch',
+    pull: 0.58, dash: 1.15, prog: 0.28, win: 0.85, desc: 'นักล่าตัวใหญ่สุดในบ่อ ฟันคม แรงดึงมหาศาล ลูกปลาชะโดสีส้มแดงสวยมาก' },
+  { id: 'butong', stage: 'paddy', price: 1200, name: 'ปลาบู่ทอง', en: 'Golden goby', stars: 4, chance: 2, kg: [0.8, 3], cm: [30, 55], rare: true,
+    shape: [1.3, 0.85, 1.0], top: 0xb8862a, belly: 0xffe0a0, fin: 0xc87a30, pattern: 'blotch', glow: true,
+    pull: 0.68, dash: 1.3, prog: 0.26, win: 0.75, desc: 'ปลาบู่ทองในนิทานพื้นบ้าน ใครได้เจอถือเป็นลาภ (ซ่อนอยู่ใต้กอบัวหนาแน่นมุมบ่อ)' },
   { id: 'nil', stage: 'falls', price: 60, name: 'ปลานิล', en: 'Nile tilapia', stars: 1, chance: 34, kg: [0.3, 1.6], cm: [16, 38],
     shape: [0.85, 1.35, 1.15], top: 0x55697c, belly: 0xdde3e4, fin: 0x8c6f80, pattern: 'stripes',
     pull: 0.22, dash: 0.45, prog: 0.38, win: 1.1, desc: 'ปลาน้ำจืดคู่บ้าน เลี้ยงง่าย เนื้อขาวนุ่ม มีลายพาดขวางจาง ๆ ตามลำตัว' },
@@ -83,7 +102,7 @@ export const SPECIES = [
 export const byId = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
 // ช่วงเวลาที่ปลาชอบกินเหยื่อ (ตอนเช้า < 9:30 · ตอนเย็น ≥ 15:30) — ปลาอื่นกินได้ทั้งวัน
-const PREF = { chon: 'evening', duk: 'evening', krai: 'morning', tapad: 'evening', phluang: 'morning', krathing: 'evening', wian: 'morning',
+const PREF = { lai: 'evening', chado: 'morning', butong: 'evening', chon: 'evening', duk: 'evening', krai: 'morning', tapad: 'evening', phluang: 'morning', krathing: 'evening', wian: 'morning',
   phluangthong: 'morning', takhong: 'evening', kapongdaeng: 'evening', nokkaeo: 'morning', insee: 'morning', kao: 'evening', krathong: 'morning' };
 for (const sp of SPECIES) sp.time = PREF[sp.id] || 'any';
 export const TIME_TEXT = { morning: '🌅 ชอบกินเหยื่อตอนเช้าตรู่', evening: '🌇 ชอบกินเหยื่อตอนเย็น', any: '🕒 กินเหยื่อได้ทั้งวัน' };

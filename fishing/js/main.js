@@ -10,13 +10,14 @@ import { SPECIES, byId, rollFish, loadDex, record, makeFish, RARITY, TIME_TEXT }
 import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick } from './audio.js';
 import * as story from './story.js';
 import { S, STAGES, stageById } from './story.js';
+import * as paddy from './stages/paddy.js';
 import * as falls from './stages/falls.js';
 import * as forest from './stages/forest.js';
 import * as beach from './stages/beach.js';
 import * as sea from './stages/sea.js';
 import * as home from './stages/home.js';
 
-const BUILDERS = { falls, forest, beach, sea, home };
+const BUILDERS = { paddy, falls, forest, beach, sea, home };
 const VER = new URL(import.meta.url).search;          // ?v=… ของไฟล์นี้ ใช้ต่อท้ายไฟล์โมเดลด้วย
 const $ = id => document.getElementById(id);
 const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -383,7 +384,7 @@ function showFishingUi(on) {
 }
 const stars = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, 4 - n));
 
-let dexTab = 'falls';
+let dexTab = 'paddy';
 function toggleDex() {
   const d = $('dex');
   if (!d.classList.contains('hidden')) { d.classList.add('hidden'); return; }
@@ -954,7 +955,7 @@ function init() {
   dex = loadDex();
   renderThumbs();
   resize();
-  loadWorld(S.phase === 'fishing' && S.stage ? S.stage : 'falls');
+  loadWorld(S.phase === 'fishing' && S.stage ? S.stage : 'paddy');
   loadBar.style.width = '100%';
   ready = true;
   const cont = S.phase !== 'new';

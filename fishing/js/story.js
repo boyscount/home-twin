@@ -2,6 +2,8 @@
 import { SPECIES, byId } from './fish.js';
 
 export const STAGES = [
+  { id: 'paddy', name: 'บ่อปลาทุ่งนา', icon: '🌾', price: 0, desc: 'บ่อใหญ่กลางทุ่งข้าว ปลาบ้าน ๆ ตกง่าย บรรยากาศสบาย',
+    go: 'เดินตามคันนาไปบ่อปลาหลังบ้าน…', back: 'เดินลัดทุ่งข้าวกลับบ้าน ควายเดินตามหลัง…', bg: 'linear-gradient(135deg,#c8e27a,#6aa84f)' },
   { id: 'falls', name: 'น้ำตกสายหมอก', icon: '💧', price: 0, desc: 'แอ่งน้ำใสใต้น้ำตกหลังหมู่บ้าน ปลาน้ำจืดคุ้นเคย',
     go: 'เดินลัดทุ่งนาไปน้ำตก…', back: 'เดินกลับบ้านตามคันนา ฟังเสียงจิ้งหรีด…', bg: 'linear-gradient(135deg,#9fd8c8,#5aa88a)' },
   { id: 'forest', name: 'ลำธารป่าลึก', icon: '🌲', price: 300, unlock: 'ซื้อมีดเดินป่ากับไฟฉาย', desc: 'ลำธารเย็นเฉียบกลางป่าดิบ มีปลาภูเขาหายาก',
@@ -37,7 +39,7 @@ export const DAY_START = 6, DAY_END = 18, HOURS_PER_SEC = 12 / 420;   // หน�
 export const NEED_KG = 1.2;                                              // ครอบครัวต้องการปลาเท่านี้ถึงจะอิ่ม
 
 const KEY = 'cozyfish.story.v1';
-const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { falls: true }, up: {}, goal: 0, market: {}, hot: null, dexReward: {}, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0 } });
+const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { paddy: true, falls: true }, up: {}, goal: 0, market: {}, hot: null, dexReward: {}, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0 } });
 export let S = load();
 function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1) return Object.assign(fresh(), d); } catch (e) { /* ไม่มีหรือเสีย */ }
@@ -55,13 +57,14 @@ export function rollMarket() {
   const pool = SPECIES.filter(sp => S.unlocked[sp.stage] && !sp.rare);
   S.hot = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
 }
-if (!S.market || !Object.keys(S.market).length) rollMarket();
+S.unlocked.paddy = true;                 // เซฟเก่าก่อนมีบ่อปลาทุ่งนา
+if (!S.market || !Object.keys(S.market).length || !S.market.kradi) rollMarket();
 export const priceOf = id => Math.round(byId[id].price * (S.market[id] || 1) * (S.hot === id ? HOT_MUL : 1));
 export const value = f => Math.round(f.kg * priceOf(f.id));
 export const trend = id => { const m = (S.market[id] || 1) * (S.hot === id ? HOT_MUL : 1); return m >= 1.12 ? 'up' : m <= 0.88 ? 'down' : 'flat'; };
 
 // ---------- รางวัลสมุดสะสม: พบครบทุกชนิดในด่าน ----------
-export const DEX_REWARD = { falls: 300, forest: 600, beach: 900, sea: 1500 };
+export const DEX_REWARD = { paddy: 200, falls: 300, forest: 600, beach: 900, sea: 1500 };
 export function claimDexRewards(dex) {
   const got = [];
   for (const st of STAGES) {
@@ -116,7 +119,7 @@ export const EVENING_LINES = {
 export const INTRO = [
   ['แม่', 'พ่อจ๋า เมื่อคืนฝนตก หลังคารั่วอีกแล้วนะ 🌧️'],
   ['ลูก', 'พ่อ ๆ ไปตกปลามาปิ้งกินกันเถอะ หนูหิว!'],
-  ['พ่อ', 'ได้เลย วันนี้พ่อจะไปตกปลาที่น้ำตกหลังหมู่บ้าน'],
+  ['พ่อ', 'ได้เลย วันนี้พ่อจะไปตกปลาที่บ่อกลางทุ่งนา หรือจะไปน้ำตกหลังหมู่บ้านก็ได้'],
   ['แม่', 'ได้ปลามาเยอะ ๆ ก็แบ่งปิ้งกินบ้าง ขายตลาดบ้าง เก็บเงินซ่อมหลังคานะ'],
   ['พ่อ', 'แต่บางวันปลาก็ไม่กินเหยื่อนะ… ไม่เป็นไร ค่อย ๆ เก็บไปทีละวัน'],
 ];

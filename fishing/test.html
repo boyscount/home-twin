@@ -80,11 +80,11 @@ try {
 
   group('เนื้อเรื่อง ราคาตลาด และมื้อเย็น');
   const S = story.S;
-  check('เริ่มวันที่ 1 มีเงิน 0 และปลดล็อกแค่น้ำตก', S.day === 1 && S.money === 0 && S.unlocked.falls && !S.unlocked.sea);
+  check('เริ่มวันที่ 1 มีเงิน 0 และปลดล็อกแค่บ่อปลาทุ่งนากับน้ำตก', S.day === 1 && S.money === 0 && S.unlocked.paddy && S.unlocked.falls && !S.unlocked.sea);
   story.rollMarket();
   const muls = Object.values(S.market);
   check('ราคาตลาดสุ่มทุกชนิด อยู่ในช่วง ±35%', muls.length === SPECIES.length && muls.every(m => m >= 0.65 && m <= 1.35));
-  check('ปลาราคาพิเศษมาจากด่านที่ปลดล็อกและไม่ใช่ตัวหายาก', S.hot && byId[S.hot].stage === 'falls' && !byId[S.hot].rare, S.hot);
+  check('ปลาราคาพิเศษมาจากด่านที่ปลดล็อกและไม่ใช่ตัวหายาก', S.hot && ['paddy', 'falls'].includes(byId[S.hot].stage) && !byId[S.hot].rare, S.hot);
   check('ราคาปลาราคาพิเศษ = ราคาฐาน × ตลาด × 1.8', story.priceOf(S.hot) === Math.round(byId[S.hot].price * S.market[S.hot] * 1.8));
   check('มูลค่าปลา = น้ำหนัก × ราคาวันนี้', story.value({ id: 'nil', kg: 2 }) === Math.round(2 * story.priceOf('nil')));
   S.basket = [{ id: 'nil', kg: 0.8, cm: 30 }, { id: 'chon', kg: 0.6, cm: 40 }, { id: 'krai', kg: 2, cm: 60 }];
@@ -137,13 +137,19 @@ try {
   check('แสดงหน้าแผนที่ + ราคาตลาด', F.mode === 'map' && D.getElementById('mapMarket').textContent.includes('ราคา'));
 
   const g = F.game;
+  const area = {};
   async function playStage(id, x, z, yaw, charge) {
     D.getElementById('map').classList.add('hidden');
     F.S.unlocked[id] = true;
+    const kept = F.S.basket.splice(0);           // ข้องว่างทุกด่าน (ไม่งั้นข้องเต็มแล้วเหวี่ยงไม่ได้)
     F.goFishing(id);
     await sleep(3300);
     const p = F.player;
+    if (z === 'dock') { let zz = 10; while (zz > -10 && !F.world.onSolid(x, zz)) zz -= 0.1; z = zz - 3.6; }   // ปลายท่าไม้
     if (x !== null) p.pos.set(x, F.world.standY(x, z), z);
+    let cells = 0;
+    for (let gx = -16; gx <= 16; gx += 0.5) for (let gz = -22; gz <= 8; gz += 0.5) if (F.world.canCast(gx, gz)) cells++;
+    area[id] = cells * 0.25;
     p.yaw = yaw;
     check(`${id}: เข้าด่านได้ ยืนบนพื้นที่เดินได้`, F.mode === 'fishing' && F.world.id === id && F.world.walkable(p.pos.x, p.pos.z));
     let caught = 0, tries = 0, casts = 0;
@@ -180,7 +186,10 @@ try {
     check(`${id}: ตกปลาได้จริง`, caught >= 1, `${caught} ตัว · ข้อง ${F.S.basket.length}`);
     if (!D.getElementById('catch').classList.contains('hidden')) D.getElementById('catchOk').click();
     g.endCatch();
+    F.S.basket.splice(0, 0, ...kept.slice(0, 4));
+    F.S.basket.splice(8);
   }
+  await playStage('paddy', -3.2, 'dock', Math.PI, 0.35);
   await playStage('falls', 2.6, -2.3, Math.PI, 0.3);
   await playStage('forest', 3.0, 0.9, Math.PI, 0.25);
   await playStage('beach', 0.5, -1.2, Math.PI, 0.5);
@@ -220,6 +229,7 @@ try {
   D.getElementById('sleepBtn').click();
   await sleep(3400);
   check('เข้านอนแล้วเป็นวันใหม่ กลับหน้าแผนที่', F.S.day === day0 + 1 && F.mode === 'map');
+  check('บ่อปลาทุ่งนาใหญ่กว่าแอ่งน้ำตกอย่างน้อย 2.5 เท่า', area.paddy > area.falls * 2.5, `${area.paddy} ตร.ม. เทียบ ${area.falls} ตร.ม.`);
   check('ไม่มี error ระหว่างเล่น', errors.length === 0, errors.slice(0, 2).join(' | '));
 } catch (e) {
   check('ทดสอบทำงานจนจบโดยไม่ล่ม', false, e.message);
