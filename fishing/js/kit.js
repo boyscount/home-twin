@@ -17,9 +17,17 @@ export function makeSky(scene, world, { top = 0x7cc4f0, bot = 0xe6f4f2, fogNear 
   scene.fog = new THREE.Fog(bot, fogNear, fogFar);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(top) }, bot: { value: new THREE.Color(bot) } },
+    uniforms: { top: { value: new THREE.Color(top) }, bot: { value: new THREE.Color(bot) }, uSun: { value: new THREE.Vector3(-0.4, 0.7, 0.4).normalize() }, uSunCol: { value: new THREE.Color(0xfff1d6) } },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 bot; varying vec3 vP; void main(){ gl_FragColor = vec4(mix(bot, top, smoothstep(-0.05, 0.5, vP.y)), 1.0); }',
+    fragmentShader: `uniform vec3 top; uniform vec3 bot; uniform vec3 uSun; uniform vec3 uSunCol; varying vec3 vP;
+void main(){
+  vec3 d = normalize(vP);
+  vec3 c = mix(bot, top, smoothstep(-0.05, 0.5, d.y));
+  c = mix(c, mix(bot, vec3(1.0), 0.35), smoothstep(0.12, 0.0, abs(d.y - 0.02)) * 0.5);   // แถบขอบฟ้าสว่าง
+  float s = max(dot(d, normalize(uSun)), 0.0);
+  c += uSunCol * (pow(s, 12.0) * 0.18 + pow(s, 90.0) * 0.35);
+  c = mix(c, vec3(1.0, 0.98, 0.9), smoothstep(0.9975, 0.9985, s));
+  gl_FragColor = vec4(c, 1.0); }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), mat);
   sky.renderOrder = -1;
@@ -46,6 +54,8 @@ export function makeLights(scene, world, { mobile, sun = [-14, 24, 12], target =
   world.sun = s; world.hemi = h;
   world.sunBase = { intensity, hemi };
   world.sunDir = s.position.clone().sub(s.target.position).normalize();
+  if (world.sky) world.sky.material.uniforms.uSun.value.copy(world.sunDir);
+  world.update.push(() => { if (world.sky) { const u = world.sky.material.uniforms; u.uSun.value.copy(s.position).sub(s.target.position).normalize(); u.uSunCol.value.copy(s.color); } });
 }
 
 // ---------- พื้นดินจากฟังก์ชันความสูง (มีลายแสงใต้น้ำ) ----------
@@ -88,10 +98,16 @@ if (vWP2.y < ${wy}) { float k = smoothstep(${wy}, ${wy2}, vWP2.y);
 }
 
 // ---------- ผิวน้ำ ----------
-// opts: shallow/deep สี, flow = ทิศเส้นแสงไหล, fall = จุดฟองน้ำตก, surf = คลื่นซัดฝั่ง (ชายหาด), waves = ความสูงคลื่น
+// opts: shallow/deep สี, flow = ทิศเส้นแสงไหล, fall = จุดฟองน้ำตก, surf = คลื่นซัดฝั่ง (ชายหาด), waves = ความสูงคลื่น, glint = แสงแดดสะท้อน
+const WAVE_GLSL = `
+float wv(vec2 p, float t){
+  return sin(dot(p, vec2(0.21, 0.13)) + t * 0.9) * 0.5
+       + sin(dot(p, vec2(-0.12, 0.27)) + t * 1.3) * 0.35
+       + sin(dot(p, vec2(0.47, 0.39)) + t * 2.1) * 0.18
+       + sin(dot(p, vec2(-0.71, 0.52)) + t * 2.9) * 0.09; }`;
 export function makeWater(scene, world, o) {
   const { cx = 0, cz = 0, size = 18, segs = 90, groundH, waterY, shallow = 0x6bcab8, deep = 0x1a6b66, depthScale = 1.7,
-    flow = [0.12, 0.05], fall = null, surf = 0, waves = 0.015, alphaMin = 0.28, alphaMax = 0.86, glint = 0 } = o;
+    flow = [0.12, 0.05], fall = null, surf = 0, waves = 0.015, alphaMin = 0.28, alphaMax = 0.86, glint = 0.6, crest = 0 } = o;
   const g = new THREE.PlaneGeometry(size, size, segs, segs);
   g.rotateX(-Math.PI / 2);
   g.translate(cx, waterY, cz);
@@ -108,37 +124,54 @@ export function makeWater(scene, world, o) {
       uRip: { value: ripples }, uCam: { value: new THREE.Vector3() },
       uShallow: { value: new THREE.Color(shallow) }, uDeep: { value: new THREE.Color(deep) },
       uFlow: { value: new THREE.Vector2(...flow) }, uSurf: { value: surf }, uWaves: { value: waves },
-      uDS: { value: depthScale }, uA: { value: new THREE.Vector2(alphaMin, alphaMax) }, uGlint: { value: glint },
-      uSky: { value: new THREE.Color(0xcfe9f3) },
+      uDS: { value: depthScale }, uA: { value: new THREE.Vector2(alphaMin, alphaMax) }, uGlint: { value: glint }, uCrest: { value: crest },
+      uSky: { value: new THREE.Color(0xcfe9f3) }, uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.4) }, uSunCol: { value: new THREE.Color(0xfff3dc) },
     }]),
-    vertexShader: `attribute float depth; varying float vD; varying vec3 vW; uniform float uTime; uniform float uWaves;
+    vertexShader: `attribute float depth; varying float vD; varying vec3 vW; varying float vH; uniform float uTime; uniform float uWaves;
+${WAVE_GLSL}
 #include <fog_pars_vertex>
 void main(){ vD = depth; vec3 p = position;
-  p.y += (sin(p.x * 1.3 + uTime * 1.4) + cos(p.z * 1.1 + uTime * 1.1)) * uWaves + sin(p.x * 0.31 + p.z * 0.2 + uTime * 0.9) * uWaves * 3.0 * step(0.05, uWaves);
+  vec4 w0 = modelMatrix * vec4(p, 1.0);
+  float h = wv(w0.xz, uTime);
+  vH = h;
+  p.y += h * uWaves * 2.0;
   vec4 w = modelMatrix * vec4(p, 1.0); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
 }`,
     fragmentShader: `uniform float uTime; uniform vec3 uFall; uniform vec4 uRip[6]; uniform vec3 uCam; uniform vec3 uShallow; uniform vec3 uDeep;
-uniform vec2 uFlow; uniform float uSurf; uniform float uDS; uniform vec2 uA; uniform float uGlint; uniform vec3 uSky;
-varying float vD; varying vec3 vW;
+uniform vec2 uFlow; uniform float uSurf; uniform float uDS; uniform vec2 uA; uniform float uGlint; uniform vec3 uSky; uniform float uWaves; uniform float uCrest;
+uniform vec3 uSunDir; uniform vec3 uSunCol;
+varying float vD; varying vec3 vW; varying float vH;
 #include <fog_pars_fragment>
+${WAVE_GLSL}
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
 void main(){
   if (vD < 0.0) discard;
+  vec2 p = vW.xz;
+  // ความชันคลื่น → normal (คลื่นใหญ่ + ระลอกเล็กจาก noise)
+  float e = 0.35, A = uWaves * 2.0;
+  float dx = (wv(p + vec2(e, 0.0), uTime) - wv(p - vec2(e, 0.0), uTime)) / (2.0 * e) * A;
+  float dz = (wv(p + vec2(0.0, e), uTime) - wv(p - vec2(0.0, e), uTime)) / (2.0 * e) * A;
+  float r1 = n(p * 1.7 + uTime * 0.35), r2 = n(p * 1.7 + vec2(0.37, 0.0) + uTime * 0.35), r3 = n(p * 1.7 + vec2(0.0, 0.37) + uTime * 0.35);
+  vec3 N = normalize(vec3(-dx - (r2 - r1) * 0.35, 1.0, -dz - (r3 - r1) * 0.35));
+  vec3 V = normalize(uCam - vW);
   float t = smoothstep(0.0, uDS, vD);
   vec3 col = mix(uShallow, uDeep, t);
   float a = mix(uA.x, uA.y, t);
-  vec2 p = vW.xz;
+  // แสงแบบการ์ตูน: ด้านคลื่นที่หันรับแดดสว่าง ด้านหลังคลื่นเข้มขึ้น
+  float ndl = dot(N, normalize(uSunDir));
+  col *= mix(0.86, 1.0, smoothstep(0.80, 0.86, ndl)) + 0.06 * smoothstep(0.95, 0.99, ndl);
   float nn = n(p * 0.9 + uFlow * uTime) * 0.6 + n(p * 1.9 - uTime * 0.09 + uFlow * uTime * 1.5) * 0.4;
   float line = 1.0 - smoothstep(0.0, 0.035, abs(nn - 0.5));
-  col = mix(col, vec3(0.9, 1.0, 0.97), line * 0.55); a = max(a, line * 0.6);
+  col = mix(col, vec3(0.9, 1.0, 0.97), line * 0.45); a = max(a, line * 0.55);
   // ฟองริมฝั่ง (ชายหาด: แถบคลื่นซัดขึ้นลง)
   float fz = 0.09 + 0.05 * sin(p.x * 3.0 + p.y * 2.0 + uTime * 1.5) + n(p * 3.0 + uTime * 0.3) * 0.07;
-  float wash = uSurf * (0.5 + 0.5 * sin(uTime * 0.7));
-  fz += wash * 0.35;
+  fz += uSurf * (0.5 + 0.5 * sin(uTime * 0.7)) * 0.35;
   float shore = smoothstep(fz, fz - 0.02, vD);
   float band = uSurf * smoothstep(0.06, 0.0, abs(vD - (0.25 + 0.6 * fract(uTime * 0.12)) - n(p * 2.0) * 0.12)) * (1.0 - smoothstep(0.6, 1.0, vD));
+  // ฟองบนยอดคลื่น (ทะเล)
+  float crest = uCrest * smoothstep(0.74, 0.8, vH + n(p * 1.3 + uTime * 0.2) * 0.3 - 0.1) * step(0.62, n(p * 4.3 - uTime * 0.3)) * (1.0 - line);
   float ff = 0.0, ring = 0.0;
   if (uFall.z > 0.5) {
     float df = length((p - uFall.xy) * vec2(0.8, 1.2));
@@ -155,13 +188,15 @@ void main(){
       rip += smoothstep(0.04, 0.0, abs(d - r * 0.6)) * (1.0 - age / 2.2) * 0.6;
     }
   }
-  float foam = max(max(shore, max(ff, band)), max(ring * 0.5, min(rip, 1.0)));
+  float foam = max(max(shore, max(ff, band)), max(max(ring * 0.5, crest * 0.85), min(rip, 1.0)));
   col = mix(col, vec3(1.0), foam); a = max(a, foam * 0.95);
-  // แสงแดดระยิบบนผิวน้ำ (ทะเล)
-  if (uGlint > 0.0) { float g = step(0.88, n(p * 2.2 + vec2(uTime * 0.5, -uTime * 0.3))) * step(0.82, n(p * 4.1 - uTime * 0.45)); col = mix(col, vec3(1.0, 0.98, 0.9), g * uGlint); a = max(a, g * uGlint); }
-  vec3 V = normalize(uCam - vW);
-  float fr = pow(1.0 - max(V.y, 0.0), 3.0);
-  col = mix(col, uSky, fr * 0.5); a = mix(a, 1.0, fr * 0.4);
+  // ท้องฟ้าสะท้อนตามมุมมอง + แสงแดดระยิบ (เส้นทางแสงอาทิตย์บนผิวน้ำ)
+  float fr = pow(1.0 - max(dot(V, N), 0.0), 3.0);
+  col = mix(col, uSky, fr * 0.55); a = mix(a, 1.0, fr * 0.45);
+  vec3 R = reflect(-V, N);
+  float sp = max(dot(R, normalize(uSunDir)), 0.0);
+  float glint = step(0.985, sp) * uGlint + smoothstep(0.9, 1.0, sp) * 0.18 * uGlint;
+  col = mix(col, uSunCol, min(glint, 1.0)); a = max(a, min(glint, 1.0));
   gl_FragColor = vec4(col, a);
   #include <fog_fragment>
 }`,
@@ -174,8 +209,71 @@ void main(){
   world.water = water;
   let ri = 0;
   world.addRipple = (x, z, s = 1) => { ripples[ri].set(x, z, T.value, s); ri = (ri + 1) % ripples.length; };
-  world.update.push((dt, cam) => { mat.uniforms.uCam.value.copy(cam.position); if (scene.fog) mat.uniforms.uSky.value.copy(scene.fog.color).lerp(new THREE.Color(0xffffff), 0.2); });
+  // ความสูงคลื่นที่จุดใด ๆ (ให้ทุ่น/เรือลอยตามคลื่นจริง)
+  world.waveH = (x, z) => {
+    const t = T.value;
+    const w = Math.sin(x * 0.21 + z * 0.13 + t * 0.9) * 0.5 + Math.sin(-x * 0.12 + z * 0.27 + t * 1.3) * 0.35 + Math.sin(x * 0.47 + z * 0.39 + t * 2.1) * 0.18 + Math.sin(-x * 0.71 + z * 0.52 + t * 2.9) * 0.09;
+    return w * waves * 2.0;
+  };
+  world.update.push((dt, cam) => {
+    const u = mat.uniforms;
+    u.uCam.value.copy(cam.position);
+    if (scene.fog) u.uSky.value.copy(scene.fog.color).lerp(new THREE.Color(0xffffff), 0.2);
+    if (world.sun) { u.uSunDir.value.copy(world.sun.position).sub(world.sun.target.position).normalize(); u.uSunCol.value.copy(world.sun.color).lerp(new THREE.Color(0xffffff), 0.5); }
+  });
   return water;
+}
+
+// ---------- เมฆก้อนนุ่ม ๆ ลอยช้า ๆ ----------
+export function makeClouds(scene, world, { count = 8, area = [-60, 60, -90, -20], height = [16, 26], r, scale = [3, 6], speed = 0.6 }) {
+  const mat = toon(0xffffff, { emissive: 0x8a9aa8, fog: true });
+  const clouds = [];
+  for (let i = 0; i < count; i++) {
+    const g = new THREE.Group();
+    const n = 4 + Math.floor(r() * 3);
+    for (let k = 0; k < n; k++) {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), mat);
+      m.position.set((k - n / 2) * 0.9 + r.range(-0.3, 0.3), r.range(0, 0.5) * (k % 2 ? 1 : 0.4), r.range(-0.5, 0.5));
+      m.scale.set(r.range(0.9, 1.4), r.range(0.6, 0.9), r.range(0.8, 1.1));
+      g.add(m);
+    }
+    g.position.set(r.range(area[0], area[1]), r.range(height[0], height[1]), r.range(area[2], area[3]));
+    g.scale.setScalar(r.range(scale[0], scale[1]));
+    scene.add(g);
+    clouds.push(g);
+  }
+  world.update.push(dt => {
+    for (const c of clouds) {
+      c.position.x += dt * speed;
+      if (c.position.x > area[1] + 20) c.position.x = area[0] - 20;
+    }
+  });
+}
+
+// ---------- เงาปลาว่ายใต้น้ำ ----------
+export function makeFishShadows(scene, world, { count = 30, area, r, size = 1, minDepth = 0.5, color = 0x1d4a55, opacity = 0.32, sink = 0.35 }) {
+  const g = new THREE.ConeGeometry(0.06 * size, 0.28 * size, 5).rotateZ(-Math.PI / 2).scale(1, 0.3, 1);
+  const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: true });
+  const im = new THREE.InstancedMesh(g, m, count);
+  im.renderOrder = 3;
+  im.frustumCulled = false;
+  const fd = Array.from({ length: count }, () => [r.range(area[0], area[1]), r.range(area[2], area[3]), r.range(0.8, 3), r() * 6.28, r.range(0.15, 0.45) * (r() < 0.5 ? -1 : 1), r.range(0.7, 1.4)]);
+  const m4 = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion(), pv = new THREE.Vector3(), sv = new THREE.Vector3();
+  scene.add(im);
+  world.update.push(() => {
+    const t = T.value;
+    fd.forEach((f, i) => {
+      const a = t * f[4] + f[3];
+      const x = f[0] + Math.cos(a) * f[2], z = f[1] + Math.sin(a) * f[2];
+      const d = world.depthAt ? world.depthAt(x, z) : 5;
+      const k = Math.max(0, Math.min(1, (d - minDepth) / 0.4));
+      sv.setScalar(f[5] * k + 0.0001);
+      q.setFromEuler(e.set(0, -a - (f[4] > 0 ? Math.PI / 2 : -Math.PI / 2) + Math.sin(t * 6 + i) * 0.15, 0));
+      im.setMatrixAt(i, m4.compose(pv.set(x, world.waterY - sink, z), q, sv));
+    });
+    im.instanceMatrix.needsUpdate = true;
+  });
+  return im;
 }
 
 // ---------- วางโมเดลจาก Blender ----------
@@ -418,3 +516,93 @@ export function shadowAll(scene, skip) {
 }
 
 export { toon, swaying };
+
+// ---------- ปลาตัวจริงว่ายใต้น้ำ + กระโดดพ้นน้ำ ----------
+// species = รายชื่อชนิดปลา (จาก fish.js), makeFish = ฟังก์ชันสร้างโมเดลปลา
+export function makeLiveFish(scene, world, { makeFish, species, count = 8, area, r, depth = [0.22, 0.45], scale = [0.55, 0.9], jumpEvery = [2.5, 6], minDepth = 0.45 }) {
+  const ok = (x, z) => world.canCast(x, z) && world.depthAt(x, z) > minDepth;
+  const pick = out => { for (let i = 0; i < 40; i++) { const x = r.range(area[0], area[1]), z = r.range(area[2], area[3]); if (ok(x, z)) { out.set(x, 0, z); return true; } } return false; };
+  const fish = [];
+  for (let i = 0; i < count; i++) {
+    const p = new THREE.Vector3();
+    if (!pick(p)) continue;
+    const sp = species[Math.floor(r() * species.length)];
+    const m = makeFish(sp);
+    m.scale.multiplyScalar(r.range(scale[0], scale[1]));
+    m.rotation.order = 'YXZ';               // เอียงตัวปลาให้เห็นด้านข้างจากกล้องที่มองลงมา
+    scene.add(m);
+    const f = { m, p, tgt: new THREE.Vector3(), h: r() * 6.28, v: r.range(0.5, 1.1), d: r.range(depth[0], depth[1]), ph: r() * 10, jump: null };
+    pick(f.tgt);
+    fish.push(f);
+  }
+  // ละอองน้ำกระเซ็น
+  const DN = 80;
+  const dg = new THREE.BufferGeometry();
+  const dp = new Float32Array(DN * 3).fill(-999), dv = Array.from({ length: DN }, () => new THREE.Vector3()), dl = new Float32Array(DN);
+  dg.setAttribute('position', new THREE.BufferAttribute(dp, 3));
+  const drops = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, transparent: true, opacity: 0.9, depthWrite: false }));
+  drops.frustumCulled = false;
+  drops.renderOrder = 4;
+  scene.add(drops);
+  let di = 0;
+  const splash = (x, z, n = 10, power = 1) => {
+    for (let k = 0; k < n; k++) {
+      dp.set([x, world.waterY + 0.05, z], di * 3);
+      const a = Math.random() * 6.28, s = (0.6 + Math.random() * 1.2) * power;
+      dv[di].set(Math.cos(a) * s * 0.6, (1.6 + Math.random() * 1.6) * power, Math.sin(a) * s * 0.6);
+      dl[di] = 1;
+      di = (di + 1) % DN;
+    }
+    if (world.addRipple) world.addRipple(x, z, 0.9 * power);
+    if (world.onSplash) world.onSplash(x, z);
+  };
+  world.splash = splash;
+  let nextJump = r.range(jumpEvery[0], jumpEvery[1]);
+  const T0 = shared.uTime, ahead = new THREE.Vector3();
+  world.update.push(dt => {
+    const t = T0.value;
+    nextJump -= dt;
+    if (nextJump <= 0 && fish.length) {
+      nextJump = r.range(jumpEvery[0], jumpEvery[1]);
+      const f = fish[Math.floor(Math.random() * fish.length)];
+      if (!f.jump) {
+        const L = 1.2 + Math.random() * 1.6;
+        const ex = f.p.x + Math.cos(f.h) * L, ez = f.p.z + Math.sin(f.h) * L;
+        if (ok(ex, ez)) { f.jump = { t: 0, dur: 0.75 + L * 0.12, x0: f.p.x, z0: f.p.z, x1: ex, z1: ez, hgt: 0.6 + Math.random() * 0.8, spin: Math.random() < 0.3 }; splash(f.p.x, f.p.z, 8, 0.8); }
+      }
+    }
+    for (const f of fish) {
+      const wave = world.waveH ? world.waveH(f.p.x, f.p.z) : 0;
+      if (f.jump) {
+        const J = f.jump;
+        J.t += dt / J.dur;
+        const k = Math.min(1, J.t);
+        f.p.set(J.x0 + (J.x1 - J.x0) * k, 0, J.z0 + (J.z1 - J.z0) * k);
+        f.m.position.set(f.p.x, world.waterY + wave - f.d + Math.sin(k * Math.PI) * (J.hgt + f.d), f.p.z);
+        f.m.rotation.set(J.spin ? k * 6.28 : 0.5, -f.h, Math.cos(k * Math.PI) * 0.9);
+        if (J.t >= 1) { f.jump = null; splash(f.p.x, f.p.z, 14, 1); pick(f.tgt); }
+        continue;
+      }
+      // ว่ายไปหาเป้าหมาย หันหัวค่อย ๆ
+      const want = Math.atan2(f.tgt.z - f.p.z, f.tgt.x - f.p.x);
+      let dh = Math.atan2(Math.sin(want - f.h), Math.cos(want - f.h));
+      f.h += Math.max(-1.6 * dt, Math.min(1.6 * dt, dh));
+      const sp = f.v * (0.7 + 0.3 * Math.sin(t * 0.8 + f.ph));
+      ahead.set(f.p.x + Math.cos(f.h) * sp * dt * 8, 0, f.p.z + Math.sin(f.h) * sp * dt * 8);
+      if (!ok(ahead.x, ahead.z)) { pick(f.tgt); f.h += 0.9 * dt * 4; }
+      else { f.p.x += Math.cos(f.h) * sp * dt; f.p.z += Math.sin(f.h) * sp * dt; }
+      if (Math.hypot(f.tgt.x - f.p.x, f.tgt.z - f.p.z) < 0.6) pick(f.tgt);
+      f.m.position.set(f.p.x, world.waterY + wave - f.d + Math.sin(t * 1.3 + f.ph) * 0.04, f.p.z);
+      f.m.rotation.set(0.85, -f.h + Math.sin(t * 9 * sp + f.ph) * 0.18, 0);
+    }
+    for (let i = 0; i < DN; i++) {
+      if (dl[i] <= 0) continue;
+      dl[i] -= dt * 1.4;
+      dv[i].y -= 9 * dt;
+      dp[i * 3] += dv[i].x * dt; dp[i * 3 + 1] += dv[i].y * dt; dp[i * 3 + 2] += dv[i].z * dt;
+      if (dl[i] <= 0 || dp[i * 3 + 1] < world.waterY - 0.1) { dl[i] = 0; dp[i * 3 + 1] = -999; }
+    }
+    dg.attributes.position.needsUpdate = true;
+  });
+  return fish;
+}

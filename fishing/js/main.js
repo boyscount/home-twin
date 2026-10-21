@@ -5,8 +5,8 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { toon, mossy, swaying, shared } from './toon.js';
-import { makeRain } from './kit.js';
-import { SPECIES, byId, rollFish, loadDex, record, makeFish, fishValue } from './fish.js';
+import { makeRain, makeLiveFish, rng } from './kit.js';
+import { SPECIES, byId, rollFish, loadDex, record, makeFish, RARITY, TIME_TEXT } from './fish.js';
 import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick } from './audio.js';
 import * as story from './story.js';
 import { S, STAGES, stageById } from './story.js';
@@ -101,7 +101,10 @@ function makeBobber() {
   const bot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), toon(0xffffff));
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5), toon(0xe2493a));
   stick.position.y = 0.17;
-  g.add(top, bot, stick);
+  const aura = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.42, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0, depthWrite: false }));
+  aura.name = 'aura';
+  aura.renderOrder = 4;
+  g.add(top, bot, stick, aura);
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
@@ -232,6 +235,8 @@ function loadWorld(id) {
   camp = id === 'home' ? null : buildCamp();
   refreshCamp();
   if (id !== 'home' && story.luck().rain) makeRain(scene, world, {});
+  if (world.liveFish) makeLiveFish(scene, world, { makeFish: sp => makeFish(assets, sp, { under: true }), species: SPECIES.filter(s => s.stage === id && !s.rare), r: rng(31), ...world.liveFish });
+  world.onSplash = (x, z) => { if (mode === 'fishing' && Math.hypot(x - player.pos.x, z - player.pos.z) < 16) sfx.softSplash(); };
   const sp = world.spawn;
   player.pos.set(sp.x, 0, sp.z);
   player.pos.y = world.standY(sp.x, sp.z);
@@ -392,12 +397,20 @@ function toggleDex() {
 function renderDex() {
   const got = SPECIES.filter(s => dex.dex[s.id]).length;
   $('dexSum').textContent = `พบแล้ว ${got} / ${SPECIES.length} ชนิด · ตกได้ทั้งหมด ${dex.total} ตัว`;
-  $('dexTabs').innerHTML = STAGES.map(s => `<button data-tab="${s.id}" class="${s.id === dexTab ? 'on' : ''}">${s.icon} ${s.name}</button>`).join('');
+  $('dexTabs').innerHTML = STAGES.map(s => { const [a, b] = dexCount(s.id); return `<button data-tab="${s.id}" class="${s.id === dexTab ? 'on' : ''}">${s.icon} ${s.name} <small>${a}/${b}</small></button>`; }).join('');
+  const [a, b] = dexCount(dexTab);
+  const done = S.dexReward[dexTab];
+  $('dexProg').innerHTML = `<div class="erow"><span>${stageById[dexTab].icon} ${stageById[dexTab].name}: พบ ${a}/${b} ชนิด</span><b>${done ? '🎁 รับรางวัลแล้ว' : `🎁 ครบได้ ${story.baht(story.DEX_REWARD[dexTab])}`}</b></div><div class="gbar"><i style="width:${a / b * 100}%"></i></div>`;
   $('dexGrid').innerHTML = SPECIES.filter(s => s.stage === dexTab).map(s => {
     const e = dex.dex[s.id];
-    if (!e) return `<div class="dexItem locked"><img src="${thumbs[s.id]}" alt=""><h3>???</h3><div class="stars">${stars(s.stars)}</div><div class="meta">${s.rare ? 'ว่ากันว่าซ่อนอยู่ในจุดพิเศษ…' : 'ยังไม่เคยพบ'}</div></div>`;
-    return `<div class="dexItem${s.rare ? ' rare' : ''}"><img src="${thumbs[s.id]}" alt="${s.name}"><h3>${s.name}</h3><div class="stars">${stars(s.stars)}</div>
-      <div class="meta">ได้ ${e.n} ตัว · ใหญ่สุด <b>${e.best.toFixed(2)} กก.</b> · ${story.baht(s.price)}/กก.</div><div class="desc">${s.desc}</div></div>`;
+    const chip = `<span class="rar r${s.stars}">${RARITY[s.stars]}</span>`;
+    if (!e) return `<div class="dexItem locked"><img src="${thumbs[s.id]}" alt=""><h3>??? ${chip}</h3><div class="stars">${stars(s.stars)}</div>
+      <div class="meta">${TIME_TEXT[s.time]}</div><div class="meta">${s.rare ? '✨ ว่ากันว่าซ่อนอยู่ในจุดพิเศษของด่าน' : 'ยังไม่เคยพบ'}</div></div>`;
+    const tr = story.trend(s.id);
+    return `<div class="dexItem${s.rare ? ' rare' : ''}"><img src="${thumbs[s.id]}" alt="${s.name}"><h3>${s.name} ${chip}</h3><div class="stars">${stars(s.stars)}</div>
+      <div class="meta">ได้ ${e.n} ตัว · ใหญ่สุด <b>${e.best.toFixed(2)} กก.</b> (${e.cm} ซม.)</div>
+      <div class="meta">ราคาวันนี้ <b>${story.baht(story.priceOf(s.id))}/กก.</b> <i class="tr ${tr}">${tr === 'up' ? '▲' : tr === 'down' ? '▼' : '•'}</i>${S.hot === s.id ? ' 🔥' : ''}</div>
+      <div class="meta">${TIME_TEXT[s.time]}</div><div class="desc">${s.desc}</div></div>`;
   }).join('');
 }
 $('dexTabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) { dexTab = b.dataset.tab; sfx.click(); renderDex(); } });
@@ -430,7 +443,7 @@ const game = {
   set(s) { this.state = s; this.t = 0; },
   reset() {
     if (this.caughtMesh) { this.caughtMesh.parent?.remove(this.caughtMesh); this.caughtMesh = null; }
-    $('fight').classList.add('hidden'); $('alert').classList.add('hidden'); $('catch').classList.add('hidden');
+    $('fight').classList.add('hidden'); $('alert').classList.add('hidden'); $('catch').classList.add('hidden'); $('strike').classList.add('hidden');
     this.set('free');
   },
   onDown() {
@@ -439,7 +452,8 @@ const game = {
         if (S.basket.length >= story.capacity()) { toast('ข้องเต็มแล้ว! กด 🏠 กลับบ้านกันเถอะ', 2200); return; }
         this.set('charging'); this.charge = 0; break;
       case 'waiting': this.startRetrieve(); toast('เก็บสาย', 900); break;
-      case 'bite': this.startFight(); break;
+      case 'bite': if (!this.fish.junk && this.fish.sp.stars >= 3) this.startStrike(); else this.startFight(); break;
+      case 'strike': this.strikeHit(); break;
     }
   },
   onUp() { if (this.state === 'charging') this.cast(); },
@@ -459,7 +473,7 @@ const game = {
   },
   nearSpecial() { return world.special && Math.hypot(this.bob.x - world.special.x, this.bob.z - world.special.z) < world.specialR; },
   roll() {
-    this.fish = S.dead && Math.random() < 0.85 ? rollFish(world.id, false, 0, 1) : rollFish(world.id, this.nearSpecial(), world.depthAt(this.bob.x, this.bob.z), story.junkChance());
+    this.fish = S.dead && Math.random() < 0.85 ? rollFish(world.id, false, 0, 1) : rollFish(world.id, this.nearSpecial(), world.depthAt(this.bob.x, this.bob.z), story.junkChance(), S.time);
   },
   land() {
     this.bob.copy(this.target);
@@ -485,6 +499,42 @@ const game = {
     this.nibbles.sort((a, b) => a - b);
   },
   startRetrieve() { this.retr = 0; this.from.copy(this.bob); this.set('retrieve'); },
+  // ---------- ตีเบ็ด (เฉพาะปลา ★3 ขึ้นไป): กดตอนเข็มอยู่ในโซนทอง ----------
+  startStrike() {
+    $('alert').classList.add('hidden');
+    const st = this.fish.sp.stars;
+    this.sk = { pos: 0.05, dir: 1, speed: st >= 4 ? 1.35 : 0.95, w: st >= 4 ? 0.15 : 0.22, c: 0.3 + Math.random() * 0.4, hits: 0, need: st >= 4 ? 3 : 2, miss: 0 };
+    this.set('strike');
+    sfx.hook();
+    $('strike').classList.remove('hidden');
+    this.drawStrike();
+    toast(st >= 4 ? '⚡ ตัวนี้ไม่ธรรมดา! ตีเบ็ดให้ตรงจังหวะ 3 ครั้ง' : '⚡ ปลาใหญ่! ตีเบ็ดให้ตรงจังหวะ 2 ครั้ง', 1600);
+    buzz(80);
+  },
+  drawStrike() {
+    const k = this.sk;
+    $('strike').querySelector('.szone').style.left = ((k.c - k.w / 2) * 100) + '%';
+    $('strike').querySelector('.szone').style.width = (k.w * 100) + '%';
+    $('strike').querySelector('.smark').style.left = (k.pos * 100) + '%';
+    $('strikeHits').textContent = '⚡'.repeat(k.hits) + '○'.repeat(k.need - k.hits) + (k.miss ? ' · พลาด 1' : '');
+  },
+  strikeHit() {
+    const k = this.sk;
+    if (Math.abs(k.pos - k.c) <= k.w / 2 + 0.01) {
+      k.hits++;
+      sfx.hook();
+      world.addRipple(this.bob.x, this.bob.z, 1.2);
+      buzz(40);
+      if (k.hits >= k.need) { $('strike').classList.add('hidden'); toast('ติดเบ็ดแล้ว! ระวังโซนเขียวเลื่อนไปมา', 1600); this.startFight(); return; }
+      k.c = 0.15 + Math.random() * 0.7; k.speed *= 1.2; k.w *= 0.85;
+    } else {
+      k.miss++;
+      sfx.escape();
+      if (k.miss >= 2) { $('strike').classList.add('hidden'); toast('ปลาสะบัดหลุด! ต้องตีให้ตรงจังหวะ', 2000); this.roll(); this.startRetrieve(); return; }
+      toast('พลาด! อีกครั้งเดียวนะ', 1000);
+    }
+    this.drawStrike();
+  },
   startFight() {
     $('alert').classList.add('hidden');
     if (this.fish.junk) {               // ของติดเบ็ดแทนปลา
@@ -540,9 +590,9 @@ const game = {
     const { sp, kg } = this.fish;
     $('catchImg').src = thumbs[sp.id];
     $('catchName').textContent = sp.name;
-    $('catchStars').textContent = stars(sp.stars);
+    $('catchStars').textContent = `${stars(sp.stars)}  ${RARITY[sp.stars]}`;
     $('catchKg').textContent = kg.toFixed(2) + ' กก.';
-    $('catchPrice').textContent = story.baht(fishValue({ id: sp.id, kg }));
+    $('catchPrice').textContent = story.baht(story.value({ id: sp.id, kg })) + (S.hot === sp.id ? ' 🔥' : '');
     $('catchDesc').textContent = sp.desc;
     const b = $('catchBadge');
     b.classList.toggle('hidden', !r.isNew && !r.isBest);
@@ -555,6 +605,7 @@ const game = {
   },
   endCatch() {
     if (this.caughtMesh) { scene.remove(this.caughtMesh); this.caughtMesh = null; }
+    for (const st of story.claimDexRewards(dex)) { sfx.coin(); toast(`📖 สะสม${st.name}ครบทุกชนิด!\nรับรางวัล ${story.baht(story.DEX_REWARD[st.id])}`, 3500); }
     refreshCamp();
     this.set('free');
   },
@@ -593,7 +644,7 @@ const game = {
     } else if (s === 'landed') {
       if (this.t > 0.7) this.startRetrieve();
     } else if (s === 'waiting') {
-      let y = wy + 0.02 + Math.sin(time * 2.2) * 0.015 + (world.id === 'sea' ? Math.sin(time * 1.4 + this.bob.x) * 0.05 : 0);
+      let y = wy + 0.02 + Math.sin(time * 2.2) * 0.015 + (world.waveH ? world.waveH(this.bob.x, this.bob.z) : 0);
       const n0 = this.nibbles[0];
       if (n0 !== undefined && this.t > n0) {
         const k = (this.t - n0) / 0.25;
@@ -609,6 +660,9 @@ const game = {
         sfx.bite();
         world.addRipple(this.bob.x, this.bob.z, 1.5);
         $('alert').classList.remove('hidden');
+        const rare = !this.fish.junk && this.fish.sp.stars >= 3;
+        $('alert').classList.toggle('gold', rare);
+        $('alert').textContent = rare ? '!!' : '!';
         buzz(120);
       }
     } else if (s === 'bite') {
@@ -622,6 +676,13 @@ const game = {
         this.set('waiting');
         this.newBite();
       }
+    } else if (s === 'strike') {
+      const k = this.sk;
+      k.pos += k.dir * k.speed * dt;
+      if (k.pos > 1) { k.pos = 1; k.dir = -1; } else if (k.pos < 0) { k.pos = 0; k.dir = 1; }
+      this.drawStrike();
+      this.bob.y = wy - 0.22 + Math.sin(this.t * 35) * 0.04;
+      if (this.t > 8) { $('strike').classList.add('hidden'); sfx.escape(); toast('ปลาเบื่อรอ ว่ายหนีไปแล้ว…', 1600); this.roll(); this.startRetrieve(); }
     } else if (s === 'fight') {
       this.fightUpdate(dt, time);
     } else if (s === 'retrieve' || s === 'snapped') {
@@ -646,6 +707,12 @@ const game = {
     }
 
     const hideLine = (s === 'snapped' && this.t < 1) || mode === 'home' || world.id === 'home';
+    const aura = bobber.getObjectByName('aura');
+    const legend = (s === 'waiting' || s === 'bite' || s === 'strike') && this.fish && !this.fish.junk && this.fish.sp.stars >= 4 && (s !== 'waiting' || this.t > this.biteAt - 4);
+    aura.material.opacity = legend ? 0.55 + 0.35 * Math.sin(time * 6) : 0;
+    aura.scale.setScalar(1 + 0.4 * Math.abs(Math.sin(time * 3)));
+    if (legend && !this._legendToast) { this._legendToast = true; toast('✨ มีประกายทองวูบวาบใต้น้ำ…', 1800); }
+    if (!legend) this._legendToast = false;
     bobber.position.copy(this.bob);
     bobber.rotation.z = s === 'fight' ? Math.sin(time * 20) * 0.3 : 0;
     bobber.visible = s !== 'caught' && !hideLine;
@@ -669,9 +736,15 @@ const game = {
     if (this.t < this.dashEnd) dashing = true;
     const pull = dashing ? sp.dash : sp.pull * (0.6 + 0.4 * Math.sin(time * 2.3));
     const rodK = S.up.rod ? 0.8 : 1;
+    if (sp.stars >= 3) {
+      this.zw = sp.stars >= 4 ? 0.36 : 0.48;
+      this.zc = Math.max(this.zw / 2 + 0.04, Math.min(0.92 - this.zw / 2, 0.5 + Math.sin(this.t * (sp.stars >= 4 ? 0.9 : 0.6)) * 0.2 + (dashing ? Math.sin(this.t * 6) * 0.05 : 0)));
+    } else { this.zc = 0.5; this.zw = 0.6; }
+    const zEl = $('fight').querySelector('.zone');
+    zEl.style.left = ((this.zc - this.zw / 2) * 100) + '%'; zEl.style.width = (this.zw * 100) + '%';
     if (actionHeld) {
       this.tension += (0.35 + pull * 0.5) * rodK * dt;
-      const inZone = this.tension > 0.2 && this.tension < 0.8;
+      const inZone = Math.abs(this.tension - this.zc) < this.zw / 2;
       this.prog += sp.prog * dt * (inZone ? 1 : 0.35) - (dashing ? sp.dash * 0.06 * dt : 0);
       if (time - this.lastReel > 0.07) { sfx.reel(); this.lastReel = time; }
     } else {
@@ -687,7 +760,7 @@ const game = {
     const nx = this.from.x + (this.fishGoal.x - this.from.x) * p * 0.85 + Math.sin(time * 1.7) * 0.5 * (1 - p) + this.fishWob * (dashing ? 0.25 : 0.1) * (1 - p);
     const nz = this.from.z + (this.fishGoal.z - this.from.z) * p * 0.85 + Math.cos(time * 1.3) * 0.4 * (1 - p);
     if (world.canCast(nx, nz)) { this.bob.x += (nx - this.bob.x) * Math.min(1, dt * 3); this.bob.z += (nz - this.bob.z) * Math.min(1, dt * 3); }
-    this.bob.y = world.waterY - 0.06 + Math.sin(time * 14) * 0.03;
+    this.bob.y = world.waterY - 0.06 + Math.sin(time * 14) * 0.03 + (world.waveH ? world.waveH(this.bob.x, this.bob.z) : 0);
     if (time > this.nextSplash) { world.addRipple(this.bob.x, this.bob.z, 0.6); this.nextSplash = time + 0.35; }
     if (this.tension >= 1) this.endFight('snap');
     else if (this.slack > 2.0) this.endFight('slack');
@@ -730,6 +803,7 @@ function updatePlayer(dt) {
   if (world.id === 'home') { const c = world.cheer > 0; armR = c ? -2.5 + Math.sin(now * 9) * 0.4 : Math.sin(now * 1.2) * 0.1; armL = c ? -2.5 + Math.cos(now * 9) * 0.4 : -armR; }
   else if (s === 'charging') armR = -1.4 * game.charge;
   else if (s === 'casting') armR = Math.min(0.55, -1.4 + t * 14);
+  else if (s === 'strike') armR = -0.6 + Math.sin(now * 25) * 0.1;
   else if (s === 'waiting' || s === 'bite' || s === 'landed') armR = 0.35 + Math.sin(now * 1.5) * 0.02;
   else if (s === 'fight') { armR = -0.35 + Math.sin(now * 30) * 0.04 * game.tension; armL = actionHeld ? -0.9 + Math.sin(now * 18) * 0.35 : -0.6; }
   else if (s === 'caught') { armR = -2.6; armL = -2.6; }
@@ -781,6 +855,7 @@ function updateHints() {
   } else if (s === 'charging') { hint('ปล่อยเพื่อเหวี่ยง · ค้างนาน = ไกล'); actionLabel('🎯', 'ปล่อย!'); }
   else if (s === 'waiting') { hint(S.dead ? 'น้ำเงียบผิดปกติ… (กดเพื่อเก็บสาย)' : 'รอให้ทุ่นจม… (กดเพื่อเก็บสาย)'); actionLabel('🪝', 'เก็บสาย'); }
   else if (s === 'bite') { hint('ทุ่นจม! กดเลย!'); actionLabel('❗', 'ดึง!', true); }
+  else if (s === 'strike') { hint('กดตอนเข็มอยู่ในโซนทอง!'); actionLabel('⚡', 'ตีเบ็ด!', true); }
   else if (s === 'fight') { hint('กดค้างเพื่อกรอสาย · ปล่อยเมื่อเข็มใกล้สีแดง'); actionLabel('🌀', 'กรอสาย'); }
   else { hint(''); actionLabel('🎣', '…'); }
 }
@@ -793,13 +868,13 @@ function updateAlert() {
 }
 
 // ---------- ลำดับเรื่องราวของแต่ละวัน ----------
-const dexCount = stage => { const l = SPECIES.filter(s => s.stage === stage); return [l.filter(s => dex.dex[s.id]).length, l.length]; };
+function dexCount(stage) { const l = SPECIES.filter(s => s.stage === stage); return [l.filter(s => dex.dex[s.id]).length, l.length]; }
 function openMap() {
   mode = 'map';
   if (world.setMorning) world.setMorning(true);
   S.phase = 'map'; story.save();
   showFishingUi(false);
-  story.showMap({ dexCount, sfx, onGo: goFishing });
+  story.showMap({ dexCount, sfx, onGo: goFishing, dexKnown: id => !!dex.dex[id] });
 }
 function goFishing(id) {
   S.stage = id; S.phase = 'fishing'; S.time = story.DAY_START;

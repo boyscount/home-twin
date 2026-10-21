@@ -1,7 +1,7 @@
 // ด่าน 3: ชายหาดหินปะการัง — ทรายขาว คลื่นซัดฝั่ง ปะการังใต้น้ำใส ปูเดินเล่น มะพร้าว
 import * as THREE from 'three';
 import { toon, shared } from '../toon.js';
-import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, makeMotes, makeFlyers, shadowAll } from '../kit.js';
+import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, makeMotes, makeFlyers, shadowAll, makeClouds, makeFishShadows } from '../kit.js';
 
 const WATER_Y = 0;
 const shoreZ = x => -2 + 1.3 * Math.sin(x * 0.17) + 0.6 * Math.sin(x * 0.5 + 1);
@@ -41,6 +41,7 @@ export function build(scene, assets, opts) {
     ambience: { surf: true },
     special: new THREE.Vector3(6, WATER_Y, -10.5),
     specialR: 3.2,
+    liveFish: { count: 12, area: [-13, 13, -15, -3.5], depth: [0.3, 0.6] },
   });
 
   makeSky(scene, world, { top: 0x5cb8f2, bot: 0xe8f7fa, fogNear: 45, fogFar: 130 });
@@ -59,7 +60,8 @@ export function build(scene, assets, opts) {
       if (d > 8.5) c.lerp(cGrass, sstep(8.5, 10.5, d) * (0.6 + n * 0.4));
     },
   });
-  makeWater(scene, world, { cx: 0, cz: -22, size: 120, segs: mobile ? 110 : 170, groundH, waterY: WATER_Y, shallow: 0x7fe3d4, deep: 0x1a8aa0, depthScale: 3.2, surf: 1, waves: 0.03, alphaMin: 0.22, alphaMax: 0.92, glint: 0.5, flow: [0.06, 0.1] });
+  makeWater(scene, world, { cx: 0, cz: -22, size: 120, segs: mobile ? 110 : 170, groundH, waterY: WATER_Y, shallow: 0x7fe3d4, deep: 0x1a8aa0, depthScale: 3.2, surf: 1, waves: 0.05, alphaMin: 0.22, alphaMax: 0.92, glint: 0.8, crest: 0.4, flow: [0.06, 0.1] });
+  makeClouds(scene, world, { count: 10, area: [-90, 90, -140, -40], height: [20, 32], r, scale: [4, 8] });
 
   const place = placer(scene, assets, groundH, colliders, r);
   // มะพร้าวหลังหาด เอียงเข้าหาทะเล

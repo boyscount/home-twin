@@ -11,28 +11,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=261021154536">
+  <link rel="stylesheet" href="css/game.css?v=261021161027">
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "./js/audio.js": "./js/audio.js?v=261021154536",
-      "./js/fish.js": "./js/fish.js?v=261021154536",
-      "./js/kit.js": "./js/kit.js?v=261021154536",
-      "./js/main.js": "./js/main.js?v=261021154536",
-      "./js/stages/beach.js": "./js/stages/beach.js?v=261021154536",
-      "./js/stages/falls.js": "./js/stages/falls.js?v=261021154536",
-      "./js/stages/forest.js": "./js/stages/forest.js?v=261021154536",
-      "./js/stages/home.js": "./js/stages/home.js?v=261021154536",
-      "./js/stages/sea.js": "./js/stages/sea.js?v=261021154536",
-      "./js/story.js": "./js/story.js?v=261021154536",
-      "./js/toon.js": "./js/toon.js?v=261021154536"
+      "./js/audio.js": "./js/audio.js?v=261021161027",
+      "./js/fish.js": "./js/fish.js?v=261021161027",
+      "./js/kit.js": "./js/kit.js?v=261021161027",
+      "./js/main.js": "./js/main.js?v=261021161027",
+      "./js/stages/beach.js": "./js/stages/beach.js?v=261021161027",
+      "./js/stages/falls.js": "./js/stages/falls.js?v=261021161027",
+      "./js/stages/forest.js": "./js/stages/forest.js?v=261021161027",
+      "./js/stages/home.js": "./js/stages/home.js?v=261021161027",
+      "./js/stages/sea.js": "./js/stages/sea.js?v=261021161027",
+      "./js/story.js": "./js/story.js?v=261021161027",
+      "./js/toon.js": "./js/toon.js?v=261021161027"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=261021154536"></script>
+  <script type="module" src="js/main.js?v=261021161027"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -63,6 +63,11 @@
     <div class="prog"><div class="pfill"></div></div>
   </div>
 
+  <div id="strike" class="hidden">
+    <div class="row"><span>⚡ ตีเบ็ดตอนเข็มอยู่ในโซนทอง!</span><span id="strikeHits"></span></div>
+    <div class="sbar"><div class="szone"></div><div class="smark"></div></div>
+  </div>
+
   <div id="joy" class="hidden"><div class="knob"></div></div>
   <button id="action" class="hidden"><span class="ico">🎣</span><span class="txt">เหวี่ยง</span></button>
 
@@ -83,6 +88,7 @@
       <div class="dexHead"><h2>📖 สมุดสะสมปลา</h2><button class="round" id="dexClose" aria-label="ปิด">✕</button></div>
       <div class="dexSum" id="dexSum"></div>
       <div class="dexTabs" id="dexTabs"></div>
+      <div class="dexProg" id="dexProg"></div>
       <div class="dexGrid" id="dexGrid"></div>
     </div>
   </div>
@@ -93,6 +99,7 @@
       <div class="mapLuck" id="mapLuck"></div>
       <div class="mapHappy" id="mapHappy"></div>
       <div class="mapGoal" id="mapGoal"></div>
+      <div class="mapMarket" id="mapMarket"></div>
       <h3>วันนี้จะไปตกปลาที่ไหนดี?</h3>
       <div class="mapStages" id="mapStages"></div>
       <h3>🛒 ร้านอุปกรณ์ประมงป้าแดง</h3>

@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ทดสอบเกมตกปลา</title>
+  <style>
+    body { font-family: system-ui, 'Leelawadee UI', sans-serif; margin: 0; padding: 16px; background: #f6f1e4; color: #3b2f24; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    #sum { font-size: 18px; font-weight: 700; margin: 8px 0 12px; }
+    .ok { color: #2f7a2f; } .bad { color: #c0392b; }
+    li { margin: 3px 0; font-size: 14px; line-height: 1.4; }
+    li small { opacity: .7; }
+    h2 { font-size: 16px; margin: 14px 0 4px; }
+    iframe { width: 360px; height: 640px; border: 2px solid #ccc; border-radius: 12px; margin-top: 10px; background: #fff; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <h1>🧪 ทดสอบเกมตกปลาสบายใจ</h1>
+  <div>รันอัตโนมัติ: ทดสอบข้อมูลปลา ระบบเนื้อเรื่อง และจำลองการเล่นจริงทุกด่าน (เซฟของผู้เล่นจะถูกสำรองแล้วคืนให้หลังทดสอบ)</div>
+  <div id="sum">กำลังทดสอบ…</div>
+  <div id="out"></div>
+  <iframe id="game" title="เกม"></iframe>
+<script type="module">
+const out = document.getElementById('out');
+let pass = 0, fail = 0, section = out.appendChild(document.createElement('ul'));
+function group(name) { const h = document.createElement('h2'); h.textContent = name; out.appendChild(h); section = document.createElement('ul'); out.appendChild(section); }
+function check(name, cond, info = '') {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="${cond ? 'ok' : 'bad'}">${cond ? '✔' : '✘'}</span> ${name} ${info ? `<small>(${info})</small>` : ''}`;
+  section.appendChild(li);
+  cond ? pass++ : fail++;
+  return cond;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// สำรองเซฟของผู้เล่น
+const KEYS = ['cozyfish.v1', 'cozyfish.story.v1', 'cozyfish.mute'];
+const backup = Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)]));
+const restore = () => KEYS.forEach(k => backup[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, backup[k]));
+for (const k of KEYS) localStorage.removeItem(k);
+localStorage.setItem('cozyfish.mute', '1');
+
+try {
+  const V = '?t=' + Date.now();   // โหลดโค้ดล่าสุดเสมอ ไม่ใช้แคช
+  const fish = await import('./js/fish.js' + V);
+  const story = await import('./js/story.js' + V);
+
+  group('ข้อมูลปลา');
+  const { SPECIES, byId, rollFish, JUNK, RARITY, TIME_TEXT } = fish;
+  const ids = new Set(SPECIES.map(s => s.id));
+  check('รหัสปลาไม่ซ้ำกัน', ids.size === SPECIES.length, `${SPECIES.length} ชนิด`);
+  for (const st of story.STAGES) {
+    const l = SPECIES.filter(s => s.stage === st.id);
+    check(`${st.name}: มี 6 ชนิด และมีตัวหายาก 1 ตัว`, l.length === 6 && l.filter(s => s.rare).length === 1, `${l.length} ชนิด`);
+  }
+  check('ทุกชนิดมีราคา ระดับความหายาก ช่วงเวลา และคำอธิบาย', SPECIES.every(s => s.price > 0 && RARITY[s.stars] && TIME_TEXT[s.time] && s.desc.length > 10));
+  check('ช่วงน้ำหนัก/ความยาวถูกต้อง', SPECIES.every(s => s.kg[0] > 0 && s.kg[1] > s.kg[0] && s.cm[1] > s.cm[0]));
+  check('ค่าความยากอยู่ในช่วงที่เล่นได้', SPECIES.every(s => s.pull > 0 && s.pull < 1 && s.dash < 2 && s.prog > 0.15 && s.win >= 0.7));
+  {
+    let bad = 0, junk = 0, rare = 0, rareNear = 0;
+    for (let i = 0; i < 4000; i++) {
+      const r = rollFish('falls', false, 1, 0.1, 12);
+      if (r.junk) { junk++; continue; }
+      if (r.sp.stage !== 'falls' || r.kg < r.sp.kg[0] || r.kg > r.sp.kg[1]) bad++;
+      if (r.sp.rare) rare++;
+      if (rollFish('falls', true, 1, 0, 12).sp.rare) rareNear++;
+    }
+    check('สุ่มปลาได้เฉพาะในด่านและน้ำหนักอยู่ในช่วง', bad === 0, `ผิด ${bad}`);
+    check('โอกาสได้ขยะใกล้ค่าที่ตั้ง (10%)', junk > 280 && junk < 520, `${junk}/4000`);
+    check('ใกล้จุดพิเศษเจอตัวหายากบ่อยกว่า', rareNear > rare * 3, `ปกติ ${rare} · จุดพิเศษ ${rareNear}`);
+    let eve = 0, morn = 0;
+    for (let i = 0; i < 3000; i++) { if (rollFish('falls', false, 1, 0, 17).sp.id === 'chon') eve++; if (rollFish('falls', false, 1, 0, 7).sp.id === 'chon') morn++; }
+    check('ปลาช่อนกินเหยื่อตอนเย็นมากกว่าตอนเช้า', eve > morn * 1.8, `เย็น ${eve} · เช้า ${morn}`);
+    check('มีของติดเบ็ดแบบขยะหลายแบบ', JUNK.length >= 4);
+  }
+
+  group('เนื้อเรื่อง ราคาตลาด และมื้อเย็น');
+  const S = story.S;
+  check('เริ่มวันที่ 1 มีเงิน 0 และปลดล็อกแค่น้ำตก', S.day === 1 && S.money === 0 && S.unlocked.falls && !S.unlocked.sea);
+  story.rollMarket();
+  const muls = Object.values(S.market);
+  check('ราคาตลาดสุ่มทุกชนิด อยู่ในช่วง ±35%', muls.length === SPECIES.length && muls.every(m => m >= 0.65 && m <= 1.35));
+  check('ปลาราคาพิเศษมาจากด่านที่ปลดล็อกและไม่ใช่ตัวหายาก', S.hot && byId[S.hot].stage === 'falls' && !byId[S.hot].rare, S.hot);
+  check('ราคาปลาราคาพิเศษ = ราคาฐาน × ตลาด × 1.8', story.priceOf(S.hot) === Math.round(byId[S.hot].price * S.market[S.hot] * 1.8));
+  check('มูลค่าปลา = น้ำหนัก × ราคาวันนี้', story.value({ id: 'nil', kg: 2 }) === Math.round(2 * story.priceOf('nil')));
+  S.basket = [{ id: 'nil', kg: 0.8, cm: 30 }, { id: 'chon', kg: 0.6, cm: 40 }, { id: 'krai', kg: 2, cm: 60 }];
+  const sell3 = story.value(S.basket[2]);
+  const h0 = S.happy;
+  const r1 = story.settleEvening(['grill', 'grill', 'sell']);
+  check('ปิ้งพอ 1.2 กก. → ครอบครัวอิ่ม ความสุข +12', r1.mood === 'full' && S.happy === Math.min(100, h0 + 12), `${h0} → ${S.happy}`);
+  check('ปลาที่ขายได้เงินเข้ากระเป๋า', S.money === sell3 && r1.earned === sell3, story.baht(S.money));
+  check('หลังมื้อเย็นข้องว่าง', S.basket.length === 0);
+  const h1 = S.happy;
+  const r2 = story.settleEvening([]);
+  check('วันที่ไม่ได้ปลาเลย → ความสุขลด 8', r2.mood === 'empty' && S.happy === h1 - 8);
+  S.basket = [{ id: 'nil', kg: 1, cm: 30 }];
+  const r3 = story.settleEvening(['sell']);
+  check('ขายหมดไม่ปิ้งเลย → ลูกบ่น (ความสุข -5)', r3.mood === 'sold');
+  check('ข้องเริ่มต้นใส่ได้ 8 ตัว', story.capacity() === 8);
+  S.up.basket = true;
+  check('ซื้อข้องใบใหญ่แล้วใส่ได้ 14 ตัว', story.capacity() === 14);
+  check('เหยื่อหมักทำให้ปลากินเร็วขึ้น', (() => { const a = story.biteMul(); S.up.bait = true; return story.biteMul() < a; })());
+  for (let i = 0; i < 300; i++) { S.day = 2; story.rollLuck(); }
+  check('สุ่มดวงประจำวันได้ค่าที่รู้จัก', !!story.luckById[S.luck]);
+  check('รูปแบบเวลา 06:00 / 17:30', story.fmtTime(6) === '06:00' && story.fmtTime(17.5) === '17:30');
+  check('หนึ่งวันยาว 7 นาทีจริง', Math.abs(12 / story.HOURS_PER_SEC - 420) < 1e-6);
+  const fakeDex = { dex: Object.fromEntries(SPECIES.filter(s => s.stage === 'falls').map(s => [s.id, { n: 1 }])) };
+  const m0 = S.money;
+  const got = story.claimDexRewards(fakeDex);
+  check('สะสมครบด่าน → ได้รางวัลครั้งเดียว', got.length === 1 && S.money === m0 + story.DEX_REWARD.falls && story.claimDexRewards(fakeDex).length === 0);
+  story.resetStory();
+  check('เริ่มเรื่องใหม่แล้วกลับเป็นวันที่ 1', story.S.day === 1 && story.S.money === 0);
+  for (const k of KEYS) localStorage.removeItem(k);
+  localStorage.setItem('cozyfish.mute', '1');
+
+  // ---------- จำลองการเล่นจริงในเกม ----------
+  group('จำลองการเล่นจริง (ในกรอบด้านล่าง)');
+  const frame = document.getElementById('game');
+  const errors = [];
+  frame.src = 'index.html' + V;
+  await new Promise(r => frame.onload = r);
+  const W = frame.contentWindow;
+  W.addEventListener('error', e => errors.push(e.message));
+  for (let i = 0; i < 120 && !(W.__fish && W.__fish.ready); i++) await sleep(250);
+  const F = W.__fish;
+  check('เกมโหลดเสร็จ', !!(F && F.ready));
+  const D = W.document;
+  D.getElementById('startBtn').click();
+  await sleep(3200);
+  check('เปิดเรื่องที่บ้าน มีบทสนทนา', F.world.id === 'home' && !D.getElementById('dialog').classList.contains('hidden'));
+  for (let i = 0; i < 10 && !D.getElementById('dialog').classList.contains('hidden'); i++) D.getElementById('dialog').click();
+  await sleep(200);
+  check('แสดงหน้าแผนที่ + ราคาตลาด', F.mode === 'map' && D.getElementById('mapMarket').textContent.includes('ราคา'));
+
+  const g = F.game;
+  async function playStage(id, x, z, yaw, charge) {
+    D.getElementById('map').classList.add('hidden');
+    F.S.unlocked[id] = true;
+    F.goFishing(id);
+    await sleep(3300);
+    const p = F.player;
+    if (x !== null) p.pos.set(x, F.world.standY(x, z), z);
+    p.yaw = yaw;
+    check(`${id}: เข้าด่านได้ ยืนบนพื้นที่เดินได้`, F.mode === 'fishing' && F.world.id === id && F.world.walkable(p.pos.x, p.pos.z));
+    let caught = 0, tries = 0, casts = 0;
+    while (caught < 2 && tries < 8) {
+      tries++;
+      if (!D.getElementById('catch').classList.contains('hidden')) D.getElementById('catchOk').click();
+      g.endCatch(); F.S.time = 8;
+      for (let i = 0; i < 5; i++) F.tick(1 / 30, false);
+      F.actionDown(); for (let i = 0; i < Math.round(charge * 37); i++) F.tick(1 / 30, false); F.actionUp();
+      for (let i = 0; i < 40; i++) F.tick(1 / 30, false);
+      if (g.state !== 'waiting') continue;
+      casts++;
+      let t = 0; while (g.state !== 'bite' && t < 120) { F.tick(1 / 30, false); t += 1 / 30; }
+      if (g.state !== 'bite') continue;
+      if (g.fish.junk) { F.actionDown(); F.tick(1 / 30, false); F.actionUp(); continue; }
+      F.actionDown(); F.tick(1 / 30, false); F.actionUp();
+      if (g.state === 'strike') {           // ปลาหายาก: ตีเบ็ดตอนเข็มอยู่ในโซน
+        for (let k = 0; k < 600 && g.state === 'strike'; k++) {
+          F.tick(1 / 60, false);
+          if (Math.abs(g.sk.pos - g.sk.c) < g.sk.w / 4) { F.actionDown(); F.actionUp(); }
+        }
+      }
+      if (g.state !== 'fight') continue;
+      t = 0; let held = false;
+      while (g.state === 'fight' && t < 90) {
+        const want = g.tension < g.zc;
+        if (want && !held) { F.actionDown(); held = true; } if (!want && held) { F.actionUp(); held = false; }
+        F.tick(1 / 30, false); t += 1 / 30;
+      }
+      F.actionUp();
+      if (g.state === 'caught') caught++;
+    }
+    check(`${id}: เหวี่ยงเบ็ดลงน้ำได้`, casts > 0, `${casts} ครั้ง`);
+    check(`${id}: ตกปลาได้จริง`, caught >= 1, `${caught} ตัว · ข้อง ${F.S.basket.length}`);
+    if (!D.getElementById('catch').classList.contains('hidden')) D.getElementById('catchOk').click();
+    g.endCatch();
+  }
+  await playStage('falls', 2.6, -2.3, Math.PI, 0.3);
+  await playStage('forest', 3.0, 0.9, Math.PI, 0.25);
+  await playStage('beach', 0.5, -1.2, Math.PI, 0.5);
+  await playStage('sea', null, 0, Math.PI, 0.45);
+
+  // ปลาหายาก: ตีเบ็ดพลาด 2 ครั้ง → หลุด
+  {
+    g.endCatch(); F.S.time = 8;
+    const keep = F.S.basket.splice(0);            // ข้องเต็มจะเหวี่ยงไม่ได้ — พักปลาไว้ก่อน
+    F.actionDown(); for (let i = 0; i < 16; i++) F.tick(1 / 30, false); F.actionUp();
+    for (let i = 0; i < 40; i++) F.tick(1 / 30, false);
+    g.fish = { sp: (await import('./js/fish.js' + V)).byId.krathong, kg: 20, cm: 200 };
+    g.biteAt = g.t;
+    F.tick(1 / 30, false);
+    F.actionDown(); F.tick(1 / 30, false); F.actionUp();
+    const was = g.state;
+    for (let m = 0; m < 2; m++) { g.sk.pos = g.sk.c > 0.5 ? 0 : 1; F.actionDown(); F.actionUp(); }
+    check('ปลาระดับตำนานต้องตีเบ็ดก่อน และพลาด 2 ครั้งปลาหลุด', was === 'strike' && g.state === 'retrieve', `${was} → ${g.state}`);
+    for (let i = 0; i < 30; i++) F.tick(1 / 30, false);
+    F.S.basket.push(...keep);
+  }
+
+  const basketN = F.S.basket.length;
+  F.goHome();
+  await sleep(3400);
+  check('กลับบ้านแล้วเปิดหน้ามื้อเย็น', F.world.id === 'home' && !D.getElementById('evening').classList.contains('hidden'));
+  check('รายการปลาบนหน้ามื้อเย็นครบ', D.querySelectorAll('.eveRow').length === basketN, `${basketN} ตัว`);
+  const money0 = F.S.money;
+  D.getElementById('eveSellAll').click();
+  D.getElementById('eveOk').click();
+  await sleep(400);
+  check('ขายทั้งหมดได้เงินเพิ่ม', F.S.money > money0 || basketN === 0, `${money0} → ${F.S.money}`);
+  for (let i = 0; i < 10 && !D.getElementById('dialog').classList.contains('hidden'); i++) D.getElementById('dialog').click();
+  await sleep(200);
+  check('มีปุ่มเข้านอน', !D.getElementById('sleepBtn').classList.contains('hidden'));
+  const day0 = F.S.day;
+  D.getElementById('sleepBtn').click();
+  await sleep(3400);
+  check('เข้านอนแล้วเป็นวันใหม่ กลับหน้าแผนที่', F.S.day === day0 + 1 && F.mode === 'map');
+  check('ไม่มี error ระหว่างเล่น', errors.length === 0, errors.slice(0, 2).join(' | '));
+} catch (e) {
+  check('ทดสอบทำงานจนจบโดยไม่ล่ม', false, e.message);
+  console.error(e);
+} finally {
+  restore();
+}
+document.getElementById('sum').innerHTML = fail ? `<span class="bad">ไม่ผ่าน ${fail} ข้อ</span> · ผ่าน ${pass} ข้อ` : `<span class="ok">ผ่านทั้งหมด ${pass} ข้อ ✔</span>`;
+document.title = (fail ? '✘ ' : '✔ ') + document.title;
+window.__testResult = { pass, fail };
+</script>
+</body>
+</html>

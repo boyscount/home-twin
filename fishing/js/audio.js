@@ -98,6 +98,7 @@ export const sfx = {
     notes.forEach((f, i) => tone(f, 0, 0.3, 0.16, 'triangle', i * 0.09));
   },
   click: () => tone(1200, 0, 0.04, 0.08, 'triangle'),
+  softSplash: () => { noise(0.22, 1800, 400, 0.07); tone(700, 250, 0.1, 0.05); },
   coin: () => { tone(1568, 0, 0.08, 0.12, 'square'); tone(2093, 0, 0.18, 0.12, 'square', 0.07); },
   junk: () => { tone(300, 200, 0.15, 0.12, 'triangle'); tone(220, 150, 0.2, 0.1, 'triangle', 0.12); },
 };

@@ -213,3 +213,27 @@ body.touch #power { bottom: calc(190px + var(--safe-b)); }
   .stage { min-height: 118px; padding: 10px; }
   .stage .sname { font-size: 16px; }
 }
+
+/* ---------- ตีเบ็ดปลาหายาก / ราคาตลาด / สมุดสะสม ---------- */
+#strike { position: fixed; left: 50%; top: calc(70px + env(safe-area-inset-top)); transform: translateX(-50%); width: min(88vw, 380px);
+  background: rgba(255, 248, 234, .96); border-radius: 18px; padding: 10px 14px 14px; box-shadow: 0 0 0 4px #ffd45a, var(--shadow); z-index: 5; font-weight: 700; animation: popc .3s; }
+@keyframes popc { 0% { transform: translateX(-50%) scale(.3); } 70% { transform: translateX(-50%) scale(1.08); } 100% { transform: translateX(-50%) scale(1); } }
+#strike .row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 6px; }
+#strike .sbar { position: relative; height: 30px; border-radius: 15px; background: #e9dcc0; overflow: hidden; }
+#strike .szone { position: absolute; top: 0; bottom: 0; background: linear-gradient(180deg, #ffe08a, #f2b632); border-left: 2px solid #c98a10; border-right: 2px solid #c98a10; }
+#strike .smark { position: absolute; top: -3px; bottom: -3px; width: 8px; margin-left: -4px; background: var(--ink); border-radius: 4px; box-shadow: 0 0 0 2px #fff; }
+#alert.gold { background: linear-gradient(135deg, #ffe27a, #f29b20); box-shadow: 0 0 0 4px #fff, 0 0 24px 8px rgba(255, 210, 80, .8); font-size: 30px; }
+.mapMarket { margin-top: 10px; }
+.hotFish { background: #fff0d6; border-radius: 14px; padding: 8px 12px; font-size: 16px; border: 2px dashed #f2a032; }
+.mapMarket details { margin-top: 6px; background: var(--paper2); border-radius: 14px; padding: 6px 12px; }
+.mapMarket summary { cursor: pointer; font-weight: 700; font-size: 15px; }
+.priceList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 14px; margin: 6px 0 2px; }
+.priceRow { display: flex; justify-content: space-between; font-size: 14px; padding: 2px 0; border-bottom: 1px dashed rgba(59,47,36,.15); }
+.priceRow.hot { color: #c0570e; }
+.tr { font-style: normal; font-size: 11px; margin-left: 3px; }
+.tr.up { color: #2f8f3a; } .tr.down { color: #c0453a; } .tr.flat { opacity: .5; }
+.dexProg { background: var(--paper2); border-radius: 14px; padding: 6px 12px 2px; margin-bottom: 10px; }
+.dexTabs small { opacity: .8; font-size: 12px; }
+.rar { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: middle; color: #fff; }
+.rar.r1 { background: #9aa38f; } .rar.r2 { background: #4f9ac8; } .rar.r3 { background: #a26ad8; } .rar.r4 { background: linear-gradient(90deg, #f2b632, #e0604a); }
+@media (max-width: 520px) { .priceList { grid-template-columns: 1fr; } }

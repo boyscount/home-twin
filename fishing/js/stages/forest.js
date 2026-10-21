@@ -1,7 +1,7 @@
 // ด่าน 2: ลำธารกลางป่าลึก — ต้นไม้ยักษ์ เฟิร์น ลำแสงลอดเรือนยอด หิ่งห้อย ขอนไม้พาดลำธาร
 import * as THREE from 'three';
 import { toon, swaying, shared } from '../toon.js';
-import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, scatterFlowers, makeGodRays, makeMotes, makeFlyers, shadowAll, mergeGeos } from '../kit.js';
+import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, scatterFlowers, makeGodRays, makeMotes, makeFlyers, shadowAll, mergeGeos, makeFishShadows } from '../kit.js';
 
 const WATER_Y = -0.35;
 const POOL = { x: 3, z: -2.5, r: 3.4 };
@@ -47,6 +47,7 @@ export function build(scene, assets, opts) {
     ambience: { stream: true },
     special: new THREE.Vector3(POOL.x, WATER_Y, POOL.z),
     specialR: 2.0,
+    liveFish: { count: 10, area: [-14, 14, -6.5, 1.5], minDepth: 0.4, depth: [0.2, 0.35], scale: [0.45, 0.75] },
     rayK: 1,
   });
 
@@ -68,7 +69,8 @@ export function build(scene, assets, opts) {
       }
     },
   });
-  makeWater(scene, world, { cx: 0, cz: -2, size: 44, segs: mobile ? 110 : 160, groundH, waterY: WATER_Y, shallow: 0x8fd4b0, deep: 0x2f7a62, flow: [0.38, 0.02], depthScale: 1.5 });
+  makeWater(scene, world, { cx: 0, cz: -2, size: 44, segs: mobile ? 110 : 160, groundH, waterY: WATER_Y, shallow: 0x8fd4b0, deep: 0x2f7a62, flow: [0.38, 0.02], depthScale: 1.5, glint: 0.5 });
+  makeFishShadows(scene, world, { count: 12, area: [-12, 12, -5, 0], r, size: 1.1, minDepth: 0.5, color: 0x24402e });
 
   const place = placer(scene, assets, groundH, colliders, r);
   // ต้นไม้ยักษ์หนาแน่น

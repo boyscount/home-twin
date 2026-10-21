@@ -82,16 +82,26 @@ export const SPECIES = [
 ];
 export const byId = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
+// ช่วงเวลาที่ปลาชอบกินเหยื่อ (ตอนเช้า < 9:30 · ตอนเย็น ≥ 15:30) — ปลาอื่นกินได้ทั้งวัน
+const PREF = { chon: 'evening', duk: 'evening', krai: 'morning', tapad: 'evening', phluang: 'morning', krathing: 'evening', wian: 'morning',
+  phluangthong: 'morning', takhong: 'evening', kapongdaeng: 'evening', nokkaeo: 'morning', insee: 'morning', kao: 'evening', krathong: 'morning' };
+for (const sp of SPECIES) sp.time = PREF[sp.id] || 'any';
+export const TIME_TEXT = { morning: '🌅 ชอบกินเหยื่อตอนเช้าตรู่', evening: '🌇 ชอบกินเหยื่อตอนเย็น', any: '🕒 กินเหยื่อได้ทั้งวัน' };
+export const RARITY = ['', 'ธรรมดา', 'ไม่บ่อย', 'หายาก', 'ตำนาน'];
+export const period = h => (h < 9.5 ? 'morning' : h >= 15.5 ? 'evening' : 'day');
+
 export const JUNK = [
   { name: 'รองเท้าแตะเก่า', icon: '🩴' }, { name: 'กิ่งไม้ผุ', icon: '🪵' }, { name: 'ถุงพลาสติก', icon: '🛍️' },
   { name: 'กระป๋องเปล่า', icon: '🥫' }, { name: 'สาหร่ายพันเบ็ด', icon: '🌿' },
 ];
 
 // สุ่มชนิดปลาในด่าน: ใกล้จุดพิเศษ = โอกาสเจอตัวหายาก · น้ำลึก = ปลาใหญ่ · junk = โอกาสได้ขยะแทนปลา
-export function rollFish(stage, nearSpecial, depth, junk = 0.08) {
+export function rollFish(stage, nearSpecial, depth, junk = 0.08, hour = 12) {
   if (Math.random() < junk) return { junk: JUNK[Math.floor(Math.random() * JUNK.length)] };
   const pool = SPECIES.filter(s => s.stage === stage);
-  const w = pool.map(s => s.chance * (s.rare ? (nearSpecial ? 5 : 0.6) : 1) * (s.stars >= 3 ? 0.6 + Math.min(depth, 3) * 0.5 : 1) * (nearSpecial && s.stars >= 2 ? 1.4 : 1));
+  const per = period(hour);
+  const w = pool.map(s => s.chance * (s.rare ? (nearSpecial ? 5 : 0.6) : 1) * (s.stars >= 3 ? 0.6 + Math.min(depth, 3) * 0.5 : 1) * (nearSpecial && s.stars >= 2 ? 1.4 : 1)
+    * (s.time === 'any' ? 1 : s.time === per ? 2.2 : 0.6));
   let r = Math.random() * w.reduce((a, b) => a + b, 0);
   let sp = pool[0];
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) { sp = pool[i]; break; } }
@@ -118,8 +128,10 @@ export function record(d, catchInfo) {
 
 // ---------- โมเดลปลาแต่ละชนิด ----------
 const mats = {};
-function fishMat(sp) {
-  if (mats[sp.id]) return mats[sp.id];
+// under = ปลาที่ว่ายอยู่ใต้น้ำ: วาดทับผิวน้ำแบบโปร่งนิด ๆ ให้มองเห็นตัวชัด
+function fishMat(sp, under) {
+  const key = sp.id + (under ? '_u' : '');
+  if (mats[key]) return mats[key];
   const m = toon(0xffffff, sp.glow ? { emissive: 0x5a3a00 } : {});
   const pat = { none: 0, stripes: 1, scales: 2, blotch: 3, dots: 4 }[sp.pattern];
   m.onBeforeCompile = sh => {
@@ -138,16 +150,18 @@ varying vec3 vLP; uniform vec3 uTop; uniform vec3 uBelly;`)
   ${pat === 4 ? 'vec2 g = fract(vec2(vLP.x * 12.0, vLP.y * 12.0)) - 0.5; c = mix(c, vec3(0.05), step(length(g), 0.18) * step(vLP.y, 0.0) * step(-0.12, vLP.y) * step(vLP.x, 0.2));' : ''}
   diffuseColor.rgb = c; }`);
   };
-  mats[sp.id] = m;
+  if (under) { m.transparent = true; m.opacity = 0.9; }
+  mats[key] = m;
   return m;
 }
 
-export function makeFish(assets, sp) {
+export function makeFish(assets, sp, { under = false } = {}) {
   const f = assets.clone('Fish');
-  const fin = toon(sp.fin, { side: THREE.DoubleSide, ...(sp.glow ? { emissive: 0x4a2a00 } : {}) });
+  const fin = toon(sp.fin, { side: THREE.DoubleSide, ...(sp.glow ? { emissive: 0x4a2a00 } : {}), ...(under ? { transparent: true, opacity: 0.9 } : {}) });
   f.traverse(o => {
     if (!o.isMesh) return;
-    if (o.material.name === 'Fish') o.material = fishMat(sp);
+    if (under) o.renderOrder = 2;
+    if (o.material.name === 'Fish') o.material = fishMat(sp, under);
     else if (o.material.name === 'FishFin') o.material = fin;
   });
   f.scale.set(sp.shape[0], sp.shape[1], sp.shape[2]);

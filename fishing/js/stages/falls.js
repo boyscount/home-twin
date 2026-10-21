@@ -1,7 +1,7 @@
 // ด่าน 1: น้ำตกสายหมอก — ลานหญ้าริมหน้าผา น้ำตกลงแอ่งน้ำใส
 import * as THREE from 'three';
 import { toon, swaying, shared } from '../toon.js';
-import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, scatterFlowers, makeGodRays, makeMotes, makeFlyers, shadowAll } from '../kit.js';
+import { sstep, lerp, rng, makeSky, makeLights, makeTerrain, makeWater, placer, scatterGrass, scatterFlowers, makeGodRays, makeMotes, makeFlyers, shadowAll, makeClouds, makeFishShadows } from '../kit.js';
 
 const POND = { x: 0, z: -5 };
 const WATER_Y = -0.3;
@@ -57,6 +57,7 @@ export function build(scene, assets, opts) {
     camp: { x: -0.6, z: 3.2, ry: 0.2 },
     ambience: { falls: true },
     specialR: 3.4,
+    liveFish: { count: 9, area: [-5.5, 5.5, -10.5, 0.5] },
   });
 
   makeSky(scene, world, {});
@@ -152,7 +153,9 @@ void main(){
   }
   world.special = world.fallPos;
 
-  makeWater(scene, world, { cx: POND.x, cz: POND.z - 0.5, size: 18, segs: mobile ? 70 : 100, groundH, waterY: WATER_Y, shallow: 0x6bcab8, deep: 0x1a6b66, fall: world.fallPos });
+  makeWater(scene, world, { cx: POND.x, cz: POND.z - 0.5, size: 18, segs: mobile ? 70 : 100, groundH, waterY: WATER_Y, shallow: 0x6bcab8, deep: 0x1a6b66, fall: world.fallPos, glint: 0.7 });
+  makeFishShadows(scene, world, { count: 10, area: [-4, 4, -9, -1], r, size: 1.3, minDepth: 0.6 });
+  makeClouds(scene, world, { count: 7, area: [-60, 60, -80, -30], height: [20, 30], r, scale: [3, 6] });
 
   // ---------- ฟองและละอองน้ำตก ----------
   {

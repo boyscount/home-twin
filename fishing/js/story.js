@@ -1,5 +1,5 @@
 // โหมดเนื้อเรื่อง: วันต่อวัน · ดวงประจำวัน · ข้องปลา · เงิน · ความสุขของครอบครัว · ปลดล็อกด่าน · อุปกรณ์ · เป้าหมาย
-import { byId, fishValue } from './fish.js';
+import { SPECIES, byId } from './fish.js';
 
 export const STAGES = [
   { id: 'falls', name: 'น้ำตกสายหมอก', icon: '💧', price: 0, desc: 'แอ่งน้ำใสใต้น้ำตกหลังหมู่บ้าน ปลาน้ำจืดคุ้นเคย',
@@ -33,22 +33,50 @@ export const LUCKS = [
 ];
 export const luckById = Object.fromEntries(LUCKS.map(l => [l.id, l]));
 
-export const DAY_START = 6, DAY_END = 18, HOURS_PER_SEC = 12 / 300;   // หนึ่งวัน = 5 นาทีจริง
+export const DAY_START = 6, DAY_END = 18, HOURS_PER_SEC = 12 / 420;   // หนึ่งวัน = 7 นาทีจริง
 export const NEED_KG = 1.2;                                              // ครอบครัวต้องการปลาเท่านี้ถึงจะอิ่ม
 
 const KEY = 'cozyfish.story.v1';
-const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { falls: true }, up: {}, goal: 0, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0 } });
+const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { falls: true }, up: {}, goal: 0, market: {}, hot: null, dexReward: {}, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0 } });
 export let S = load();
 function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1) return Object.assign(fresh(), d); } catch (e) { /* ไม่มีหรือเสีย */ }
   return fresh();
 }
+export function saveState() { return S; }
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* โหมดส่วนตัว */ } }
 export function resetStory() { S = fresh(); save(); return S; }
+
+// ---------- ราคาตลาด: เปลี่ยนทุกเช้า ±35% และมีปลา "ราคาพิเศษ" 1 ชนิด (x1.8) ----------
+export const HOT_MUL = 1.8;
+export function rollMarket() {
+  S.market = {};
+  for (const sp of SPECIES) S.market[sp.id] = +(0.65 + Math.random() * 0.7).toFixed(2);
+  const pool = SPECIES.filter(sp => S.unlocked[sp.stage] && !sp.rare);
+  S.hot = pool.length ? pool[Math.floor(Math.random() * pool.length)].id : null;
+}
+if (!S.market || !Object.keys(S.market).length) rollMarket();
+export const priceOf = id => Math.round(byId[id].price * (S.market[id] || 1) * (S.hot === id ? HOT_MUL : 1));
+export const value = f => Math.round(f.kg * priceOf(f.id));
+export const trend = id => { const m = (S.market[id] || 1) * (S.hot === id ? HOT_MUL : 1); return m >= 1.12 ? 'up' : m <= 0.88 ? 'down' : 'flat'; };
+
+// ---------- รางวัลสมุดสะสม: พบครบทุกชนิดในด่าน ----------
+export const DEX_REWARD = { falls: 300, forest: 600, beach: 900, sea: 1500 };
+export function claimDexRewards(dex) {
+  const got = [];
+  for (const st of STAGES) {
+    if (S.dexReward[st.id]) continue;
+    const all = SPECIES.filter(sp => sp.stage === st.id);
+    if (all.every(sp => dex.dex[sp.id])) { S.dexReward[st.id] = true; S.money += DEX_REWARD[st.id]; got.push(st); }
+  }
+  if (got.length) save();
+  return got;
+}
 
 export const capacity = () => (S.up.basket ? 14 : 8);
 export const luck = () => luckById[S.luck] || LUCKS[1];
 export function rollLuck() {
+  rollMarket();
   if (S.day === 1) { S.luck = 'normal'; return; }
   let r = Math.random();
   for (const l of LUCKS) { r -= l.p; if (r <= 0) { S.luck = l.id; return; } }
@@ -63,7 +91,7 @@ export const baht = n => '฿' + Math.round(n).toLocaleString('th-TH');
 export function settleEvening(choices) {
   let fed = 0, earned = 0, nGrill = 0, nSell = 0;
   S.basket.forEach((f, i) => {
-    if (choices[i] === 'grill') { fed += f.kg; nGrill++; } else { earned += fishValue(f); nSell++; }
+    if (choices[i] === 'grill') { fed += f.kg; nGrill++; } else { earned += value(f); nSell++; }
   });
   let dh, mood;
   if (!S.basket.length) { dh = -8; mood = 'empty'; S.stats.empty++; }
@@ -137,7 +165,7 @@ export function fade(text, during) {
 }
 
 // ---------- แผนที่ (เลือกที่ตกปลา + ร้านค้า + เป้าหมาย) ----------
-export function showMap({ onGo, dexCount, sfx }) {
+export function showMap({ onGo, dexCount, sfx, dexKnown = () => true }) {
   const m = $('map');
   const render = () => {
     const L = luck();
@@ -150,6 +178,13 @@ export function showMap({ onGo, dexCount, sfx }) {
       ? `<div class="gtxt">${g.icon} เป้าหมาย: <b>${g.text}</b></div><div class="gbar"><i style="width:${Math.min(100, S.money / g.cost * 100)}%"></i></div>
          <div class="grow"><span>${baht(S.money)} / ${baht(g.cost)}</span><button class="mini" id="payGoal" ${S.money >= g.cost ? '' : 'disabled'}>จ่ายเลย</button></div>`
       : '<div class="gtxt">🌟 ทำครบทุกเป้าหมายแล้ว! ตกปลาสบาย ๆ ได้ตลอดไป</div>';
+    const hot = S.hot && byId[S.hot];
+    const seen = SPECIES.filter(sp => S.unlocked[sp.stage]);
+    $('mapMarket').innerHTML = (hot ? `<div class="hotFish">🔥 วันนี้แม่ค้ารับซื้อ <b>${hot.name}</b> ราคาพิเศษ <b>${baht(priceOf(hot.id))}</b>/กก.</div>` : '') +
+      `<details><summary>📈 ดูราคาตลาดวันนี้ (${seen.length} ชนิด)</summary><div class="priceList">${seen.map(sp => {
+        const tr = trend(sp.id);
+        return `<div class="priceRow ${S.hot === sp.id ? 'hot' : ''}"><span>${stageById[sp.stage].icon} ${dexKnown(sp.id) ? sp.name : '???'}</span><b>${baht(priceOf(sp.id))}<i class="tr ${tr}">${tr === 'up' ? '▲' : tr === 'down' ? '▼' : '•'}</i></b></div>`;
+      }).join('')}</div></details>`;
     $('mapStages').innerHTML = STAGES.map(s => {
       const open = S.unlocked[s.id];
       const n = dexCount(s.id);
@@ -201,10 +236,10 @@ export function showEvening({ onDone, thumbs, sfx }) {
   }
   const render = () => {
     let fed = 0, earn = 0;
-    S.basket.forEach((f, i) => { if (choices[i] === 'grill') fed += f.kg; else earn += fishValue(f); });
+    S.basket.forEach((f, i) => { if (choices[i] === 'grill') fed += f.kg; else earn += value(f); });
     $('eveList').innerHTML = S.basket.length ? S.basket.map((f, i) => {
       const sp = byId[f.id];
-      return `<div class="eveRow"><img src="${thumbs[f.id]}" alt=""><div class="einfo"><b>${sp.name}</b><small>${f.kg.toFixed(2)} กก. · ขายได้ ${baht(fishValue(f))}</small></div>
+      return `<div class="eveRow"><img src="${thumbs[f.id]}" alt=""><div class="einfo"><b>${sp.name}</b><small>${f.kg.toFixed(2)} กก. · ขายได้ ${baht(value(f))}</small></div>
         <div class="etog"><button data-i="${i}" data-c="grill" class="${choices[i] === 'grill' ? 'on' : ''}">🔥 ปิ้ง</button><button data-i="${i}" data-c="sell" class="${choices[i] === 'sell' ? 'on' : ''}">💰 ขาย</button></div></div>`;
     }).join('') : '<div class="eveEmpty">🧺 วันนี้ข้องว่างเปล่า…</div>';
     const pct = Math.min(100, fed / NEED_KG * 100);
