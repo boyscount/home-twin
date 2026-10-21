@@ -19,6 +19,9 @@ COLORS = {
     'Hat': (0.88, 0.74, 0.44), 'HatBand': (0.70, 0.30, 0.22), 'Rod': (0.80, 0.66, 0.38),
     'Fish': (1.0, 1.0, 1.0), 'FishFin': (0.85, 0.85, 0.85), 'Eye': (0.05, 0.05, 0.06),
     'Wood': (0.62, 0.45, 0.30), 'WoodDark': (0.42, 0.30, 0.21), 'Hair': (0.10, 0.08, 0.07),
+    'BoatPaint': (0.15, 0.45, 0.55), 'BoatRed': (0.70, 0.20, 0.15), 'Ribbon': (0.95, 0.45, 0.65), 'Ribbon2': (0.98, 0.82, 0.25),
+    'Metal': (0.30, 0.30, 0.32), 'Roof': (0.55, 0.28, 0.20), 'Window': (0.12, 0.10, 0.09),
+    'Palm': (0.35, 0.60, 0.25), 'PalmTrunk': (0.55, 0.42, 0.30), 'Karst': (0.75, 0.72, 0.66),
 }
 
 
@@ -289,6 +292,159 @@ def build_fish():
     make_obj('Fish', bm, ['Fish', 'FishFin', 'Eye'])
 
 
+
+# ---------------- เรือหางยาว (ยาวตามแกน X, หัวเรือที่ +X) ----------------
+def build_boat():
+    bm = bmesh.new()
+    N = 22
+    secs = []
+    for i in range(N + 1):
+        x = -3.8 + 7.8 * i / N
+        f = (x + 0.3) / 3.5
+        w = max(0.05, 0.72 * (1 - max(0.0, f) ** 3) * (1 - max(0.0, -f - 0.6) * 0.5))
+        top = 0.38 + (max(0.0, x - 1.8) / 2.0) ** 2 * 0.95
+        bot = -0.34 * (1 - max(0.0, x - 2.6) / 1.6)
+        prof = [(-w, top), (-w * 0.93, 0.05), (-w * 0.55, bot * 0.85), (0, bot), (w * 0.55, bot * 0.85), (w * 0.93, 0.05), (w, top)]
+        secs.append([bm.verts.new((x, y, z)) for y, z in prof])
+    for i in range(N):
+        a, b = secs[i], secs[i + 1]
+        for j in range(len(a) - 1):
+            f = bm.faces.new((a[j], a[j + 1], b[j + 1], b[j]))
+            f.material_index = 0 if j in (0, 5) else 1
+    f = bm.faces.new(secs[0][::-1]); f.material_index = 1
+    # ผนังด้านใน + พื้นเรือ (หันเข้าด้านใน)
+    inner = []
+    for i in range(N + 1):
+        a = secs[i]
+        x = a[0].co.x
+        w = abs(a[0].co.y) * 0.9
+        top = a[0].co.z - 0.02
+        inner.append([bm.verts.new((x, -w, top)), bm.verts.new((x, -w, 0.06)), bm.verts.new((x, w, 0.06)), bm.verts.new((x, w, top))])
+    for i in range(N):
+        a, b = inner[i], inner[i + 1]
+        for j in range(3):
+            f = bm.faces.new((a[j], b[j], b[j + 1], a[j + 1]))
+            f.material_index = 2 if j == 1 else 3
+    for x in (-1.6, 0.9):
+        add_box(bm, (0.3, 1.2, 0.05), loc=(x, 0, 0.3), mi=3)
+    add_box(bm, (0.5, 0.35, 0.35), loc=(-3.75, 0, 0.7), mi=4)
+    add_cone(bm, 0.04, 0.04, 3.2, loc=(-3.9, 0, 0.6), seg=6, mi=4, rot=Matrix.Rotation(math.radians(-100), 3, 'Y'))
+    for k, (mi, dz) in enumerate(((5, 0.0), (6, -0.08), (5, -0.16))):
+        add_box(bm, (0.08, 0.16, 0.09), loc=(3.85 - k * 0.07, 0, 1.3 + dz), mi=mi)
+    make_obj('Boat', bm, ['BoatPaint', 'BoatRed', 'Wood', 'WoodDark', 'Metal', 'Ribbon', 'Ribbon2'])
+
+
+def slab(bm, corners, thick, mi):
+    """แผ่นหนาจาก 4 มุม (เรียงทวนเข็ม มองจากด้านบน)"""
+    a, b, c, d = [Vector(p) for p in corners]
+    n = (b - a).cross(d - a).normalized() * thick
+    top = [bm.verts.new(p) for p in (a, b, c, d)]
+    bot = [bm.verts.new(p - n) for p in (a, b, c, d)]
+    fs = [bm.faces.new(top), bm.faces.new(bot[::-1])]
+    for i in range(4):
+        j = (i + 1) % 4
+        fs.append(bm.faces.new((top[j], top[i], bot[i], bot[j])))
+    for f in fs:
+        f.material_index = mi
+
+
+# ---------------- บ้านไม้ใต้ถุนสูง (หน้าบ้านหัน -Y) ----------------
+def build_house():
+    bm = bmesh.new()
+    for x in (-2.4, 0, 2.4):
+        for y in (-3.0, -1.8, 0, 1.8):
+            add_cone(bm, 0.12, 0.11, 2.0, loc=(x, y, 0), seg=6, mi=1)
+    add_box(bm, (5.4, 4.2, 0.15), loc=(0, 0, 2.0), mi=0)
+    add_box(bm, (5.4, 1.3, 0.12), loc=(0, -2.75, 1.98), mi=0)
+    W, D, H = 5.0, 3.8, 2.1
+    zc = 2.07 + H / 2
+    add_box(bm, (W, 0.1, H), loc=(0, D / 2, zc), mi=0)
+    add_box(bm, (0.1, D, H), loc=(-W / 2, 0, zc), mi=0)
+    add_box(bm, (0.1, D, H), loc=(W / 2, 0, zc), mi=0)
+    add_box(bm, (1.9, 0.1, H), loc=(-1.55, -D / 2, zc), mi=0)
+    add_box(bm, (1.9, 0.1, H), loc=(1.55, -D / 2, zc), mi=0)
+    add_box(bm, (1.2, 0.1, 0.5), loc=(0, -D / 2, 2.07 + H - 0.25), mi=0)
+    for x in (-1.5, 1.5):
+        add_box(bm, (0.8, 0.12, 0.7), loc=(x, -D / 2, 3.3), mi=3)
+    add_box(bm, (0.12, 0.8, 0.7), loc=(W / 2, 0, 3.3), mi=3)
+    add_box(bm, (0.12, 0.8, 0.7), loc=(-W / 2, 0, 3.3), mi=3)
+    # ราวระเบียง
+    add_box(bm, (5.4, 0.06, 0.06), loc=(0, -3.38, 2.65), mi=1)
+    for x in (-2.6, -1.3, 0, 1.3):
+        add_box(bm, (0.06, 0.06, 0.6), loc=(x, -3.38, 2.35), mi=1)
+    # หลังคาจั่วทรงสูง
+    ridge, eave, X = 6.0, 3.7, 3.2
+    slab(bm, [(-X, -3.0, eave), (X, -3.0, eave), (X, 0, ridge), (-X, 0, ridge)], 0.1, 2)
+    slab(bm, [(X, 3.0, eave), (-X, 3.0, eave), (-X, 0, ridge), (X, 0, ridge)], 0.1, 2)
+    for x in (-2.55, 2.55):
+        a = bm.verts.new((x, -2.2, 4.17)); b = bm.verts.new((x, 2.2, 4.17)); c = bm.verts.new((x, 0, ridge - 0.12))
+        f = bm.faces.new((a, b, c) if x > 0 else (c, b, a)); f.material_index = 0
+    # บันได
+    for k in range(7):
+        add_box(bm, (1.0, 0.3, 0.07), loc=(3.25, -2.9 + k * 0.0, 0.2 + k * 0.27), mi=1)
+    make_obj('House', bm, ['Wood', 'WoodDark', 'Roof', 'Window'])
+
+
+# ---------------- มะพร้าว ----------------
+def build_palm():
+    bm = bmesh.new()
+    pts = [Vector((math.sin(t * 1.3) * 0.9 * t, 0, t * 6.5)) for t in [i / 8 for i in range(9)]]
+    for i in range(8):
+        a, b = pts[i], pts[i + 1]
+        d = b - a
+        r = 0.22 - i * 0.012
+        rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_matrix()
+        add_cone(bm, r, r * 0.92, d.length * 1.05, loc=tuple(a), seg=7, mi=0, rot=rot)
+    top = pts[-1]
+    for k in range(8):
+        ang = k * math.tau / 8 + 0.2
+        dirv = Vector((math.cos(ang), math.sin(ang), 0))
+        side = Vector((-dirv.y, dirv.x, 0))
+        prev = None
+        for j in range(6):
+            t = j / 5
+            c = top + dirv * (t * 2.6) + Vector((0, 0, 0.5 * math.sin(t * 2.2) - t * t * 1.3))
+            w = 0.45 * math.sin(min(1.0, t * 1.2 + 0.05) * math.pi) + 0.03
+            l = bm.verts.new(c - side * w); r = bm.verts.new(c + side * w)
+            if prev:
+                f = bm.faces.new((prev[0], prev[1], r, l)); f.material_index = 1
+            prev = (l, r)
+    for k in range(3):
+        add_ico(bm, 0.16, 1, loc=(top.x + math.cos(k * 2.1) * 0.2, math.sin(k * 2.1) * 0.2, top.z - 0.15), mi=0)
+    make_obj('Palm', bm, ['PalmTrunk', 'Palm'])
+
+
+# ---------------- เขาหินปูนกลางทะเล ----------------
+def build_karst():
+    bm = bmesh.new()
+    rings, segs, H = 14, 18, 18.0
+    grid = []
+    for j in range(rings + 1):
+        z = H * j / rings - 2
+        t = j / rings
+        row = []
+        for i in range(segs):
+            a = math.tau * i / segs
+            r = 3.6 * (1 - t * 0.35) + math.sin(t * 5) * 0.4 + noise.noise(Vector((math.cos(a) * 1.5, math.sin(a) * 1.5, z * 0.25))) * 1.1
+            if t > 0.75:
+                r += (t - 0.75) * 3.0
+            row.append(bm.verts.new((math.cos(a) * r, math.sin(a) * r, z)))
+        grid.append(row)
+    for j in range(rings):
+        for i in range(segs):
+            a, b, c, d = grid[j][i], grid[j][(i + 1) % segs], grid[j + 1][(i + 1) % segs], grid[j + 1][i]
+            f = bm.faces.new((a, b, c, d)); f.material_index = 0
+    f = bm.faces.new(grid[-1]); f.material_index = 1
+    for k in range(6):
+        a = k * 1.05
+        add_ico(bm, 1.6, 1, loc=(math.cos(a) * 1.8, math.sin(a) * 1.8, H - 2.6 + (k % 2) * 0.4), scale=(1, 1, 0.6), mi=1, jitter=0.3, seed=k + 70)
+    for k in range(5):
+        a = k * 1.3 + 0.4
+        add_ico(bm, 0.9, 1, loc=(math.cos(a) * 3.4, math.sin(a) * 3.4, 4 + k * 2.2), scale=(1, 1, 0.6), mi=1, jitter=0.3, seed=k + 90)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    make_obj('Karst', bm, ['Karst', 'Leaf'])
+
+
 build_cliff()
 build_rocks()
 build_pine('Pine1', 4, 6.5)
@@ -299,6 +455,10 @@ build_bush()
 build_dock()
 build_fisher()
 build_fish()
+build_boat()
+build_house()
+build_palm()
+build_karst()
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=str(OUT), export_format='GLB', export_apply=True, export_yup=True,

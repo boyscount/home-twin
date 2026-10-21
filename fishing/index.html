@@ -4,36 +4,47 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>ตกปลาสบายใจ</title>
-  <meta name="description" content="เกมตกปลาสบาย ๆ ริมน้ำตก">
+  <meta name="description" content="เกมตกปลาสบาย ๆ หาปลาเลี้ยงครอบครัว น้ำตก ป่าลึก ชายหาด ทะเล">
   <meta name="theme-color" content="#7cc4f0">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=261021151638">
+  <link rel="stylesheet" href="css/game.css?v=261021154536">
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "./js/audio.js": "./js/audio.js?v=261021151638",
-      "./js/fish.js": "./js/fish.js?v=261021151638",
-      "./js/main.js": "./js/main.js?v=261021151638",
-      "./js/toon.js": "./js/toon.js?v=261021151638",
-      "./js/world.js": "./js/world.js?v=261021151638"
+      "./js/audio.js": "./js/audio.js?v=261021154536",
+      "./js/fish.js": "./js/fish.js?v=261021154536",
+      "./js/kit.js": "./js/kit.js?v=261021154536",
+      "./js/main.js": "./js/main.js?v=261021154536",
+      "./js/stages/beach.js": "./js/stages/beach.js?v=261021154536",
+      "./js/stages/falls.js": "./js/stages/falls.js?v=261021154536",
+      "./js/stages/forest.js": "./js/stages/forest.js?v=261021154536",
+      "./js/stages/home.js": "./js/stages/home.js?v=261021154536",
+      "./js/stages/sea.js": "./js/stages/sea.js?v=261021154536",
+      "./js/story.js": "./js/story.js?v=261021154536",
+      "./js/toon.js": "./js/toon.js?v=261021154536"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=261021151638"></script>
+  <script type="module" src="js/main.js?v=261021154536"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
 
-  <div id="hud">
-    <div class="pill" id="count" title="ปลาที่ตกได้">🐟 <b>0</b></div>
+  <div id="hud" class="hidden">
+    <div class="pills">
+      <div class="pill" id="clock">🕕 <b>06:00</b></div>
+      <div class="pill" id="basket">🧺 <b>0/8</b></div>
+      <div class="pill" id="money">฿0</div>
+    </div>
     <div class="btns">
+      <button id="btnHome" class="round" aria-label="กลับบ้าน">🏠</button>
       <button id="btnDex" class="round" aria-label="สมุดสะสมปลา">📖<i id="dexNew" class="dot hidden"></i></button>
       <button id="btnMute" class="round" aria-label="เปิด/ปิดเสียง">🔊</button>
     </div>
@@ -61,7 +72,7 @@
       <img id="catchImg" alt="">
       <h2 id="catchName"></h2>
       <div class="stars" id="catchStars"></div>
-      <div class="stats"><div><small>น้ำหนัก</small><b id="catchKg"></b></div><div><small>ความยาว</small><b id="catchCm"></b></div></div>
+      <div class="stats"><div><small>น้ำหนัก</small><b id="catchKg"></b></div><div><small>ราคาตลาด</small><b id="catchPrice"></b></div></div>
       <p id="catchDesc"></p>
       <button class="primary" id="catchOk">เก็บใส่ข้องปลา</button>
     </div>
@@ -71,21 +82,54 @@
     <div class="card dexCard">
       <div class="dexHead"><h2>📖 สมุดสะสมปลา</h2><button class="round" id="dexClose" aria-label="ปิด">✕</button></div>
       <div class="dexSum" id="dexSum"></div>
+      <div class="dexTabs" id="dexTabs"></div>
       <div class="dexGrid" id="dexGrid"></div>
     </div>
   </div>
+
+  <div id="map" class="modal hidden">
+    <div class="card mapCard">
+      <div class="mapTop"><h2 id="mapDay">เช้าวันที่ 1</h2><div class="pill small" id="mapMoney">฿0</div></div>
+      <div class="mapLuck" id="mapLuck"></div>
+      <div class="mapHappy" id="mapHappy"></div>
+      <div class="mapGoal" id="mapGoal"></div>
+      <h3>วันนี้จะไปตกปลาที่ไหนดี?</h3>
+      <div class="mapStages" id="mapStages"></div>
+      <h3>🛒 ร้านอุปกรณ์ประมงป้าแดง</h3>
+      <div class="mapShop" id="mapShop"></div>
+    </div>
+  </div>
+
+  <div id="evening" class="modal hidden">
+    <div class="card eveCard">
+      <h2>🌇 มื้อเย็นที่บ้าน</h2>
+      <p class="eveSub">ปลาตัวไหนจะปิ้งให้ครอบครัวกิน ตัวไหนจะเอาไปขายตลาดพรุ่งนี้เช้า?</p>
+      <div class="eveAll" id="eveAll"><button class="mini" id="eveGrillAll">🔥 ปิ้งทั้งหมด</button><button class="mini" id="eveSellAll">💰 ขายทั้งหมด</button></div>
+      <div class="eveList" id="eveList"></div>
+      <div class="eveSum" id="eveSum"></div>
+      <button class="primary" id="eveOk">ตกลง กินข้าวกัน!</button>
+    </div>
+  </div>
+
+  <div id="dialog" class="hidden"><div class="who"></div><div class="say"></div><div class="tap">แตะเพื่อไปต่อ ▸</div></div>
+  <div id="fade" class="hidden"><div class="ftext"></div></div>
+  <button id="sleepBtn" class="primary hidden">🌙 เข้านอน</button>
 
   <div id="title">
     <div class="titleBox">
       <div class="logo">🎣</div>
       <h1>ตกปลาสบายใจ</h1>
-      <p class="sub">ริมน้ำตกสายหมอก</p>
+      <p class="sub">หาปลาเลี้ยงครอบครัว · น้ำตก ป่าลึก ชายหาด ทะเล</p>
       <div id="loadBar"><div></div></div>
-      <button class="primary hidden" id="startBtn">เริ่มตกปลา</button>
+      <div class="titleBtns hidden" id="titleBtns">
+        <button class="primary" id="startBtn">เริ่มเล่น</button>
+        <button class="ghost hidden" id="newBtn">เริ่มเรื่องใหม่</button>
+      </div>
       <div class="howto">
         <div><b>เดิน</b> WASD / ลูกศร · จอยซ้ายล่าง</div>
         <div><b>เหวี่ยงเบ็ด</b> กดค้าง Space / คลิกค้าง / ปุ่ม 🎣 แล้วปล่อย (ค้างนาน = ไกล)</div>
         <div><b>ทุ่นจม!</b> กดทันที แล้ว <b>กดค้าง</b> กรอสาย · ปล่อยเมื่อสายตึงจัด</div>
+        <div><b>ตอนเย็น</b> กลับบ้าน 🏠 เลือกปิ้งปลาให้ครอบครัว หรือขายตลาดเก็บเงิน</div>
       </div>
     </div>
   </div>

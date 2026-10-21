@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 #toast {
   position: fixed; left: 50%; top: 22%; transform: translate(-50%, -10px); opacity: 0; z-index: 6;
   background: var(--paper); border-radius: 18px; padding: 10px 22px; font-size: 22px; font-weight: 700;
-  box-shadow: var(--shadow); transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--shadow); transition: opacity .25s, transform .25s; pointer-events: none; white-space: pre-line; text-align: center; width: max-content; max-width: min(90vw, 520px);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #alert {
@@ -125,6 +125,7 @@ body.touch #power { bottom: calc(190px + var(--safe-b)); }
 @media (max-width: 520px) {
   .pill { font-size: 16px; padding: 5px 14px; }
   #hint { font-size: 16px; }
+  #toast { font-size: 18px; padding: 8px 16px; }
   .dexGrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .dexItem { padding: 8px 6px; }
   .dexItem h3 { font-size: 17px; }
@@ -136,4 +137,79 @@ body.touch #power { bottom: calc(190px + var(--safe-b)); }
   body.touch #hint { bottom: calc(14px + var(--safe-b)); }
   body.touch #power { bottom: calc(60px + var(--safe-b)); }
   .howto { display: none; }
+}
+
+/* ---------- โหมดเนื้อเรื่อง ---------- */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 190px); }
+.pill.small { font-size: 16px; padding: 4px 12px; }
+#money { color: #6b4e12; }
+#clock.late { background: #ffe2c2; animation: pop .5s; }
+.ghost { background: transparent; color: var(--ink); font-weight: 700; font-size: 16px; padding: 8px 18px; border-radius: 999px; border: 2px solid rgba(59,47,36,.25); margin-top: 10px; }
+.titleBtns { display: flex; flex-direction: column; align-items: center; }
+.mini { background: var(--paper2); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 15px; box-shadow: 0 3px 0 rgba(59,47,36,.2); }
+.mini:disabled { opacity: .45; cursor: default; }
+.gbar { height: 14px; border-radius: 7px; background: #e9dcc0; overflow: hidden; margin: 6px 0; }
+.gbar i { display: block; height: 100%; background: linear-gradient(90deg, #f2b632, #f28c32); border-radius: 7px; }
+.gbar.food i { background: linear-gradient(90deg, #9ed36a, #6aa84f); }
+
+.mapCard { width: min(96vw, 640px); }
+.mapTop { display: flex; justify-content: space-between; align-items: center; }
+.mapCard h3 { margin: 14px 0 8px; font-size: 19px; }
+.mapLuck { font-size: 18px; font-weight: 700; background: #eaf5ff; border-radius: 14px; padding: 8px 12px; margin-top: 4px; }
+.mapHappy { font-size: 16px; margin: 8px 2px; }
+.mapGoal { background: var(--paper2); border-radius: 16px; padding: 10px 12px; font-size: 16px; }
+.grow { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.mapStages { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.stage { position: relative; text-align: left; color: #fff; border-radius: 18px; padding: 12px; min-height: 128px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 4px 0 rgba(0,0,0,.18); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.stage:active { transform: translateY(2px); }
+.stage .sicon { font-size: 30px; line-height: 1; }
+.stage .sname { font-size: 18px; font-weight: 700; }
+.stage .sdesc { font-size: 13px; line-height: 1.35; opacity: .95; flex: 1; }
+.stage .sfoot { font-size: 13px; background: rgba(0,0,0,.18); border-radius: 999px; padding: 2px 10px; align-self: flex-start; }
+.stage.locked { filter: saturate(.35) brightness(.9); }
+.stage.nope { animation: shake .1s 3; }
+.mapShop { display: flex; flex-direction: column; gap: 8px; }
+.shopItem { display: flex; align-items: center; gap: 10px; background: var(--paper2); border-radius: 14px; padding: 8px 12px; text-align: left; box-shadow: 0 3px 0 rgba(59,47,36,.15); }
+.shopItem:disabled { opacity: .55; cursor: default; }
+.shopItem.owned { opacity: .8; background: #e3f0d6; }
+.shopItem .uicon { font-size: 26px; }
+.shopItem .utext { flex: 1; display: flex; flex-direction: column; }
+.shopItem .utext small { font-size: 13px; opacity: .75; }
+.shopItem .uprice { font-weight: 700; }
+
+.eveCard { width: min(96vw, 520px); text-align: center; }
+.eveSub { font-size: 15px; margin: 2px 0 10px; opacity: .8; }
+.eveAll { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.eveList { display: flex; flex-direction: column; gap: 6px; max-height: 42vh; overflow: auto; text-align: left; }
+.eveRow { display: flex; align-items: center; gap: 8px; background: var(--paper2); border-radius: 14px; padding: 4px 8px; }
+.eveRow img { width: 64px; height: 32px; object-fit: contain; }
+.einfo { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.einfo small { font-size: 13px; opacity: .75; }
+.etog { display: flex; border-radius: 999px; overflow: hidden; box-shadow: 0 2px 0 rgba(59,47,36,.2); }
+.etog button { background: #fff; padding: 6px 10px; font-size: 14px; font-weight: 700; }
+.etog button.on { background: var(--green); color: #fff; }
+.etog button[data-c="sell"].on { background: var(--gold); }
+.eveEmpty { text-align: center; padding: 18px; font-size: 18px; opacity: .8; }
+.eveSum { background: var(--paper2); border-radius: 14px; padding: 8px 12px; margin: 10px 0 14px; text-align: left; }
+.erow { display: flex; justify-content: space-between; font-size: 15px; }
+
+#dialog { position: fixed; left: 50%; bottom: calc(22px + var(--safe-b)); transform: translateX(-50%); width: min(94vw, 560px); z-index: 15;
+  background: var(--paper); border-radius: 20px; padding: 12px 18px 10px; box-shadow: var(--shadow); border: 4px solid #fff; cursor: pointer; animation: pop .3s; }
+#dialog .who { font-weight: 700; color: var(--green-d); font-size: 17px; }
+#dialog .say { font-size: 19px; line-height: 1.5; margin: 4px 0; }
+#dialog .tap { text-align: right; font-size: 13px; opacity: .6; }
+#fade { position: fixed; inset: 0; z-index: 30; background: #1d2433; display: grid; place-items: center; opacity: 0; transition: opacity .6s; pointer-events: all; }
+#fade.on { opacity: 1; }
+#fade .ftext { color: #fff4dc; font-size: 22px; font-weight: 600; text-align: center; padding: 0 24px; line-height: 1.6; }
+#sleepBtn { position: fixed; right: calc(20px + env(safe-area-inset-right)); bottom: calc(24px + var(--safe-b)); z-index: 12; }
+.dexTabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.dexTabs button { background: var(--paper2); border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 14px; }
+.dexTabs button.on { background: var(--green); color: #fff; }
+@media (max-width: 520px) {
+  .pills { max-width: calc(100vw - 180px); gap: 4px; }
+  .pills .pill { font-size: 14px; padding: 4px 10px; }
+  .round { width: 42px; height: 42px; font-size: 19px; }
+  .btns { gap: 6px; }
+  .stage { min-height: 118px; padding: 10px; }
+  .stage .sname { font-size: 16px; }
 }

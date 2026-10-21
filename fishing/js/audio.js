@@ -1,5 +1,6 @@
 // เสียงทั้งหมดสังเคราะห์ด้วย WebAudio (ไม่ต้องโหลดไฟล์)
-let ctx, master, fallGain, noiseBuf;
+let ctx, master, fallGain, noiseBuf, ambLp;
+let amb = 'falls';
 let muted = false;
 try { muted = localStorage.getItem('cozyfish.mute') === '1'; } catch (e) { /* ไม่มี storage */ }
 
@@ -18,9 +19,10 @@ export function initAudio() {
   // เสียงน้ำตกต่อเนื่อง
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf; src.loop = true;
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100;
+  ambLp = ctx.createBiquadFilter(); ambLp.type = 'lowpass'; ambLp.frequency.value = 1100;
   fallGain = ctx.createGain(); fallGain.gain.value = 0.0;
-  src.connect(lp).connect(fallGain).connect(master);
+  src.connect(ambLp).connect(fallGain).connect(master);
+  setAmbience(amb);
   src.start();
   setTimeout(bird, 3000);
 }
@@ -32,8 +34,25 @@ export function setMuted(m) {
   if (master) master.gain.setTargetAtTime(m ? 0 : 0.8, ctx.currentTime, 0.05);
 }
 
-export function setFallDistance(d) {
-  if (fallGain) fallGain.gain.setTargetAtTime(Math.max(0.04, Math.min(0.32, 3.2 / (d + 2))), ctx.currentTime, 0.3);
+// เสียงบรรยากาศของแต่ละที่: falls น้ำตก · stream ลำธาร · surf คลื่นซัดหาด · sea ทะเลเปิด · night กลางคืนที่บ้าน
+const AMB = { falls: [1100, 'lowpass'], stream: [1700, 'bandpass'], surf: [700, 'lowpass'], sea: [420, 'lowpass'], night: [300, 'lowpass'] };
+export function setAmbience(kind) {
+  amb = kind;
+  if (!ambLp) return;
+  const [f, type] = AMB[kind] || AMB.falls;
+  ambLp.type = type;
+  ambLp.frequency.setTargetAtTime(f, ctx.currentTime, 0.2);
+}
+// เรียกทุกเฟรม: d = ระยะถึงต้นเสียง (น้ำตก), t = เวลา
+export function ambienceTick(d, t) {
+  if (!fallGain) return;
+  let v;
+  if (amb === 'falls') v = Math.max(0.04, Math.min(0.32, 3.2 / (d + 2)));
+  else if (amb === 'stream') v = 0.16;
+  else if (amb === 'surf') v = 0.06 + 0.2 * Math.pow(Math.max(0, Math.sin(t * 0.7)), 2);
+  else if (amb === 'sea') v = 0.1 + 0.05 * Math.sin(t * 0.5);
+  else v = 0.015;
+  fallGain.gain.setTargetAtTime(v, ctx.currentTime, 0.3);
 }
 
 function env(g, t, a, peak, rel) {
@@ -79,11 +98,15 @@ export const sfx = {
     notes.forEach((f, i) => tone(f, 0, 0.3, 0.16, 'triangle', i * 0.09));
   },
   click: () => tone(1200, 0, 0.04, 0.08, 'triangle'),
+  coin: () => { tone(1568, 0, 0.08, 0.12, 'square'); tone(2093, 0, 0.18, 0.12, 'square', 0.07); },
+  junk: () => { tone(300, 200, 0.15, 0.12, 'triangle'); tone(220, 150, 0.2, 0.1, 'triangle', 0.12); },
 };
 
 function bird() {
   if (!ctx) return;
-  if (!muted && document.visibilityState === 'visible') {
+  if (!muted && document.visibilityState === 'visible' && amb === 'night') {
+    for (let i = 0; i < 6; i++) tone(4300, 4200, 0.04, 0.025, 'sine', i * 0.07);   // จิ้งหรีด
+  } else if (!muted && document.visibilityState === 'visible' && amb !== 'sea') {
     const base = 2200 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4);
     for (let i = 0; i < n; i++) tone(base, base * (0.75 + Math.random() * 0.6), 0.09, 0.05, 'sine', i * 0.13);
   }
