@@ -5,9 +5,9 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { toon, mossy, swaying, shared } from './toon.js';
-import { makeRain, makeLiveFish, rng } from './kit.js';
+import { makeRain, makeLiveFish, makeMotes, rng, sstep } from './kit.js';
 import { SPECIES, byId, rollFish, loadDex, record, makeFish, RARITY, TIME_TEXT } from './fish.js';
-import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick } from './audio.js';
+import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick, setNight } from './audio.js';
 import * as story from './story.js';
 import { S, STAGES, stageById } from './story.js';
 import * as paddy from './stages/paddy.js';
@@ -20,9 +20,16 @@ import * as home from './stages/home.js';
 const BUILDERS = { paddy, falls, forest, beach, sea, home };
 const VER = new URL(import.meta.url).search;          // ?v=… ของไฟล์นี้ ใช้ต่อท้ายไฟล์โมเดลด้วย
 const $ = id => document.getElementById(id);
-const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+let touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const mobile = touch || Math.min(screen.width, screen.height) < 700;
 if (touch) document.body.classList.add('touch');
+// กันพลาด: ถ้าตรวจไม่เจอแต่มีการแตะจอจริง ให้เปิดจอย/ปุ่มบนจอทันที (เช่น iPad ที่ต่อคีย์บอร์ด)
+addEventListener('touchstart', () => {
+  if (touch) return;
+  touch = true;
+  document.body.classList.add('touch');
+  if (mode === 'fishing') { joyEl.classList.remove('hidden'); actBtn.classList.remove('hidden'); }
+}, { once: true, passive: true });
 
 // ---------- renderer / camera ----------
 const canvas = $('c');
@@ -68,7 +75,7 @@ function convert(root) {
 }
 const assets = { clone: name => { const src = assets.root.getObjectByName(name); if (!src) throw new Error('ไม่พบโมเดล ' + name); const c = src.clone(true); c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); return c; } };
 
-let world, player, bobber, line, lineMat, aimRing, dex, camp;
+let world, player, bobber, line, lineMat, aimRing, dex, camp, lantern, lanternBody;
 let mode = 'title';                 // title | map | fishing | home | travel
 const loadBar = $('loadBar').firstElementChild;
 
@@ -102,6 +109,9 @@ function makeBobber() {
   const bot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), toon(0xffffff));
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5), toon(0xe2493a));
   stick.position.y = 0.17;
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), new THREE.MeshBasicMaterial({ color: 0xc8ff5a }));   // ทุ่นเรืองแสง
+  glow.position.y = 0.26;
+  g.add(glow);
   const aura = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.42, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd45a, transparent: true, opacity: 0, depthWrite: false }));
   aura.name = 'aura';
   aura.renderOrder = 4;
@@ -166,6 +176,17 @@ function buildCamp() {
     basket.position.set(-1.15, 0, -0.1);
     basket.traverse(o => { if (o.isMesh) o.castShadow = true; });
     g.add(basket);
+  }
+  if (!small) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 1.3, 5), toon(0x6e4d35));
+    pole.position.set(0.95, 0.65, -0.45);
+    const lampBody = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffcf70 }));
+    lampBody.position.set(0.95, 1.32, -0.45);
+    const lamp = new THREE.PointLight(0xffb45a, 0, 7, 1.5);
+    lamp.position.copy(lampBody.position);
+    g.add(pole, lampBody, lamp);
+    g.userData.lamp = lamp; g.userData.lampBody = lampBody;
+    lampBody.visible = false;
   }
   g.position.set(C.x, C.y ?? world.groundH(C.x, C.z) + 0.02, C.z);
   g.rotation.y = C.ry || 0;
@@ -237,6 +258,7 @@ function loadWorld(id) {
   refreshCamp();
   if (id !== 'home' && story.luck().rain) makeRain(scene, world, {});
   if (world.liveFish) makeLiveFish(scene, world, { makeFish: sp => makeFish(assets, sp, { under: true }), species: SPECIES.filter(s => s.stage === id && !s.rare), r: rng(31), ...world.liveFish });
+  if (id !== 'home' && id !== 'sea') { const [fx, fz] = world.camFocus(world.spawn.x, world.spawn.z); world.fireflies = makeMotes(scene, world, { count: mobile ? 50 : 100, area: [fx - 14, fx + 14, fz - 12, fz + 10], r: rng(77), color: 0xd9ff8a, size: 0.13, glow: true, y: [0.3, 2.5] }); world.fireflies.visible = false; }
   world.onSplash = (x, z) => { if (mode === 'fishing' && Math.hypot(x - player.pos.x, z - player.pos.z) < 16) sfx.softSplash(); };
   const sp = world.spawn;
   player.pos.set(sp.x, 0, sp.z);
@@ -260,7 +282,10 @@ function loadWorld(id) {
 const KEYS = [
   [6, 0x8fb8e0, 0xffd0a8, 0xffc08a, 0.55], [8.5, null, null, 0xfff1d6, 1], [15, null, null, 0xfff1d6, 1],
   [17, 0x7aa6d8, 0xffc890, 0xffb070, 0.8], [18.2, 0x5a6fa8, 0xff9a6a, 0xff8a50, 0.5],
+  [19.2, 0x2c3c86, 0x8a6aa8, 0xa8b8ff, 0.3], [20.5, 0x1a2768, 0x51569a, 0xb0c0ff, 0.3], [23, 0x152160, 0x474e92, 0xb0c0ff, 0.3],
 ];
+const MOON_DIR = new THREE.Vector3(0.05, 0.085, -1).normalize();
+const sunTmp = new THREE.Vector3();
 const cA = new THREE.Color(), cB = new THREE.Color(), cGray = new THREE.Color(0x9aa4ad);
 function applyTime(h) {
   if (!world.sky) return;
@@ -282,13 +307,27 @@ function applyTime(h) {
   world.sun.intensity = world.sunBase.intensity * sunK;
   world.hemi.intensity = world.sunBase.hemi * (0.75 + 0.25 * sunK);
   world.rayK = Math.max(0, sunK - 0.3) * 1.4;
+  // กลางคืน: แสงจันทร์มาจากทิศพระจันทร์ · ดาวขึ้น · น้ำหรี่ · ตะเกียงติด · หิ่งห้อยออก
+  const night = sstep(18.4, 19.6, h);
+  if (!world.sunBasePos) world.sunBasePos = world.sun.position.clone();
+  sunTmp.copy(world.sun.target.position).addScaledVector(MOON_DIR, 40);
+  world.sun.position.copy(world.sunBasePos).lerp(sunTmp, night);
+  sky.uNight.value = night;
+  if (night > 0) { world.hemi.intensity = world.sunBase.hemi * (0.75 + 0.25 * sunK) * (1 - night * 0.4); world.hemi.color.set(0xdff3ff).lerp(cA.set(0x7080c8), night); }
+  if (world.water) { const u = world.water.material.uniforms; u.uDim.value = 1 - night * 0.62; if (u.uGlint0 === undefined) u.uGlint0 = u.uGlint.value; u.uGlint.value = u.uGlint0 * (1 - night * 0.8); }
+  lantern.intensity = night * 7; lanternBody.visible = night > 0.15;
+  if (camp && camp.userData.lamp) { camp.userData.lamp.intensity = night * 3; camp.userData.lampBody.visible = night > 0.15; }
+  if (world.fireflies) world.fireflies.visible = night > 0.3;
+  if (world.cloudMat) { world.cloudMat.opacity = 1 - night * 0.9; world.cloudMat.emissive.set(0x8a9aa8).multiplyScalar(1 - night * 0.7); }
+  setNight(night > 0.5);
+  world.night = night;
 }
 
 // ---------- อินพุต ----------
 const keys = {};
 const joy = { x: 0, y: 0, id: null };
 let actionHeld = false;
-const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog'].some(id => !$(id).classList.contains('hidden'));
+const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog', 'nightAsk', 'bag'].some(id => !$(id).classList.contains('hidden'));
 
 function actionDown() {
   if (modalOpen() || mode !== 'fishing') return;
@@ -309,7 +348,8 @@ addEventListener('keydown', e => {
   if (!$('dialog').classList.contains('hidden')) return;
   if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); if (!$('catch').classList.contains('hidden')) closeCatch(); else actionDown(); }
   if (e.code === 'Enter' && !$('catch').classList.contains('hidden')) closeCatch();
-  if (e.code === 'Escape') { closeCatch(); $('dex').classList.add('hidden'); }
+  if (e.code === 'Escape') { closeCatch(); $('dex').classList.add('hidden'); $('bag').classList.add('hidden'); }
+  if (e.code === 'KeyI' && mode === 'fishing') toggleBag();
   if ((e.code === 'KeyB' || e.code === 'Tab') && mode !== 'title') { e.preventDefault(); toggleDex(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space' || e.code === 'KeyE') actionUp(); });
@@ -373,7 +413,9 @@ function updateHud() {
   if (s === lastHud) return;
   lastHud = s;
   $('clock').querySelector('b').textContent = story.fmtTime(S.time);
-  $('clock').classList.toggle('late', S.time >= 17);
+  $('clock').firstChild.textContent = story.isNight(S.time) ? '🌙 ' : '🕕 ';
+  $('clock').classList.toggle('late', S.time >= 17 && S.time < 18.5);
+  $('clock').classList.toggle('night', story.isNight(S.time));
   $('basket').querySelector('b').textContent = `${S.basket.length}/${story.capacity()}`;
   $('money').textContent = story.baht(S.money);
 }
@@ -405,10 +447,10 @@ function renderDex() {
   $('dexGrid').innerHTML = SPECIES.filter(s => s.stage === dexTab).map(s => {
     const e = dex.dex[s.id];
     const chip = `<span class="rar r${s.stars}">${RARITY[s.stars]}</span>`;
-    if (!e) return `<div class="dexItem locked"><img src="${thumbs[s.id]}" alt=""><h3>??? ${chip}</h3><div class="stars">${stars(s.stars)}</div>
+    if (!e) return `<div class="dexItem locked r${s.stars}"><img src="${thumbs[s.id]}" alt=""><h3>??? ${chip}</h3><div class="stars">${stars(s.stars)}</div>
       <div class="meta">${TIME_TEXT[s.time]}</div><div class="meta">${s.rare ? '✨ ว่ากันว่าซ่อนอยู่ในจุดพิเศษของด่าน' : 'ยังไม่เคยพบ'}</div></div>`;
     const tr = story.trend(s.id);
-    return `<div class="dexItem${s.rare ? ' rare' : ''}"><img src="${thumbs[s.id]}" alt="${s.name}"><h3>${s.name} ${chip}</h3><div class="stars">${stars(s.stars)}</div>
+    return `<div class="dexItem r${s.stars}${s.rare ? ' rare' : ''}"><img src="${thumbs[s.id]}" alt="${s.name}"><h3>${s.name} ${chip}</h3><div class="stars">${stars(s.stars)}</div>
       <div class="meta">ได้ ${e.n} ตัว · ใหญ่สุด <b>${e.best.toFixed(2)} กก.</b> (${e.cm} ซม.)</div>
       <div class="meta">ราคาวันนี้ <b>${story.baht(story.priceOf(s.id))}/กก.</b> <i class="tr ${tr}">${tr === 'up' ? '▲' : tr === 'down' ? '▼' : '•'}</i>${S.hot === s.id ? ' 🔥' : ''}</div>
       <div class="meta">${TIME_TEXT[s.time]}</div><div class="desc">${s.desc}</div></div>`;
@@ -416,6 +458,39 @@ function renderDex() {
 }
 $('dexTabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) { dexTab = b.dataset.tab; sfx.click(); renderDex(); } });
 $('btnDex').addEventListener('click', toggleDex);
+// ---------- ข้องปลา: ช่องการ์ดตามความหายาก ----------
+function renderBag() {
+  const cap = story.capacity();
+  const kg = S.basket.reduce((a, f) => a + f.kg, 0), val = S.basket.reduce((a, f) => a + story.value(f), 0);
+  $('bagCount').textContent = `${S.basket.length}/${cap}`;
+  $('bagKg').textContent = `⚖️ ${kg.toFixed(2)} กก.`;
+  $('bagValue').textContent = `💰 ขายได้ราว ${story.baht(val)}`;
+  let h = '';
+  for (let i = 0; i < cap; i++) {
+    const f = S.basket[i];
+    if (!f) { h += '<div class="slot empty"></div>'; continue; }
+    const sp = byId[f.id];
+    h += `<div class="slot r${sp.stars}${S.hot === f.id ? ' hot' : ''}" data-i="${i}"><img src="${thumbs[f.id]}" alt="${sp.name}">${sp.stars >= 3 ? `<span class="stars4">${'★'.repeat(sp.stars)}</span>` : ''}<span class="kg">${f.kg.toFixed(1)} กก.</span><span class="price">🪙 ${story.value(f).toLocaleString('th-TH')}</span></div>`;
+  }
+  $('bagSlots').innerHTML = h;
+  $('bagInfo').textContent = S.basket.length ? 'แตะที่ช่องเพื่อดูรายละเอียด' : 'ข้องยังว่างอยู่ ไปตกปลากันเถอะ!';
+}
+function toggleBag() {
+  const b = $('bag');
+  if (!b.classList.contains('hidden')) { b.classList.add('hidden'); return; }
+  actionUp(); sfx.click(); renderBag(); b.classList.remove('hidden');
+}
+$('basket').addEventListener('click', toggleBag);
+$('bagClose').addEventListener('click', toggleBag);
+$('bag').addEventListener('click', e => {
+  if (e.target.id === 'bag') { toggleBag(); return; }
+  const sl = e.target.closest('.slot[data-i]');
+  if (!sl) return;
+  document.querySelectorAll('#bagSlots .slot').forEach(x => x.classList.toggle('sel', x === sl));
+  const f = S.basket[+sl.dataset.i], sp = byId[f.id];
+  $('bagInfo').innerHTML = `<b>${sp.name}</b> · ${RARITY[sp.stars]} ${'★'.repeat(sp.stars)} · ${f.kg.toFixed(2)} กก. ${f.cm} ซม. · ราคาวันนี้ ${story.baht(story.priceOf(f.id))}/กก.${S.hot === f.id ? ' 🔥' : ''}`;
+  sfx.click();
+});
 $('dexClose').addEventListener('click', toggleDex);
 $('dex').addEventListener('click', e => { if (e.target.id === 'dex') toggleDex(); });
 $('btnMute').addEventListener('click', () => { initAudio(); setMuted(!isMuted()); $('btnMute').textContent = isMuted() ? '🔇' : '🔊'; });
@@ -836,9 +911,10 @@ function updateCamera(dt, snap = false) {
   const B = world.camBounds;
   tmpV.set(Math.max(B[0], Math.min(B[1], tx)), 0, Math.max(B[2], Math.min(B[3], tz)));
   camTarget.lerp(tmpV, snap ? 1 : Math.min(1, dt * 2.5));
-  camPos.set(camTarget.x, camTarget.y + 10.5 * k * (world.camH || 1), camTarget.z + 15 * k);
+  const nk = world.night || 0;                 // กลางคืน: เงยกล้องขึ้นให้เห็นดาว
+  camPos.set(camTarget.x, camTarget.y + 10.5 * k * (world.camH || 1) * (1 - 0.32 * nk), camTarget.z + 15 * k);
   camera.position.lerp(camPos, snap ? 1 : Math.min(1, dt * 3));
-  camera.lookAt(camTarget.x, camTarget.y + 1.4, camTarget.z);
+  camera.lookAt(camTarget.x, camTarget.y + 1.4 + 3.2 * nk * (portrait ? 1.6 : 1), camTarget.z);
 }
 
 // ---------- คำแนะนำบนจอ ----------
@@ -880,6 +956,7 @@ function openMap() {
 function goFishing(id) {
   S.stage = id; S.phase = 'fishing'; S.time = story.DAY_START;
   S.dead = S.luck === 'bad' && Math.random() < 0.4;      // บางวันปลาไม่กินเลยจริง ๆ
+  S.night = false;
   story.save();
   mode = 'travel';
   story.fade(stageById[id].go, () => loadWorld(id)).then(startFishingMode);
@@ -907,13 +984,16 @@ function goHome() {
 function evening() {
   mode = 'home';
   homeBusy = false;
-  if (world.setMorning) world.setMorning(false);
+  const late = S.time > 19;
+  if (late && world.setNight) world.setNight(); else if (world.setMorning) world.setMorning(false);
+  setNight(late);
   story.showEvening({ thumbs, sfx, onDone: async choices => {
     const res = story.settleEvening(choices);
     if (res.grilled.length) world.grillFish(res.grilled.map(f => makeFish(assets, byId[f.id])));
     if (res.earned) sfx.coin();
     world.cheer = res.mood === 'full' ? 1 : 0;
     const lines = [...story.EVENING_LINES[res.mood]];
+    if (late) lines.unshift(['แม่', 'กลับดึกจังพ่อ แม่ตั้งตะเกียงรอตั้งนาน… ปลากลางคืนตัวใหญ่ไหมล่ะ']);
     if (res.earned) lines.push(['แม่', `ปลาที่เหลือเอาไปขายตลาดได้ ${story.baht(res.earned)} 💰 (มีเงินเก็บ ${story.baht(S.money)})`]);
     if (S.happy < 30) lines.push(['แม่', 'ช่วงนี้ลูกกินไม่ค่อยอิ่มเลย… พรุ่งนี้แบ่งปลามาปิ้งบ้างนะพ่อ']);
     await story.dialog(lines);
@@ -926,18 +1006,34 @@ $('sleepBtn').addEventListener('click', () => {
   sfx.click();
   mode = 'travel';
   story.fade(`🌙 ราตรีสวัสดิ์…  เช้าวันที่ ${S.day + 1}`, () => {
-    S.day++; S.time = story.DAY_START; story.rollLuck(); S.phase = 'map'; story.save();
+    S.day++; S.time = story.DAY_START; S.night = false; setNight(false); story.rollLuck(); S.phase = 'map'; story.save();
   }).then(openMap);
 });
-const day = { warned: false, saveT: 0 };
+const day = { warned: false, lateWarned: false, saveT: 0 };
+$('nightYes').addEventListener('click', () => {
+  $('nightAsk').classList.add('hidden');
+  S.night = true; day.lateWarned = false; story.save();
+  sfx.click();
+  toast('🏮 จุดตะเกียง… ตกปลาใต้แสงดาวกัน', 2400);
+});
+$('nightNo').addEventListener('click', () => { $('nightAsk').classList.add('hidden'); sfx.click(); goHome(); });
 function dayTick(dt) {
   if (mode !== 'fishing' || modalOpen()) return;
   S.time += dt * story.HOURS_PER_SEC;
-  if (S.time >= 17 && !day.warned) { day.warned = true; toast('🌇 ใกล้ค่ำแล้ว อีกไม่นานต้องกลับบ้าน', 2600); }
+  if (S.time >= 17 && !day.warned) { day.warned = true; toast('🌇 ใกล้ค่ำแล้ว', 2600); }
   if (S.time < 17) day.warned = false;
-  if (S.time >= story.DAY_END && game.state !== 'fight' && game.state !== 'caught') {
+  const busy = game.state === 'fight' || game.state === 'caught' || game.state === 'strike';
+  if (!S.night && S.time >= story.DAY_END && !busy) {
     S.time = story.DAY_END;
-    toast('ค่ำแล้ว กลับบ้านกันเถอะ 🏠', 2000);
+    actionUp();
+    game.reset();
+    $('nightAsk').classList.remove('hidden');
+    return;
+  }
+  if (S.night && S.time >= 21.5 && !day.lateWarned) { day.lateWarned = true; toast('🌙 ดึกแล้ว อีกครึ่งชั่วโมงต้องกลับบ้าน', 2600); }
+  if (S.night && S.time >= story.NIGHT_END && !busy) {
+    S.time = story.NIGHT_END;
+    toast('สี่ทุ่มแล้ว กลับบ้านนอนกันเถอะ 🏠', 2000);
     goHome();
   }
   applyTime(S.time);
@@ -952,6 +1048,15 @@ function init() {
   line = makeLine();
   aimRing = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.45, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
   aimRing.visible = false;
+  lantern = new THREE.PointLight(0xffb45a, 0, 10, 1.4);
+  lanternBody = new THREE.Group();
+  const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.18, 8), new THREE.MeshBasicMaterial({ color: 0xffd27a }));
+  const lt = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.08, 8), toon(0x6e4d35)); lt.position.y = 0.13;
+  lanternBody.add(lb, lt);
+  lanternBody.position.set(0.05, -0.5, 0.08);
+  lantern.position.set(0, -0.45, 0.1);
+  player.armL.add(lantern, lanternBody);
+  lanternBody.visible = false;
   dex = loadDex();
   renderThumbs();
   resize();
@@ -1009,5 +1114,5 @@ requestAnimationFrame(loop);
 // สำหรับทดสอบ: เรียก tick เองได้ตอนแท็บถูกซ่อน (timer ช้า)
 window.__fish = {
   game, story, get S() { return story.S; }, tick: (dt = 1 / 60, draw = true) => ready && tick(dt, draw), get player() { return player; }, get world() { return world; },
-  actionDown, actionUp, keys, get ready() { return ready; }, get mode() { return mode; }, loadWorld, goFishing, goHome, start,
+  actionDown, actionUp, keys, get ready() { return ready; }, get lantern() { return lantern; }, get camera() { return camera; }, get mode() { return mode; }, loadWorld, goFishing, goHome, start,
 };

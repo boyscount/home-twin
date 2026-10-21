@@ -230,6 +230,36 @@ try {
   await sleep(3400);
   check('เข้านอนแล้วเป็นวันใหม่ กลับหน้าแผนที่', F.S.day === day0 + 1 && F.mode === 'map');
   check('บ่อปลาทุ่งนาใหญ่กว่าแอ่งน้ำตกอย่างน้อย 2.5 เท่า', area.paddy > area.falls * 2.5, `${area.paddy} ตร.ม. เทียบ ${area.falls} ตร.ม.`);
+  // ---------- กลางคืน + ข้องปลา ----------
+  group('ตกปลากลางคืน และข้องปลา');
+  {
+    const fishMod = await import('./js/fish.js' + V);
+    check('หลัง 18:30 นับเป็นกลางคืน', fishMod.period(20) === 'night' && fishMod.period(12) === 'day');
+    let n20 = 0, n12 = 0;
+    for (let i = 0; i < 3000; i++) { if (fishMod.rollFish('paddy', false, 1, 0, 20).sp.id === 'lai') n20++; if (fishMod.rollFish('paddy', false, 1, 0, 12).sp.id === 'lai') n12++; }
+    check('ปลาไหลนากินเหยื่อตอนกลางคืนบ่อยกว่ากลางวัน', n20 > n12 * 2, `กลางคืน ${n20} · กลางวัน ${n12}`);
+    D.getElementById('map').classList.add('hidden');
+    F.goFishing('paddy');
+    await sleep(3300);
+    F.S.basket.splice(0, 99, { id: 'butong', kg: 2, cm: 40 }, { id: 'mo', kg: 0.2, cm: 15 });
+    D.getElementById('basket').click();
+    const slots = D.querySelectorAll('#bagSlots .slot');
+    check('ข้องปลาแสดงช่องเท่าความจุ และมีปลา 2 ช่อง', slots.length === F.story.capacity() && D.querySelectorAll('#bagSlots .slot[data-i]').length === 2, `${slots.length} ช่อง`);
+    check('ช่องปลาตำนานเป็นการ์ดสีทอง (r4)', D.querySelector('#bagSlots .slot[data-i="0"]').classList.contains('r4'));
+    D.getElementById('bagClose').click();
+    F.S.time = 17.99;
+    for (let i = 0; i < 30; i++) F.tick(1 / 30, false);
+    check('ตอน 6 โมงเย็นถามว่าจะตกต่อกลางคืนไหม', !D.getElementById('nightAsk').classList.contains('hidden'));
+    D.getElementById('nightYes').click();
+    F.S.time = 20.5;
+    for (let i = 0; i < 10; i++) F.tick(1 / 30, false);
+    check('กลางคืน: ดาวขึ้น ตะเกียงติด', F.world.sky.material.uniforms.uNight.value > 0.95 && F.lantern.intensity > 3, `uNight ${F.world.sky.material.uniforms.uNight.value.toFixed(2)}`);
+    check('ฟ้ากลางคืนไม่ดำสนิท', F.world.sky.material.uniforms.top.value.getHex() > 0x101030);
+    F.S.time = 21.999;
+    for (let i = 0; i < 30; i++) F.tick(1 / 30, false);
+    await sleep(3400);
+    check('สี่ทุ่มบังคับกลับบ้าน', F.world.id === 'home' && !D.getElementById('evening').classList.contains('hidden'));
+  }
   check('ไม่มี error ระหว่างเล่น', errors.length === 0, errors.slice(0, 2).join(' | '));
 } catch (e) {
   check('ทดสอบทำงานจนจบโดยไม่ล่ม', false, e.message);

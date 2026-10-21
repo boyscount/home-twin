@@ -17,16 +17,44 @@ export function makeSky(scene, world, { top = 0x7cc4f0, bot = 0xe6f4f2, fogNear 
   scene.fog = new THREE.Fog(bot, fogNear, fogFar);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(top) }, bot: { value: new THREE.Color(bot) }, uSun: { value: new THREE.Vector3(-0.4, 0.7, 0.4).normalize() }, uSunCol: { value: new THREE.Color(0xfff1d6) } },
+    uniforms: { top: { value: new THREE.Color(top) }, bot: { value: new THREE.Color(bot) }, uSun: { value: new THREE.Vector3(-0.4, 0.7, 0.4).normalize() }, uSunCol: { value: new THREE.Color(0xfff1d6) }, uNight: { value: 0 }, uTime: T },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `uniform vec3 top; uniform vec3 bot; uniform vec3 uSun; uniform vec3 uSunCol; varying vec3 vP;
+    fragmentShader: `uniform vec3 top; uniform vec3 bot; uniform vec3 uSun; uniform vec3 uSunCol; uniform float uNight; uniform float uTime; varying vec3 vP;
+float hs(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hs(i), hs(i + vec2(1, 0)), f.x), mix(hs(i + vec2(0, 1)), hs(i + vec2(1, 1)), f.x), f.y); }
 void main(){
   vec3 d = normalize(vP);
   vec3 c = mix(bot, top, smoothstep(-0.05, 0.5, d.y));
-  c = mix(c, mix(bot, vec3(1.0), 0.35), smoothstep(0.12, 0.0, abs(d.y - 0.02)) * 0.5);   // แถบขอบฟ้าสว่าง
+  c = mix(c, mix(bot, vec3(1.0), 0.35), smoothstep(0.12, 0.0, abs(d.y - 0.02)) * 0.5 * (1.0 - uNight * 0.7));   // แถบขอบฟ้าสว่าง
   float s = max(dot(d, normalize(uSun)), 0.0);
-  c += uSunCol * (pow(s, 12.0) * 0.18 + pow(s, 90.0) * 0.35);
-  c = mix(c, vec3(1.0, 0.98, 0.9), smoothstep(0.9975, 0.9985, s));
+  c += uSunCol * (pow(s, 12.0) * 0.18 * (1.0 - uNight * 0.5) + pow(s, 90.0) * 0.35) + vec3(0.55, 0.6, 0.85) * uNight * (pow(s, 30.0) * 0.35 + pow(s, 400.0) * 0.4);
+  c += vec3(0.25, 0.18, 0.35) * uNight * smoothstep(0.25, 0.0, d.y) * 0.5;   // ขอบฟ้ากลางคืนเรืองม่วงนวล
+  // กลางคืน: ทางช้างเผือก + ดาวระยิบระยับ
+  if (uNight > 0.01 && d.y > -0.02) {
+    float up = smoothstep(-0.01, 0.05, d.y);
+    float band = exp(-pow(dot(d, normalize(vec3(0.35, 0.45, -0.82))) * 3.2, 2.0));
+    float cloud = vn(vec2(atan(d.z, d.x) * 9.0, d.y * 14.0)) * 0.6 + vn(vec2(atan(d.z, d.x) * 23.0, d.y * 35.0)) * 0.4;
+    c += vec3(0.45, 0.45, 0.68) * band * cloud * 0.45 * uNight * up;
+    for (int k = 0; k < 2; k++) {
+      float sc = k == 0 ? 1.0 : 1.9;
+      vec2 uv = vec2(atan(d.z, d.x) * 95.0 * sc, d.y * 150.0 * sc);
+      vec2 cell = floor(uv), f = fract(uv) - 0.5;
+      float h = hs(cell + float(k) * 17.0);
+      float th = k == 0 ? 0.9 : 0.9 - band * 0.12;
+      if (h > th) {
+        vec2 o = vec2(hs(cell + 1.7), hs(cell + 3.1)) - 0.5;
+        float dd = length(f - o * 0.6);
+        float size = mix(0.16, 0.34, pow(hs(cell + 5.3), 3.0));
+        float tw = 0.55 + 0.45 * sin(uTime * (1.2 + h * 3.0) + h * 60.0);
+        vec3 sc3 = mix(vec3(1.0, 0.92, 0.8), vec3(0.8, 0.88, 1.0), hs(cell + 9.1));
+        c += sc3 * smoothstep(size, 0.0, dd) * tw * uNight * up * (k == 0 ? 2.0 : 1.2);
+      }
+    }
+  }
+  // ดวงอาทิตย์ / พระจันทร์ (มีรอยหลุมจาง ๆ ตอนกลางคืน)
+  float disc = smoothstep(mix(0.9975, 0.9988, uNight), mix(0.9985, 0.9992, uNight), s);
+  vec3 dcol = mix(vec3(1.0, 0.98, 0.9), vec3(0.93, 0.95, 1.0) * (0.86 + 0.14 * vn(d.xy * 160.0 + d.z * 90.0)), uNight);
+  c = mix(c, dcol, disc);
   gl_FragColor = vec4(c, 1.0); }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), mat);
@@ -125,7 +153,7 @@ export function makeWater(scene, world, o) {
       uShallow: { value: new THREE.Color(shallow) }, uDeep: { value: new THREE.Color(deep) },
       uFlow: { value: new THREE.Vector2(...flow) }, uSurf: { value: surf }, uWaves: { value: waves },
       uDS: { value: depthScale }, uA: { value: new THREE.Vector2(alphaMin, alphaMax) }, uGlint: { value: glint }, uCrest: { value: crest },
-      uSky: { value: new THREE.Color(0xcfe9f3) }, uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.4) }, uSunCol: { value: new THREE.Color(0xfff3dc) },
+      uDim: { value: 1 }, uSky: { value: new THREE.Color(0xcfe9f3) }, uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.4) }, uSunCol: { value: new THREE.Color(0xfff3dc) },
     }]),
     vertexShader: `attribute float depth; varying float vD; varying vec3 vW; varying float vH; uniform float uTime; uniform float uWaves;
 ${WAVE_GLSL}
@@ -139,7 +167,7 @@ void main(){ vD = depth; vec3 p = position;
   #include <fog_vertex>
 }`,
     fragmentShader: `uniform float uTime; uniform vec3 uFall; uniform vec4 uRip[6]; uniform vec3 uCam; uniform vec3 uShallow; uniform vec3 uDeep;
-uniform vec2 uFlow; uniform float uSurf; uniform float uDS; uniform vec2 uA; uniform float uGlint; uniform vec3 uSky; uniform float uWaves; uniform float uCrest;
+uniform vec2 uFlow; uniform float uSurf; uniform float uDS; uniform vec2 uA; uniform float uGlint; uniform vec3 uSky; uniform float uWaves; uniform float uCrest; uniform float uDim;
 uniform vec3 uSunDir; uniform vec3 uSunCol;
 varying float vD; varying vec3 vW; varying float vH;
 #include <fog_pars_fragment>
@@ -189,7 +217,8 @@ void main(){
     }
   }
   float foam = max(max(shore, max(ff, band)), max(max(ring * 0.5, crest * 0.85), min(rip, 1.0)));
-  col = mix(col, vec3(1.0), foam); a = max(a, foam * 0.95);
+  col *= uDim;
+  col = mix(col, vec3(max(uDim, 0.5)), foam); a = max(a, foam * 0.95);
   // ท้องฟ้าสะท้อนตามมุมมอง + แสงแดดระยิบ (เส้นทางแสงอาทิตย์บนผิวน้ำ)
   float fr = pow(1.0 - max(dot(V, N), 0.0), 3.0);
   col = mix(col, uSky, fr * 0.55); a = mix(a, 1.0, fr * 0.45);
@@ -226,7 +255,8 @@ void main(){
 
 // ---------- เมฆก้อนนุ่ม ๆ ลอยช้า ๆ ----------
 export function makeClouds(scene, world, { count = 8, area = [-60, 60, -90, -20], height = [16, 26], r, scale = [3, 6], speed = 0.6 }) {
-  const mat = toon(0xffffff, { emissive: 0x8a9aa8, fog: true });
+  const mat = toon(0xffffff, { emissive: 0x8a9aa8, fog: true, transparent: true, opacity: 1, depthWrite: false });
+  world.cloudMat = mat;
   const clouds = [];
   for (let i = 0; i < count; i++) {
     const g = new THREE.Group();

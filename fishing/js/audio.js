@@ -1,6 +1,7 @@
 // เสียงทั้งหมดสังเคราะห์ด้วย WebAudio (ไม่ต้องโหลดไฟล์)
 let ctx, master, fallGain, noiseBuf, ambLp;
-let amb = 'falls';
+let amb = 'falls', nightOn = false;
+export function setNight(on) { nightOn = on; }
 let muted = false;
 try { muted = localStorage.getItem('cozyfish.mute') === '1'; } catch (e) { /* ไม่มี storage */ }
 
@@ -105,8 +106,9 @@ export const sfx = {
 
 function bird() {
   if (!ctx) return;
-  if (!muted && document.visibilityState === 'visible' && amb === 'night') {
+  if (!muted && document.visibilityState === 'visible' && (amb === 'night' || nightOn)) {
     for (let i = 0; i < 6; i++) tone(4300, 4200, 0.04, 0.025, 'sine', i * 0.07);   // จิ้งหรีด
+    if (nightOn && amb !== 'sea' && Math.random() < 0.6) for (let i = 0; i < 2; i++) tone(190, 120, 0.12, 0.06, 'triangle', 0.5 + i * 0.22);   // กบ
   } else if (!muted && document.visibilityState === 'visible' && amb !== 'sea') {
     const base = 2200 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4);
     for (let i = 0; i < n; i++) tone(base, base * (0.75 + Math.random() * 0.6), 0.09, 0.05, 'sine', i * 0.13);

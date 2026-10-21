@@ -135,7 +135,15 @@ export function build(scene, assets, opts) {
   world.family = family;
   // เช้า (หน้าแผนที่) / เย็น (มื้อเย็น)
   const sky = world.sky.material.uniforms;
+  world.setNight = () => {
+    world.setMorning(false);
+    sky.top.value.set(0x1a2768); sky.bot.value.set(0x51569a); sky.uNight.value = 1;
+    scene.fog.color.copy(sky.bot.value);
+    world.sun.color.set(0xa8b8ff); world.sun.intensity = 0.45; world.sun.position.set(12, 22, -18);
+    world.hemi.color.set(0x6070b0); world.hemi.intensity = 0.3;
+  };
   world.setMorning = on => {
+    sky.uNight.value = 0;
     sky.top.value.set(on ? 0x7cc4f0 : 0x4b5c94); sky.bot.value.set(on ? 0xfde9c8 : 0xffb27a);
     scene.fog.color.copy(sky.bot.value);
     world.sun.color.set(on ? 0xfff0d0 : 0xffa766); world.sun.intensity = on ? 2.0 : 1.5;

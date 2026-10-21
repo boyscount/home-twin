@@ -11,29 +11,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=261021161553">
+  <link rel="stylesheet" href="css/game.css?v=261021163020">
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "./js/audio.js": "./js/audio.js?v=261021161553",
-      "./js/fish.js": "./js/fish.js?v=261021161553",
-      "./js/kit.js": "./js/kit.js?v=261021161553",
-      "./js/main.js": "./js/main.js?v=261021161553",
-      "./js/stages/beach.js": "./js/stages/beach.js?v=261021161553",
-      "./js/stages/falls.js": "./js/stages/falls.js?v=261021161553",
-      "./js/stages/forest.js": "./js/stages/forest.js?v=261021161553",
-      "./js/stages/home.js": "./js/stages/home.js?v=261021161553",
-      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021161553",
-      "./js/stages/sea.js": "./js/stages/sea.js?v=261021161553",
-      "./js/story.js": "./js/story.js?v=261021161553",
-      "./js/toon.js": "./js/toon.js?v=261021161553"
+      "./js/audio.js": "./js/audio.js?v=261021163020",
+      "./js/fish.js": "./js/fish.js?v=261021163020",
+      "./js/kit.js": "./js/kit.js?v=261021163020",
+      "./js/main.js": "./js/main.js?v=261021163020",
+      "./js/stages/beach.js": "./js/stages/beach.js?v=261021163020",
+      "./js/stages/falls.js": "./js/stages/falls.js?v=261021163020",
+      "./js/stages/forest.js": "./js/stages/forest.js?v=261021163020",
+      "./js/stages/home.js": "./js/stages/home.js?v=261021163020",
+      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021163020",
+      "./js/stages/sea.js": "./js/stages/sea.js?v=261021163020",
+      "./js/story.js": "./js/story.js?v=261021163020",
+      "./js/toon.js": "./js/toon.js?v=261021163020"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=261021161553"></script>
+  <script type="module" src="js/main.js?v=261021163020"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -41,7 +41,7 @@
   <div id="hud" class="hidden">
     <div class="pills">
       <div class="pill" id="clock">🕕 <b>06:00</b></div>
-      <div class="pill" id="basket">🧺 <b>0/8</b></div>
+      <button class="pill" id="basket" aria-label="เปิดข้องปลา">🧺 <b>0/8</b></button>
       <div class="pill" id="money">฿0</div>
     </div>
     <div class="btns">
@@ -94,6 +94,15 @@
     </div>
   </div>
 
+  <div id="bag" class="modal hidden">
+    <div class="card glass bagCard">
+      <div class="bagHead"><h2>🧺 ข้องปลา <small id="bagCount"></small></h2><button class="round" id="bagClose" aria-label="ปิด">✕</button></div>
+      <div class="bagChips"><span class="gchip" id="bagKg"></span><span class="gchip" id="bagValue"></span></div>
+      <div class="slots" id="bagSlots"></div>
+      <div class="bagInfo" id="bagInfo">แตะที่ช่องเพื่อดูรายละเอียด</div>
+    </div>
+  </div>
+
   <div id="map" class="modal hidden">
     <div class="card mapCard">
       <div class="mapTop"><h2 id="mapDay">เช้าวันที่ 1</h2><div class="pill small" id="mapMoney">฿0</div></div>
@@ -119,6 +128,14 @@
     </div>
   </div>
 
+  <div id="nightAsk" class="modal hidden">
+    <div class="card nightCard">
+      <div class="moon">🌙</div>
+      <h2>หกโมงเย็นแล้ว</h2>
+      <p>ฟ้าเริ่มมืด ดาวเริ่มขึ้น… ปลาบางชนิดชอบออกหากินตอนกลางคืนนะ<br>จะกลับบ้านเลย หรือจุดตะเกียงตกต่อถึง 4 ทุ่ม?</p>
+      <div class="nightBtns"><button class="ghost" id="nightNo">🏠 กลับบ้าน</button><button class="primary" id="nightYes">🏮 ตกต่อกลางคืน</button></div>
+    </div>
+  </div>
   <div id="dialog" class="hidden"><div class="who"></div><div class="say"></div><div class="tap">แตะเพื่อไปต่อ ▸</div></div>
   <div id="fade" class="hidden"><div class="ftext"></div></div>
   <button id="sleepBtn" class="primary hidden">🌙 เข้านอน</button>

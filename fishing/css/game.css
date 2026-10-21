@@ -237,3 +237,40 @@ body.touch #power { bottom: calc(190px + var(--safe-b)); }
 .rar { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: middle; color: #fff; }
 .rar.r1 { background: #9aa38f; } .rar.r2 { background: #4f9ac8; } .rar.r3 { background: #a26ad8; } .rar.r4 { background: linear-gradient(90deg, #f2b632, #e0604a); }
 @media (max-width: 520px) { .priceList { grid-template-columns: 1fr; } }
+
+/* ---------- ตกปลากลางคืน ---------- */
+.nightCard { text-align: center; background: linear-gradient(180deg, #1c2650, #2e3a6e); color: #f4ecd8; border-color: #4a5a9a; }
+.nightCard .moon { font-size: 54px; animation: bob 3s ease-in-out infinite; }
+.nightCard p { font-size: 17px; line-height: 1.6; opacity: .92; }
+.nightBtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+.nightCard .ghost { color: #f4ecd8; border-color: rgba(255,255,255,.35); margin-top: 0; }
+#clock.night { background: #26305e; color: #f4ecd8; }
+
+/* ---------- แผงกระจก + ช่องการ์ดปลา (ข้อง / สมุดสะสม) ---------- */
+.glass { background: rgba(244, 244, 252, .72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.8);
+  box-shadow: 0 10px 40px rgba(40, 40, 90, .25); }
+button.pill { border: 0; cursor: pointer; }
+.bagCard { width: min(96vw, 560px); }
+.bagHead { display: flex; justify-content: space-between; align-items: center; }
+.bagHead small { font-size: 16px; opacity: .7; }
+.bagChips { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.gchip { background: rgba(60, 64, 110, .12); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: 15px; }
+.slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px 10px; }
+.slot { position: relative; aspect-ratio: 1 / 1; border-radius: 14px; overflow: visible; cursor: pointer;
+  background: linear-gradient(180deg, #3b4170 0%, #555b8c 58%, var(--rc, #8a90a8) 100%); box-shadow: 0 3px 8px rgba(30,30,70,.25); }
+.slot.r1 { --rc: #a7adbd; } .slot.r2 { --rc: #4ea3e0; } .slot.r3 { --rc: #b06ee8; } .slot.r4 { --rc: #f0a63a; }
+.slot img { position: absolute; inset: 12% 4% 26%; width: 92%; height: 62%; object-fit: contain; filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
+.slot .kg { position: absolute; right: 7px; bottom: 6px; color: #fff; font-weight: 700; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.slot .stars4 { position: absolute; left: 7px; top: 5px; font-size: 11px; color: #ffe08a; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.slot .price { position: absolute; left: 4%; right: 4%; bottom: -4px; transform: translateY(100%); background: #3a3e5c; color: #fff; border-radius: 999px;
+  font-size: 12px; font-weight: 700; text-align: center; padding: 1px 4px; box-shadow: 0 2px 4px rgba(0,0,0,.25); white-space: nowrap; }
+.slot.hot .price { background: #c0570e; }
+.slot.empty { background: rgba(120, 124, 150, .22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); cursor: default; }
+.slot.sel { outline: 3px solid #fff; outline-offset: 2px; }
+.slots { padding-bottom: 14px; }
+.bagInfo { margin-top: 18px; background: rgba(60, 64, 110, .1); border-radius: 14px; padding: 8px 12px; font-size: 15px; min-height: 40px; }
+@media (max-width: 420px) { .slots { gap: 26px 7px; } .slot .kg { font-size: 11px; } .slot .price { font-size: 11px; } }
+/* สมุดสะสมใช้การ์ดสีตามความหายากแบบเดียวกัน */
+.dexItem img { border-radius: 12px; background: linear-gradient(180deg, #3b4170 0%, #555b8c 58%, var(--rc, #8a90a8) 100%); padding: 6px; box-sizing: border-box; }
+.dexItem.r1 { --rc: #a7adbd; } .dexItem.r2 { --rc: #4ea3e0; } .dexItem.r3 { --rc: #b06ee8; } .dexItem.r4 { --rc: #f0a63a; }
+.dexItem.locked img { filter: brightness(.35) saturate(0); }

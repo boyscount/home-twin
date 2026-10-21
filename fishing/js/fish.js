@@ -102,12 +102,12 @@ export const SPECIES = [
 export const byId = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
 // ช่วงเวลาที่ปลาชอบกินเหยื่อ (ตอนเช้า < 9:30 · ตอนเย็น ≥ 15:30) — ปลาอื่นกินได้ทั้งวัน
-const PREF = { lai: 'evening', chado: 'morning', butong: 'evening', chon: 'evening', duk: 'evening', krai: 'morning', tapad: 'evening', phluang: 'morning', krathing: 'evening', wian: 'morning',
-  phluangthong: 'morning', takhong: 'evening', kapongdaeng: 'evening', nokkaeo: 'morning', insee: 'morning', kao: 'evening', krathong: 'morning' };
+const PREF = { lai: 'night', duk: 'night', khaeyang: 'night', krathing: 'night', kao: 'night', chado: 'morning', butong: 'evening', chon: 'evening', krai: 'morning', tapad: 'evening', phluang: 'morning', wian: 'morning',
+  phluangthong: 'morning', takhong: 'evening', kapongdaeng: 'evening', nokkaeo: 'morning', insee: 'morning', krathong: 'morning' };
 for (const sp of SPECIES) sp.time = PREF[sp.id] || 'any';
-export const TIME_TEXT = { morning: '🌅 ชอบกินเหยื่อตอนเช้าตรู่', evening: '🌇 ชอบกินเหยื่อตอนเย็น', any: '🕒 กินเหยื่อได้ทั้งวัน' };
+export const TIME_TEXT = { morning: '🌅 ชอบกินเหยื่อตอนเช้าตรู่', evening: '🌇 ชอบกินเหยื่อตอนเย็น', night: '🌙 ชอบกินเหยื่อตอนกลางคืน', any: '🕒 กินเหยื่อได้ทั้งวัน' };
 export const RARITY = ['', 'ธรรมดา', 'ไม่บ่อย', 'หายาก', 'ตำนาน'];
-export const period = h => (h < 9.5 ? 'morning' : h >= 15.5 ? 'evening' : 'day');
+export const period = h => (h < 9.5 ? 'morning' : h >= 18.5 ? 'night' : h >= 15.5 ? 'evening' : 'day');
 
 export const JUNK = [
   { name: 'รองเท้าแตะเก่า', icon: '🩴' }, { name: 'กิ่งไม้ผุ', icon: '🪵' }, { name: 'ถุงพลาสติก', icon: '🛍️' },

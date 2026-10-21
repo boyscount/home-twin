@@ -26,7 +26,7 @@ function groundH(x, z) {
   const pw = paddyW(x, z);
   if (pw > 0) h = lerp(h, PADDY_Y - 0.08 + dikeW(x, z) * 0.32, pw);
   // ภูเขาไกล ๆ ด้านหลัง
-  h += Math.max(0, -z - 34) * 0.9 * (0.6 + 0.4 * Math.sin(x * 0.11 + 1));
+  h += Math.min(5, Math.max(0, -z - 40) * 0.45) * (0.6 + 0.4 * Math.sin(x * 0.11 + 1));
   return h;
 }
 
@@ -96,7 +96,7 @@ export function build(scene, assets, opts) {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    const pm = new THREE.MeshBasicMaterial({ color: 0x9cc9b0, transparent: true, opacity: 0.5, depthWrite: false });
+    const pm = new THREE.MeshLambertMaterial({ color: 0x9cc9b0, emissive: 0x2a4a44, transparent: true, opacity: 0.5, depthWrite: false });
     const sheet = new THREE.Mesh(g, pm);
     sheet.renderOrder = 0;
     scene.add(sheet);
@@ -168,8 +168,8 @@ export function build(scene, assets, opts) {
   }
   // ภูเขาไกล ๆ (กรวยสีฟ้าอมเขียวจางในหมอก)
   for (let i = 0; i < 9; i++) {
-    const m = new THREE.Mesh(new THREE.ConeGeometry(r.range(10, 18), r.range(10, 20), 7), toon(i % 2 ? 0x7fa88a : 0x8fb4a0));
-    m.position.set(-70 + i * 18 + r.range(-4, 4), r.range(1, 4), -62 - r.range(0, 14));
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r.range(12, 20), r.range(4, 8), 7), toon(i % 2 ? 0x7fa88a : 0x8fb4a0));
+    m.position.set(-80 + i * 20 + r.range(-4, 4), r.range(0, 2), -85 - r.range(0, 15));
     m.rotation.y = r() * 6;
     scene.add(m);
   }

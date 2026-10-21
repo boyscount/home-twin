@@ -35,7 +35,7 @@ export const LUCKS = [
 ];
 export const luckById = Object.fromEntries(LUCKS.map(l => [l.id, l]));
 
-export const DAY_START = 6, DAY_END = 18, HOURS_PER_SEC = 12 / 420;   // หนึ่งวัน = 7 นาทีจริง
+export const DAY_START = 6, DAY_END = 18, NIGHT_END = 22, HOURS_PER_SEC = 12 / 420;   // หนึ่งวัน = 7 นาทีจริง · ตกต่อกลางคืนได้ถึง 4 ทุ่ม
 export const NEED_KG = 1.2;                                              // ครอบครัวต้องการปลาเท่านี้ถึงจะอิ่ม
 
 const KEY = 'cozyfish.story.v1';
@@ -87,6 +87,7 @@ export function rollLuck() {
 }
 export const biteMul = () => luck().bite * (S.up.bait ? 0.7 : 1) * (S.happy >= 75 ? 0.9 : 1);
 export const junkChance = () => luck().junk * (S.up.bait ? 0.6 : 1);
+export const isNight = h => h >= 18.5 || h < 5;
 export const fmtTime = h => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
 export const baht = n => '฿' + Math.round(n).toLocaleString('th-TH');
 
