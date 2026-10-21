@@ -267,6 +267,7 @@ function loadWorld(id) {
   player.vel = 0;
   player.rod.visible = id !== 'home';
   game.reset();
+  game.fullAsked = false; game.pending = null;
   const a = world.ambience || {};
   setAmbience(a.falls ? 'falls' : a.stream ? 'stream' : a.surf ? 'surf' : a.sea ? 'sea' : 'night');
   world.camTarget = camTarget;
@@ -327,7 +328,7 @@ function applyTime(h) {
 const keys = {};
 const joy = { x: 0, y: 0, id: null };
 let actionHeld = false;
-const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog', 'nightAsk', 'bag'].some(id => !$(id).classList.contains('hidden'));
+const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog', 'nightAsk', 'bag', 'fullAsk'].some(id => !$(id).classList.contains('hidden'));
 
 function actionDown() {
   if (modalOpen() || mode !== 'fishing') return;
@@ -348,7 +349,7 @@ addEventListener('keydown', e => {
   if (!$('dialog').classList.contains('hidden')) return;
   if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); if (!$('catch').classList.contains('hidden')) closeCatch(); else actionDown(); }
   if (e.code === 'Enter' && !$('catch').classList.contains('hidden')) closeCatch();
-  if (e.code === 'Escape') { closeCatch(); $('dex').classList.add('hidden'); $('bag').classList.add('hidden'); }
+  if (e.code === 'Escape') { closeCatch(game.pending ? 'release' : 'keep'); $('fullAsk').classList.add('hidden'); $('dex').classList.add('hidden'); $('bag').classList.add('hidden'); }
   if (e.code === 'KeyI' && mode === 'fishing') toggleBag();
   if ((e.code === 'KeyB' || e.code === 'Tab') && mode !== 'title') { e.preventDefault(); toggleDex(); }
 });
@@ -484,11 +485,19 @@ $('basket').addEventListener('click', toggleBag);
 $('bagClose').addEventListener('click', toggleBag);
 $('bag').addEventListener('click', e => {
   if (e.target.id === 'bag') { toggleBag(); return; }
+  const rel = e.target.closest('[data-rel]');
+  if (rel) {
+    const f = S.basket.splice(+rel.dataset.rel, 1)[0];
+    story.save(); refreshCamp(); renderBag(); sfx.softSplash();
+    $('bagInfo').textContent = `🌊 ปล่อย${byId[f.id].name}คืนน้ำแล้ว · ข้องว่าง ${story.capacity() - S.basket.length} ช่อง`;
+    return;
+  }
   const sl = e.target.closest('.slot[data-i]');
   if (!sl) return;
   document.querySelectorAll('#bagSlots .slot').forEach(x => x.classList.toggle('sel', x === sl));
   const f = S.basket[+sl.dataset.i], sp = byId[f.id];
-  $('bagInfo').innerHTML = `<b>${sp.name}</b> · ${RARITY[sp.stars]} ${'★'.repeat(sp.stars)} · ${f.kg.toFixed(2)} กก. ${f.cm} ซม. · ราคาวันนี้ ${story.baht(story.priceOf(f.id))}/กก.${S.hot === f.id ? ' 🔥' : ''}`;
+  $('bagInfo').innerHTML = `<b>${sp.name}</b> · ${RARITY[sp.stars]} ${'★'.repeat(sp.stars)} · ${f.kg.toFixed(2)} กก. ${f.cm} ซม. · ราคาวันนี้ ${story.baht(story.priceOf(f.id))}/กก.${S.hot === f.id ? ' 🔥' : ''}`
+    + (mode === 'fishing' ? `<br><button class="relBtn" data-rel="${sl.dataset.i}">🌊 ปล่อยตัวนี้คืนน้ำ</button>` : '');
   sfx.click();
 });
 $('dexClose').addEventListener('click', toggleDex);
@@ -501,13 +510,34 @@ $('btnHome').addEventListener('click', () => {
   if (S.time < 15 && !confirm('ยังไม่ค่ำเลย จะกลับบ้านเลยไหม?')) return;
   goHome();
 });
-$('catchOk').addEventListener('click', closeCatch);
-function closeCatch() {
+$('catchOk').addEventListener('click', () => closeCatch('keep'));
+$('catchRelease').addEventListener('click', () => closeCatch('release'));
+const cheapestIndex = () => S.basket.reduce((bi, f, i, a) => (story.value(f) < story.value(a[bi]) ? i : bi), 0);
+function closeCatch(choice = 'keep') {
   if ($('catch').classList.contains('hidden')) return;
   $('catch').classList.add('hidden');
   sfx.click();
+  const p = game.pending;
+  if (p) {
+    if (choice === 'keep') {
+      const ci = cheapestIndex(), old = S.basket[ci];
+      S.basket.splice(ci, 1, p);
+      toast(`🔁 เก็บ${byId[p.id].name} · ปล่อย${byId[old.id].name}คืนน้ำ`, 2000);
+    } else toast('🌊 ปล่อยคืนน้ำ ขอให้โตไว ๆ นะ', 1600);
+    game.pending = null;
+    story.save();
+  }
   game.endCatch();
+  // ข้องเพิ่งเต็ม → ถามว่าจะทำอะไรต่อ (ถามครั้งเดียวต่อการออกไปตกปลา)
+  if (!p && S.basket.length >= story.capacity() && !game.fullAsked) {
+    game.fullAsked = true;
+    $('fullText').textContent = `ได้ปลาเต็มข้อง ${S.basket.length} ตัวแล้ว (ขายได้ราว ${story.baht(S.basket.reduce((a, f) => a + story.value(f), 0))}) จะทำอะไรต่อดี?`;
+    $('fullAsk').classList.remove('hidden');
+  }
 }
+$('fullHome').addEventListener('click', () => { $('fullAsk').classList.add('hidden'); sfx.click(); goHome(); });
+$('fullGo').addEventListener('click', () => { $('fullAsk').classList.add('hidden'); sfx.click(); toast('ตกต่อได้เลย! ได้ตัวใหม่จะเลือกแลกกับตัวที่ถูกสุดได้', 2600); });
+$('fullBag').addEventListener('click', () => { $('fullAsk').classList.add('hidden'); toggleBag(); });
 
 // ---------- ระบบตกปลา ----------
 const game = {
@@ -525,7 +555,6 @@ const game = {
   onDown() {
     switch (this.state) {
       case 'free':
-        if (S.basket.length >= story.capacity()) { toast('ข้องเต็มแล้ว! กด 🏠 กลับบ้านกันเถอะ', 2200); return; }
         this.set('charging'); this.charge = 0; break;
       case 'waiting': this.startRetrieve(); toast('เก็บสาย', 900); break;
       case 'bite': if (!this.fish.junk && this.fish.sp.stars >= 3) this.startStrike(); else this.startFight(); break;
@@ -649,7 +678,9 @@ const game = {
       this.from.copy(this.bob);
       this.set('caught');
       const r = record(dex, this.fish);
-      S.basket.push({ id: sp.id, kg: this.fish.kg, cm: this.fish.cm });
+      // ข้องเต็ม → ยังไม่ใส่ รอให้ผู้เล่นเลือกแลกหรือปล่อยในการ์ด
+      this.pending = S.basket.length >= story.capacity() ? { id: sp.id, kg: this.fish.kg, cm: this.fish.cm } : null;
+      if (!this.pending) S.basket.push({ id: sp.id, kg: this.fish.kg, cm: this.fish.cm });
       S.stats.caught++;
       story.save();
       const fish = this.fish;
@@ -675,7 +706,16 @@ const game = {
     b.classList.toggle('best', r.isBest);
     b.textContent = r.isNew ? 'ใหม่!' : 'ตัวใหญ่สุด!';
     if (r.isNew) $('dexNew').classList.remove('hidden');
-    $('catchOk').textContent = S.basket.length >= story.capacity() ? 'เก็บใส่ข้อง (ข้องเต็มแล้ว!)' : `เก็บใส่ข้องปลา (${S.basket.length}/${story.capacity()})`;
+    if (this.pending) {
+      const ci = cheapestIndex(), c = S.basket[ci];
+      const better = story.value(this.pending) > story.value(c);
+      $('catchOk').textContent = `🔁 เก็บตัวนี้ ปล่อย${byId[c.id].name}ตัวที่ถูกสุด (${story.baht(story.value(c))})`;
+      $('catchRelease').classList.remove('hidden');
+      $('catchDesc').textContent = (better ? '💡 ตัวนี้ราคาดีกว่าตัวที่ถูกสุดในข้อง ควรแลก! ' : '💡 ตัวนี้ราคาน้อยกว่าทุกตัวในข้อง ปล่อยคืนน้ำดีกว่า ') + sp.desc;
+    } else {
+      $('catchOk').textContent = `เก็บใส่ข้องปลา (${S.basket.length}/${story.capacity()})`;
+      $('catchRelease').classList.add('hidden');
+    }
     actionUp();
     $('catch').classList.remove('hidden');
   },
@@ -926,14 +966,14 @@ function updateHints() {
   const s = game.state;
   const press = touch ? 'กดค้างปุ่ม 🎣' : 'กดค้าง Space / คลิกค้าง';
   if (s === 'free') {
-    if (S.basket.length >= story.capacity()) hint('ข้องเต็มแล้ว! กด 🏠 กลับบ้านไปปิ้งปลา');
-    else hint(nearWater() ? `${press} เพื่อเล็ง · ปล่อยเพื่อเหวี่ยงเบ็ด` : 'หันหน้าไปทางน้ำ แล้วเหวี่ยงเบ็ด');
+    if (S.basket.length >= story.capacity()) hint(touch ? 'ข้องเต็ม · แตะ 🧺 ปล่อยปลา หรือ 🏠 กลับบ้าน' : 'ข้องเต็ม: ตกต่อได้ (ได้ตัวใหม่เลือกแลก/ปล่อย) · แตะ 🧺 ปล่อยปลา · 🏠 กลับบ้าน');
+    else hint(nearWater() ? (touch ? 'กดค้าง 🎣 เล็ง · ปล่อยเพื่อเหวี่ยง' : `${press} เพื่อเล็ง · ปล่อยเพื่อเหวี่ยงเบ็ด`) : 'หันหน้าไปทางน้ำ แล้วเหวี่ยงเบ็ด');
     actionLabel('🎣', 'เหวี่ยง');
-  } else if (s === 'charging') { hint('ปล่อยเพื่อเหวี่ยง · ค้างนาน = ไกล'); actionLabel('🎯', 'ปล่อย!'); }
+  } else if (s === 'charging') { hint(''); actionLabel('🎯', 'ปล่อย!'); }
   else if (s === 'waiting') { hint(S.dead ? 'น้ำเงียบผิดปกติ… (กดเพื่อเก็บสาย)' : 'รอให้ทุ่นจม… (กดเพื่อเก็บสาย)'); actionLabel('🪝', 'เก็บสาย'); }
   else if (s === 'bite') { hint('ทุ่นจม! กดเลย!'); actionLabel('❗', 'ดึง!', true); }
   else if (s === 'strike') { hint('กดตอนเข็มอยู่ในโซนทอง!'); actionLabel('⚡', 'ตีเบ็ด!', true); }
-  else if (s === 'fight') { hint('กดค้างเพื่อกรอสาย · ปล่อยเมื่อเข็มใกล้สีแดง'); actionLabel('🌀', 'กรอสาย'); }
+  else if (s === 'fight') { hint(touch ? 'กดค้างกรอสาย · ปล่อยเมื่อใกล้แดง' : 'กดค้างเพื่อกรอสาย · ปล่อยเมื่อเข็มใกล้สีแดง'); actionLabel('🌀', 'กรอสาย'); }
   else { hint(''); actionLabel('🎣', '…'); }
 }
 function updateAlert() {

@@ -11,29 +11,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=261021163020">
+  <link rel="stylesheet" href="css/game.css?v=261021165601">
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "./js/audio.js": "./js/audio.js?v=261021163020",
-      "./js/fish.js": "./js/fish.js?v=261021163020",
-      "./js/kit.js": "./js/kit.js?v=261021163020",
-      "./js/main.js": "./js/main.js?v=261021163020",
-      "./js/stages/beach.js": "./js/stages/beach.js?v=261021163020",
-      "./js/stages/falls.js": "./js/stages/falls.js?v=261021163020",
-      "./js/stages/forest.js": "./js/stages/forest.js?v=261021163020",
-      "./js/stages/home.js": "./js/stages/home.js?v=261021163020",
-      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021163020",
-      "./js/stages/sea.js": "./js/stages/sea.js?v=261021163020",
-      "./js/story.js": "./js/story.js?v=261021163020",
-      "./js/toon.js": "./js/toon.js?v=261021163020"
+      "./js/audio.js": "./js/audio.js?v=261021165601",
+      "./js/fish.js": "./js/fish.js?v=261021165601",
+      "./js/kit.js": "./js/kit.js?v=261021165601",
+      "./js/main.js": "./js/main.js?v=261021165601",
+      "./js/stages/beach.js": "./js/stages/beach.js?v=261021165601",
+      "./js/stages/falls.js": "./js/stages/falls.js?v=261021165601",
+      "./js/stages/forest.js": "./js/stages/forest.js?v=261021165601",
+      "./js/stages/home.js": "./js/stages/home.js?v=261021165601",
+      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021165601",
+      "./js/stages/sea.js": "./js/stages/sea.js?v=261021165601",
+      "./js/story.js": "./js/story.js?v=261021165601",
+      "./js/toon.js": "./js/toon.js?v=261021165601"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=261021163020"></script>
+  <script type="module" src="js/main.js?v=261021165601"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -55,7 +55,7 @@
   <div id="toast"></div>
   <div id="alert" class="hidden">!</div>
 
-  <div id="power" class="hidden"><div class="track"><div class="fill"></div></div><span>แรงเหวี่ยง</span></div>
+  <div id="power" class="hidden"><div class="track"><div class="fill"></div></div><span>ปล่อย = เหวี่ยง · ค้างนาน = ไกล</span></div>
 
   <div id="fight" class="hidden">
     <div class="row"><span>แรงตึงสาย</span><span id="fightName"></span></div>
@@ -81,6 +81,7 @@
       <div class="stats"><div><small>น้ำหนัก</small><b id="catchKg"></b></div><div><small>ราคาตลาด</small><b id="catchPrice"></b></div></div>
       <p id="catchDesc"></p>
       <button class="primary" id="catchOk">เก็บใส่ข้องปลา</button>
+      <button class="ghost hidden" id="catchRelease">🌊 ปล่อยตัวนี้คืนน้ำ</button>
     </div>
   </div>
 
@@ -134,6 +135,18 @@
       <h2>หกโมงเย็นแล้ว</h2>
       <p>ฟ้าเริ่มมืด ดาวเริ่มขึ้น… ปลาบางชนิดชอบออกหากินตอนกลางคืนนะ<br>จะกลับบ้านเลย หรือจุดตะเกียงตกต่อถึง 4 ทุ่ม?</p>
       <div class="nightBtns"><button class="ghost" id="nightNo">🏠 กลับบ้าน</button><button class="primary" id="nightYes">🏮 ตกต่อกลางคืน</button></div>
+    </div>
+  </div>
+  <div id="fullAsk" class="modal hidden">
+    <div class="card fullCard">
+      <div class="moon">🧺</div>
+      <h2>ข้องเต็มแล้ว!</h2>
+      <p id="fullText">ได้ปลาเต็มข้องแล้ว จะทำอะไรต่อดี?</p>
+      <div class="fullBtns">
+        <button class="primary" id="fullHome">🏠 กลับบ้านไปปิ้งปลา</button>
+        <button class="mini" id="fullBag">🧺 เปิดข้อง เลือกปล่อยบางตัว</button>
+        <button class="mini" id="fullGo">🎣 ตกต่อ (ได้ตัวใหม่ค่อยเลือกแลก)</button>
+      </div>
     </div>
   </div>
   <div id="dialog" class="hidden"><div class="who"></div><div class="say"></div><div class="tap">แตะเพื่อไปต่อ ▸</div></div>

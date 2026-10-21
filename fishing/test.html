@@ -260,6 +260,45 @@ try {
     await sleep(3400);
     check('สี่ทุ่มบังคับกลับบ้าน', F.world.id === 'home' && !D.getElementById('evening').classList.contains('hidden'));
   }
+  // ---------- ข้องเต็ม: ถามทางเลือก · แลก/ปล่อย · ปล่อยจากข้อง ----------
+  group('ข้องเต็มแล้วเล่นต่อได้');
+  {
+    for (let i = 0; i < 10 && !D.getElementById('dialog').classList.contains('hidden'); i++) D.getElementById('dialog').click();
+    D.getElementById('evening').classList.add('hidden');
+    F.goFishing('paddy');
+    await sleep(3300);
+    const cap = F.story.capacity();
+    F.S.basket.splice(0, 99);
+    for (let i = 0; i < cap - 1; i++) F.S.basket.push({ id: 'kradi', kg: 0.05, cm: 8 });
+    const byId2 = (await import('./js/fish.js' + V)).byId;
+    async function forceCatch(id, kg) {
+      g.fish = { sp: byId2[id], kg, cm: 30 };
+      g.set('fight'); g.prog = 1.5; g.tension = 0.5;
+      F.tick(1 / 30, false);
+      for (let i = 0; i < 70 && D.getElementById('catch').classList.contains('hidden'); i++) await sleep(30);
+    }
+    await forceCatch('mo', 0.3);
+    check('ได้ปลาตัวที่ทำให้ข้องเต็ม → การ์ดเก็บปกติ', g.state === 'caught' && D.getElementById('catchRelease').classList.contains('hidden'));
+    D.getElementById('catchOk').click();
+    check('ข้องเพิ่งเต็ม → ขึ้นหน้าต่างให้เลือก', !D.getElementById('fullAsk').classList.contains('hidden') && F.S.basket.length === cap);
+    D.getElementById('fullGo').click();
+    F.player.pos.set(-3.2, F.world.standY(-3.2, 2), 2);
+    F.actionDown(); F.tick(1 / 30, false);
+    check('เลือกตกต่อ → เหวี่ยงเบ็ดได้แม้ข้องเต็ม', g.state === 'charging');
+    F.actionUp(); g.reset();
+    await forceCatch('chado', 5);
+    check('ข้องเต็มแล้วได้ตัวใหม่ → มีปุ่มแลก/ปล่อย', !D.getElementById('catchRelease').classList.contains('hidden') && D.getElementById('catchOk').textContent.includes('ปล่อย'));
+    D.getElementById('catchOk').click();
+    check('แลก → ตัวใหม่เข้าข้อง ตัวที่ถูกสุดออก จำนวนเท่าเดิม', F.S.basket.length === cap && F.S.basket.some(f => f.id === 'chado') && D.getElementById('fullAsk').classList.contains('hidden'));
+    await forceCatch('kradi', 0.04);
+    D.getElementById('catchRelease').click();
+    check('ปล่อยตัวใหม่คืนน้ำ → ข้องไม่เปลี่ยน', F.S.basket.length === cap && F.S.basket.filter(f => f.id === 'kradi').length === cap - 2);
+    D.getElementById('basket').click();
+    D.querySelector('#bagSlots .slot[data-i="0"]').click();
+    D.querySelector('#bagInfo [data-rel]').click();
+    check('ปล่อยปลาจากหน้าข้อง → มีที่ว่าง 1 ช่อง', F.S.basket.length === cap - 1 && D.querySelectorAll('#bagSlots .slot.empty').length === 1);
+    D.getElementById('bagClose').click();
+  }
   check('ไม่มี error ระหว่างเล่น', errors.length === 0, errors.slice(0, 2).join(' | '));
 } catch (e) {
   check('ทดสอบทำงานจนจบโดยไม่ล่ม', false, e.message);

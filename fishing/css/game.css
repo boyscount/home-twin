@@ -47,6 +47,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 }
 @keyframes pop { 0% { transform: scale(.2); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
 
+#power span { display: inline-block; margin-top: 4px; background: rgba(255,248,234,.92); border-radius: 999px; padding: 2px 12px; font-size: 14px; white-space: nowrap; }
 #power { position: fixed; left: 50%; bottom: calc(88px + var(--safe-b)); transform: translateX(-50%); width: min(70vw, 320px); text-align: center; z-index: 4; font-weight: 700; text-shadow: 0 1px 0 #fff; }
 #power .track { height: 18px; border-radius: 9px; background: var(--paper); box-shadow: var(--shadow); overflow: hidden; padding: 3px; }
 #power .fill { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #9ed36a, #f2b632, #e0604a); }
@@ -77,7 +78,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 #action.pressed { transform: translateY(4px); box-shadow: 0 2px 0 #3f6e2b, 0 6px 14px rgba(0,0,0,.25); }
 #action.hot { background: radial-gradient(circle at 40% 35%, #ffd35c, #f29b20); box-shadow: 0 6px 0 #b8680f, 0 0 0 6px rgba(255,255,255,.6); animation: pop .3s; }
 body.touch #hint { bottom: calc(160px + var(--safe-b)); }
-body.touch #power { bottom: calc(190px + var(--safe-b)); }
+body.touch #power { bottom: calc(165px + var(--safe-b)); }
 
 /* ---------- หน้าต่าง ---------- */
 .modal { position: fixed; inset: 0; background: rgba(40, 60, 50, .35); display: grid; place-items: center; z-index: 10; padding: 16px; animation: fade .2s; }
@@ -274,3 +275,12 @@ button.pill { border: 0; cursor: pointer; }
 .dexItem img { border-radius: 12px; background: linear-gradient(180deg, #3b4170 0%, #555b8c 58%, var(--rc, #8a90a8) 100%); padding: 6px; box-sizing: border-box; }
 .dexItem.r1 { --rc: #a7adbd; } .dexItem.r2 { --rc: #4ea3e0; } .dexItem.r3 { --rc: #b06ee8; } .dexItem.r4 { --rc: #f0a63a; }
 .dexItem.locked img { filter: brightness(.35) saturate(0); }
+
+/* ---------- ข้องเต็ม / ปล่อยปลา ---------- */
+.fullCard { text-align: center; }
+.fullCard .moon { font-size: 50px; animation: bob 2.6s ease-in-out infinite; }
+.fullCard p { font-size: 17px; line-height: 1.5; }
+.fullBtns { display: flex; flex-direction: column; gap: 10px; align-items: stretch; margin-top: 6px; }
+.fullBtns .mini { font-size: 16px; padding: 10px 14px; }
+.catchCard .ghost { display: block; margin: 10px auto 0; }
+.bagInfo .relBtn { margin-top: 8px; background: #3f8fb0; color: #fff; border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 15px; box-shadow: 0 3px 0 #2c6a84; }
