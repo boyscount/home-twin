@@ -1,0 +1,91 @@
+// เสียงทั้งหมดสังเคราะห์ด้วย WebAudio (ไม่ต้องโหลดไฟล์)
+let ctx, master, fallGain, noiseBuf;
+let muted = false;
+try { muted = localStorage.getItem('cozyfish.mute') === '1'; } catch (e) { /* ไม่มี storage */ }
+
+export function initAudio() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  ctx = new AC();
+  master = ctx.createGain();
+  master.gain.value = muted ? 0 : 0.8;
+  master.connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; last = (last + 0.04 * w) / 1.04; d[i] = last * 3.2 * 0.5 + w * 0.5 * 0.25; }
+  // เสียงน้ำตกต่อเนื่อง
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf; src.loop = true;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100;
+  fallGain = ctx.createGain(); fallGain.gain.value = 0.0;
+  src.connect(lp).connect(fallGain).connect(master);
+  src.start();
+  setTimeout(bird, 3000);
+}
+
+export function isMuted() { return muted; }
+export function setMuted(m) {
+  muted = m;
+  try { localStorage.setItem('cozyfish.mute', m ? '1' : '0'); } catch (e) { /* ไม่มี storage */ }
+  if (master) master.gain.setTargetAtTime(m ? 0 : 0.8, ctx.currentTime, 0.05);
+}
+
+export function setFallDistance(d) {
+  if (fallGain) fallGain.gain.setTargetAtTime(Math.max(0.04, Math.min(0.32, 3.2 / (d + 2))), ctx.currentTime, 0.3);
+}
+
+function env(g, t, a, peak, rel) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + a + rel);
+}
+
+function tone(freq, freq2, dur, vol = 0.2, type = 'sine', delay = 0) {
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, t + dur);
+  env(g, t, 0.008, vol, dur);
+  o.connect(g).connect(master);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+function noise(dur, f0, f1, vol = 0.3, type = 'lowpass', delay = 0) {
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ctx.createGain(); env(g, t, 0.01, vol, dur);
+  s.connect(f).connect(g).connect(master);
+  s.start(t, Math.random()); s.stop(t + dur + 0.05);
+}
+
+export const sfx = {
+  whoosh: () => noise(0.35, 600, 2400, 0.12, 'bandpass'),
+  plop: () => { tone(520, 160, 0.16, 0.25); noise(0.25, 2500, 400, 0.15); },
+  nibble: () => tone(900, 520, 0.08, 0.12),
+  bite: () => { noise(0.4, 3000, 300, 0.35); tone(880, 0, 0.12, 0.18, 'triangle', 0.02); tone(1320, 0, 0.2, 0.18, 'triangle', 0.13); },
+  hook: () => tone(300, 900, 0.12, 0.15, 'square'),
+  reel: () => tone(2200 + Math.random() * 300, 0, 0.02, 0.05, 'square'),
+  splash: () => noise(0.3, 2000, 300, 0.2),
+  snap: () => { noise(0.15, 6000, 2000, 0.4, 'highpass'); tone(400, 90, 0.3, 0.15, 'sawtooth'); },
+  escape: () => { tone(500, 300, 0.2, 0.12, 'triangle'); tone(380, 220, 0.3, 0.12, 'triangle', 0.18); },
+  catch: (rare) => {
+    const notes = rare ? [523, 659, 784, 1047, 1319, 1568] : [523, 659, 784, 1047];
+    notes.forEach((f, i) => tone(f, 0, 0.3, 0.16, 'triangle', i * 0.09));
+  },
+  click: () => tone(1200, 0, 0.04, 0.08, 'triangle'),
+};
+
+function bird() {
+  if (!ctx) return;
+  if (!muted && document.visibilityState === 'visible') {
+    const base = 2200 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) tone(base, base * (0.75 + Math.random() * 0.6), 0.09, 0.05, 'sine', i * 0.13);
+  }
+  setTimeout(bird, 4000 + Math.random() * 8000);
+}
