@@ -299,6 +299,21 @@ try {
     check('ปล่อยปลาจากหน้าข้อง → มีที่ว่าง 1 ช่อง', F.S.basket.length === cap - 1 && D.querySelectorAll('#bagSlots .slot.empty').length === 1);
     D.getElementById('bagClose').click();
   }
+  // ---------- หลังคารั่ว / หลังคาใหม่ · โขดหินและเถียงนาที่น้ำตก ----------
+  group('ฉากบ้านและน้ำตก');
+  {
+    const count = (name) => { let n = 0; F.player.root.parent.traverse(o => { if (o.name && o.name.startsWith(name) && o.parent && o.parent.type === 'Scene') n++; }); return n; };
+    g.reset();
+    F.S.goal = 0; F.loadWorld('home');
+    check('ก่อนซ่อม: หลังคาบ้านรั่วเห็นชัด (รู ผ้าใบ น้ำหยด)', F.world.leakyRoof === true && !F.world.roofFixed);
+    F.S.goal = 1; F.loadWorld('home');
+    check('จ่ายค่าซ่อมแล้ว: หลังคาใหม่ ไม่มีรูรั่ว', F.world.roofFixed === true && !F.world.leakyRoof);
+    F.loadWorld('falls');
+    check('น้ำตกมีโขดหินใหญ่เป็นกลุ่ม', count('Boulder') >= 40, `${count('Boulder')} ก้อน`);
+    check('น้ำตกมีเถียงนาไว้นั่งพัก', count('Hut') === 1);
+    F.loadWorld('paddy');
+    check('บ่อปลาทุ่งนาใช้เถียงนาแทนบ้านหลังใหญ่', count('Hut') === 1 && count('House') === 0);
+  }
   // ---------- ตอนจบ: งานวัด ----------
   group('ตอนจบ: ครอบครัวเที่ยวงานวัด');
   {

@@ -41,7 +41,49 @@ export function build(scene, assets, opts) {
     scene.add(im);
   }
   const place = placer(scene, assets, groundH, world.colliders, r);
-  place('House', -1.5, -4.5, 1, 0, 0);
+  const house = place('House', -1.5, -4.5, 1, 0, 0);
+  // จุดบนหลังคาด้านหน้า: t = 0 (ชายคา) → 1 (สันหลังคา), x = ซ้าย-ขวา (พิกัดของบ้าน)
+  const HX = -1.5, HZ = -4.5;
+  const onRoof = (x, t, lift = 0.03) => new THREE.Vector3(HX + x, 3.7 + 2.3 * t + lift * 0.79, HZ + 3.0 - 3.0 * t + lift * 0.61);
+  const roofRot = new THREE.Euler(-0.916, 0, 0);
+  world.roofFixed = !!opts.roofFixed;
+  if (opts.roofFixed) {
+    // หลังคาใหม่: สีสดกว่าเดิม
+    const fresh = toon(0xd2603f);
+    house.traverse(o => { if (o.isMesh && o.material.name === 'Roof') o.material = fresh; });
+  } else {
+    // รูรั่ว (สีดำ) · ผ้าใบสีฟ้าปะไว้ · กระเบื้องหลุดเป็นแผ่น ๆ
+    const holeM = new THREE.MeshBasicMaterial({ color: 0x1a120c });
+    for (const [x, t, rr] of [[-1.6, 0.42, 0.38], [0.9, 0.6, 0.3], [1.9, 0.3, 0.22]]) {
+      const h = new THREE.Mesh(new THREE.CircleGeometry(rr, 7), holeM);
+      h.position.copy(onRoof(x, t)); h.rotation.copy(roofRot); h.scale.set(1.3, 0.8, 1);
+      scene.add(h);
+    }
+    const tarp = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), toon(0x3d7fd6, { side: THREE.DoubleSide }));
+    tarp.position.copy(onRoof(-0.3, 0.72, 0.05)); tarp.rotation.copy(roofRot); tarp.rotation.z = 0.12;
+    scene.add(tarp);
+    for (const [x, t] of [[-0.95, 0.72], [0.35, 0.72]]) { const brick = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.12), toon(0x9a4a3a)); brick.position.copy(onRoof(x, t, 0.1)); brick.rotation.copy(roofRot); scene.add(brick); }
+    const tileM = toon(0x7e3a2a);
+    for (const [x, t, ry] of [[1.4, 0.5, 0.4], [-2.3, 0.2, -0.3], [2.4, 0.62, 0.9]]) { const tl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.3), tileM); tl.position.copy(onRoof(x, t, 0.06)); tl.rotation.set(-0.916, ry, 0.2); scene.add(tl); }
+    // ถังรองน้ำบนชาน + แอ่งน้ำนอง + หยดน้ำตกจากชายคา
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.32, 12, 1, true), toon(0x4a90c8, { side: THREE.DoubleSide }));
+    bucket.position.set(HX - 1.6, 2.21, HZ + 2.75);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.2, 12).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9fd0e8 }));
+    water.position.set(HX - 1.6, 2.3, HZ + 2.75);
+    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.5, 14).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x6fa8c8, transparent: true, opacity: 0.55 }));
+    puddle.position.set(HX + 0.9, 2.08, HZ + 2.7); puddle.scale.set(1.4, 1, 0.8);
+    scene.add(bucket, water, puddle);
+    const dropG = new THREE.SphereGeometry(0.045, 6, 4).scale(0.8, 1.4, 0.8);
+    const dropM = new THREE.MeshBasicMaterial({ color: 0xbfe6ff });
+    const drops = [[HX - 1.6, HZ + 2.75, 0], [HX - 1.6, HZ + 2.75, 0.5], [HX + 0.9, HZ + 2.7, 0.25], [HX + 0.9, HZ + 2.7, 0.75]].map(([x, z, ph]) => { const d = new THREE.Mesh(dropG, dropM); scene.add(d); return { d, x, z, ph }; });
+    world.update.push(() => {
+      const t = T.value;
+      for (const k of drops) { const f = (t * 1.1 + k.ph) % 1; k.d.position.set(k.x, 3.62 - f * 1.4, k.z); k.d.visible = f < 0.95; }
+      water.scale.setScalar(1 + Math.sin(t * 6.9) * 0.06);
+      puddle.material.opacity = 0.45 + Math.sin(t * 6.9) * 0.08;
+    });
+    world.leakyRoof = true;
+  }
   for (const [n, x, z, s] of [['Tree1', -8, -3, 1.2], ['Tree2', 6.5, -5, 1.1], ['Tree1', 9, 2, 1.0], ['Pine1', -10, 4, 1.0], ['Tree2', -7, 7, 0.9], ['Palm', 5, -7.5, 1.0]]) place(n, x, z, s);
   for (const [x, z] of [[-4.6, -1.2], [2.2, -2.2], [6, 4], [-6, 2.5]]) place('Bush', x, z, 0.8);
 

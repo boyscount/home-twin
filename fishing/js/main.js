@@ -62,6 +62,7 @@ const MAT = {
   BoatPaint: () => toon(0x2f8fa8), BoatRed: () => toon(0xc0453a), Ribbon: () => toon(0xff8fc0), Ribbon2: () => toon(0xffd84a),
   Metal: () => toon(0x55585e), Roof: () => toon(0xa5543c), Window: () => new THREE.MeshBasicMaterial({ color: 0x3a2a1c }),
   Palm: () => swaying(0x5aa840, 0.05), PalmTrunk: () => toon(0x9a7a56), Karst: () => mossy(0xc9c2b2, 0.9),
+  Thatch: () => toon(0xc9a45e), Clay: () => toon(0xa0583a), Stone: () => mossy(0x9a958c, 0.28),
 };
 const matCache = {};
 const keepGeo = new Set(), keepMat = new Set();
@@ -252,7 +253,7 @@ function loadWorld(id) {
   const old = scene;
   for (const o of [player.root, bobber, line, aimRing]) old.remove(o);
   scene = new THREE.Scene();
-  world = BUILDERS[id].build(scene, assets, { mobile, pixelRatio });
+  world = BUILDERS[id].build(scene, assets, { mobile, pixelRatio, roofFixed: S.goal >= 1 });
   scene.add(player.root, bobber, line, aimRing);
   disposeScene(old);
   camp = id === 'home' || id === 'fair' ? null : buildCamp();

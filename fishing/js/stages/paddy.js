@@ -153,7 +153,7 @@ export function build(scene, assets, opts) {
 
   const place = placer(scene, assets, groundH, colliders, r);
   // ห้างนา (กระท่อมเล็กใต้ถุนสูง) + ต้นไม้ใหญ่ให้ร่มเงา
-  place('House', -10.5, 7.5, 0.55, 0.5, groundH(-10.5, 7.5), 1.8);
+  place('Hut', -10.5, 7.5, 1.15, 0.5, groundH(-10.5, 7.5) - 0.05, 1.6);
   for (const [n, x, z, s] of [['Tree1', -7.5, 9.5, 1.3], ['Tree2', 11, 6.5, 1.2], ['Tree1', 14.5, -6, 1.1], ['Tree2', -15, -4, 1.2], ['Palm', 8.5, 9.5, 1.0], ['Palm', -13.5, 10.5, 0.9], ['Palm', 16, 3, 1.05]]) {
     place(n, x, z, s, undefined, null, 0.5);
   }

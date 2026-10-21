@@ -22,6 +22,7 @@ COLORS = {
     'BoatPaint': (0.15, 0.45, 0.55), 'BoatRed': (0.70, 0.20, 0.15), 'Ribbon': (0.95, 0.45, 0.65), 'Ribbon2': (0.98, 0.82, 0.25),
     'Metal': (0.30, 0.30, 0.32), 'Roof': (0.55, 0.28, 0.20), 'Window': (0.12, 0.10, 0.09),
     'Palm': (0.35, 0.60, 0.25), 'PalmTrunk': (0.55, 0.42, 0.30), 'Karst': (0.75, 0.72, 0.66),
+    'Thatch': (0.72, 0.58, 0.34), 'Clay': (0.62, 0.36, 0.22), 'Stone': (0.55, 0.53, 0.50),
 }
 
 
@@ -445,6 +446,61 @@ def build_karst():
     make_obj('Karst', bm, ['Karst', 'Leaf'])
 
 
+
+# ---------------- โขดหินแบบละเอียด (หลายชั้น มีรอยแตก มุมเหลี่ยม) ----------------
+def build_boulders():
+    shapes = [(1.4, 1.0, 0.9, 3), (1.8, 1.2, 0.7, 11), (1.0, 0.9, 1.3, 23), (2.2, 1.5, 1.0, 31), (1.2, 0.8, 0.5, 47)]
+    for k, (sx, sy, sz, seed) in enumerate(shapes):
+        bm = bmesh.new()
+        res = bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.0)
+        off = Vector((seed * 1.7, seed * 0.9, seed * 2.3))
+        for v in res['verts']:
+            p = v.co.copy()
+            d = 1.0 + noise.noise(p * 1.1 + off) * 0.32 + noise.noise(p * 2.6 + off) * 0.14 + noise.noise(p * 6.0 + off) * 0.05
+            # ชั้นหินเป็นขั้น ๆ (ตัดระนาบ) ให้ดูเหมือนหินแตกตามธรรมชาติ
+            q = p * d
+            for (nx, ny, nz, c) in ((0.6, 0.2, 0.75, 0.62), (-0.7, 0.3, 0.55, 0.7), (0.1, -0.8, 0.5, 0.66)):
+                n = Vector((nx, ny, nz)).normalized()
+                s = q.dot(n)
+                if s > c:
+                    q -= n * (s - c) * 0.85
+            v.co = Vector((q.x * sx, q.y * sy, q.z * sz))
+        for v in bm.verts:
+            if v.co.z < 0:
+                v.co.z *= 0.35
+        bmesh.ops.translate(bm, verts=bm.verts, vec=(0, 0, sz * 0.3))
+        make_obj(f'Boulder{k + 1}', bm, ['Stone'])
+
+
+# ---------------- เถียงนา: กระท่อมไม้ไผ่ใต้ถุนเตี้ย หลังคามุงจาก ไว้นั่งพัก ----------------
+def build_hut():
+    bm = bmesh.new()
+    W, D, F = 2.4, 2.0, 0.85
+    for x in (-W / 2, W / 2):
+        for y in (-D / 2, D / 2):
+            add_cone(bm, 0.07, 0.065, 2.6, loc=(x, y, 0), seg=6, mi=1)
+    for i in range(9):                                  # พื้นฟากไม้ไผ่
+        y = -D / 2 + 0.1 + i * (D - 0.2) / 8
+        add_cone(bm, 0.05, 0.05, W + 0.2, loc=(-W / 2 - 0.1, y, F), seg=6, mi=1, rot=Matrix.Rotation(math.radians(90), 3, 'Y'))
+    add_box(bm, (W + 0.2, 0.08, 0.08), loc=(0, -D / 2, F - 0.06), mi=0)
+    add_box(bm, (W + 0.2, 0.08, 0.08), loc=(0, D / 2, F - 0.06), mi=0)
+    add_box(bm, (W, 0.05, 0.05), loc=(0, D / 2, F + 0.55), mi=1)    # ราวพนักด้านหลัง
+    # หลังคาจั่วมุงจาก ชายคายื่น
+    ridge, eave, X = 2.75, 1.85, W / 2 + 0.45
+    slab(bm, [(-X, -D / 2 - 0.55, eave), (X, -D / 2 - 0.55, eave), (X, 0, ridge), (-X, 0, ridge)], 0.16, 2)
+    slab(bm, [(X, D / 2 + 0.55, eave), (-X, D / 2 + 0.55, eave), (-X, 0, ridge), (X, 0, ridge)], 0.16, 2)
+    add_cone(bm, 0.05, 0.05, 2 * X, loc=(-X, 0, ridge + 0.02), seg=6, mi=0, rot=Matrix.Rotation(math.radians(90), 3, 'Y'))
+    # บันไดพาดหน้า
+    for k in range(3):
+        add_box(bm, (0.5, 0.08, 0.05), loc=(0.6, -D / 2 - 0.35 + k * 0.0, 0.2 + k * 0.25), mi=1)
+    add_box(bm, (0.04, 0.04, 0.95), loc=(0.37, -D / 2 - 0.35, 0.45), mi=0)
+    add_box(bm, (0.04, 0.04, 0.95), loc=(0.83, -D / 2 - 0.35, 0.45), mi=0)
+    # หม้อดินกับกระบอกน้ำบนพื้น
+    add_ico(bm, 0.16, 1, loc=(-0.7, 0.4, F + 0.15), scale=(1, 1, 0.85), mi=3)
+    add_cone(bm, 0.06, 0.06, 0.4, loc=(-0.35, 0.55, F + 0.02), seg=6, mi=1)
+    make_obj('Hut', bm, ['WoodDark', 'Rod', 'Thatch', 'Clay'])
+
+
 build_cliff()
 build_rocks()
 build_pine('Pine1', 4, 6.5)
@@ -459,6 +515,8 @@ build_boat()
 build_house()
 build_palm()
 build_karst()
+build_boulders()
+build_hut()
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=str(OUT), export_format='GLB', export_apply=True, export_yup=True,
