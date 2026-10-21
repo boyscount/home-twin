@@ -284,3 +284,16 @@ button.pill { border: 0; cursor: pointer; }
 .fullBtns .mini { font-size: 16px; padding: 10px 14px; }
 .catchCard .ghost { display: block; margin: 10px auto 0; }
 .bagInfo .relBtn { margin-top: 8px; background: #3f8fb0; color: #fff; border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 15px; box-shadow: 0 3px 0 #2c6a84; }
+
+/* ---------- ตอนจบ ---------- */
+.glock { margin-top: 6px; font-size: 14px; color: #8a4a1a; }
+.creditCard { text-align: center; width: min(94vw, 480px); background: rgba(250, 248, 255, .93); }
+.creditCard .fw { font-size: 56px; animation: bob 2s ease-in-out infinite; }
+.creditCard h2 { font-size: 34px; color: #6a3aa8; }
+.credSub { font-size: 16px; line-height: 1.6; }
+.credStats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0 16px; }
+.credStats div { background: rgba(60, 64, 110, .1); border-radius: 14px; padding: 8px; }
+.credStats small { display: block; font-size: 13px; opacity: .7; }
+.credStats b { font-size: 20px; }
+.credBtns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+#credits { background: rgba(20, 16, 50, .35); }

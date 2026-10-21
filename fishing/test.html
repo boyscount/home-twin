@@ -299,6 +299,37 @@ try {
     check('ปล่อยปลาจากหน้าข้อง → มีที่ว่าง 1 ช่อง', F.S.basket.length === cap - 1 && D.querySelectorAll('#bagSlots .slot.empty').length === 1);
     D.getElementById('bagClose').click();
   }
+  // ---------- ตอนจบ: งานวัด ----------
+  group('ตอนจบ: ครอบครัวเที่ยวงานวัด');
+  {
+    F.S.goal = F.story.GOALS.length - 1;
+    F.S.money = 99999;
+    for (const st of F.story.STAGES) F.S.unlocked[st.id] = st.id === 'paddy' || st.id === 'falls';
+    g.reset();
+    F.story.showMap({ dexCount: () => [0, 6], sfx: { click() {}, catch() {}, escape() {} }, onGo() {}, onEnding: F.playEnding });
+    check('เป้าหมายงานวัดจ่ายไม่ได้ถ้ายังปลดล็อกไม่ครบทุกด่าน', D.getElementById('payGoal').disabled && D.querySelector('.glock'));
+    for (const st of F.story.STAGES) F.S.unlocked[st.id] = true;
+    F.story.showMap({ dexCount: () => [0, 6], sfx: { click() {}, catch() {}, escape() {} }, onGo() {}, onEnding: F.playEnding });
+    check('ปลดล็อกครบแล้วจ่ายได้', !D.getElementById('payGoal').disabled);
+    D.getElementById('payGoal').click();
+    await sleep(3400);
+    check('จ่ายแล้วเข้าฉากงานวัด', F.world.id === 'fair' && F.mode === 'ending');
+    check('มีชิงช้าสวรรค์ บ้านผีสิง ซุ้มขายของ', !!F.world.wheel && !!F.world.ghost && F.world.stalls.length === 4);
+    const seen = new Set();
+    const t0 = performance.now();
+    while (performance.now() - t0 < 90000 && D.getElementById('credits').classList.contains('hidden')) {
+      for (let i = 0; i < 20; i++) F.tick(1 / 30, false);
+      if (!D.getElementById('dialog').classList.contains('hidden')) { seen.add(D.querySelector('#dialog .say').textContent); D.getElementById('dialog').click(); }
+      await sleep(40);
+    }
+    const all = [...seen].join(' ');
+    check('ได้กินสายไหม · ขึ้นชิงช้าสวรรค์ · เจอผี · ดูดอกไม้ไฟ', all.includes('สายไหม') && all.includes('มองเห็นไฟทั้งงาน') && all.includes('กรี๊ด') && all.includes('ความสุขของบ้านเรา'), `${seen.size} บทพูด`);
+    check('จบด้วยหน้าเครดิตพร้อมสถิติ', !D.getElementById('credits').classList.contains('hidden') && D.getElementById('credStats').textContent.includes('วัน'));
+    check('บันทึกว่าดูตอนจบแล้ว (มีปุ่มดูซ้ำที่หน้าแรก)', F.S.endingSeen === true);
+    D.getElementById('credGo').click();
+    await sleep(3400);
+    check('กดเล่นต่อ → กลับหน้าแผนที่วันใหม่', F.mode === 'map' && !D.getElementById('map').classList.contains('hidden'));
+  }
   check('ไม่มี error ระหว่างเล่น', errors.length === 0, errors.slice(0, 2).join(' | '));
 } catch (e) {
   check('ทดสอบทำงานจนจบโดยไม่ล่ม', false, e.message);

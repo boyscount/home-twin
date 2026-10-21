@@ -11,29 +11,30 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=261021165601">
+  <link rel="stylesheet" href="css/game.css?v=261021171426">
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" crossorigin="anonymous"></script>
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "./js/audio.js": "./js/audio.js?v=261021165601",
-      "./js/fish.js": "./js/fish.js?v=261021165601",
-      "./js/kit.js": "./js/kit.js?v=261021165601",
-      "./js/main.js": "./js/main.js?v=261021165601",
-      "./js/stages/beach.js": "./js/stages/beach.js?v=261021165601",
-      "./js/stages/falls.js": "./js/stages/falls.js?v=261021165601",
-      "./js/stages/forest.js": "./js/stages/forest.js?v=261021165601",
-      "./js/stages/home.js": "./js/stages/home.js?v=261021165601",
-      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021165601",
-      "./js/stages/sea.js": "./js/stages/sea.js?v=261021165601",
-      "./js/story.js": "./js/story.js?v=261021165601",
-      "./js/toon.js": "./js/toon.js?v=261021165601"
+      "./js/audio.js": "./js/audio.js?v=261021171426",
+      "./js/fish.js": "./js/fish.js?v=261021171426",
+      "./js/kit.js": "./js/kit.js?v=261021171426",
+      "./js/main.js": "./js/main.js?v=261021171426",
+      "./js/stages/beach.js": "./js/stages/beach.js?v=261021171426",
+      "./js/stages/fair.js": "./js/stages/fair.js?v=261021171426",
+      "./js/stages/falls.js": "./js/stages/falls.js?v=261021171426",
+      "./js/stages/forest.js": "./js/stages/forest.js?v=261021171426",
+      "./js/stages/home.js": "./js/stages/home.js?v=261021171426",
+      "./js/stages/paddy.js": "./js/stages/paddy.js?v=261021171426",
+      "./js/stages/sea.js": "./js/stages/sea.js?v=261021171426",
+      "./js/story.js": "./js/story.js?v=261021171426",
+      "./js/toon.js": "./js/toon.js?v=261021171426"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=261021165601"></script>
+  <script type="module" src="js/main.js?v=261021171426"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -149,6 +150,15 @@
       </div>
     </div>
   </div>
+  <div id="credits" class="modal hidden">
+    <div class="card glass creditCard">
+      <div class="fw">🎆</div>
+      <h2>จบบริบูรณ์</h2>
+      <p class="credSub">หลังคาบ้านใหม่ ลูกมีจักรยาน และคืนนี้ทั้งบ้านได้เที่ยวงานวัดด้วยกัน<br>ขอบคุณที่ช่วยพ่อหาปลาเลี้ยงครอบครัวนะ ❤️</p>
+      <div class="credStats" id="credStats"></div>
+      <div class="credBtns"><button class="primary" id="credGo">🎣 เล่นต่อ ตกปลาสบาย ๆ</button><button class="mini" id="credAgain">🔁 ดูตอนจบอีกครั้ง</button></div>
+    </div>
+  </div>
   <div id="dialog" class="hidden"><div class="who"></div><div class="say"></div><div class="tap">แตะเพื่อไปต่อ ▸</div></div>
   <div id="fade" class="hidden"><div class="ftext"></div></div>
   <button id="sleepBtn" class="primary hidden">🌙 เข้านอน</button>
@@ -161,6 +171,7 @@
       <div id="loadBar"><div></div></div>
       <div class="titleBtns hidden" id="titleBtns">
         <button class="primary" id="startBtn">เริ่มเล่น</button>
+        <button class="ghost hidden" id="endBtn">🎡 ดูตอนจบงานวัด</button>
         <button class="ghost hidden" id="newBtn">เริ่มเรื่องใหม่</button>
       </div>
       <div class="howto">

@@ -99,6 +99,9 @@ export const sfx = {
     notes.forEach((f, i) => tone(f, 0, 0.3, 0.16, 'triangle', i * 0.09));
   },
   click: () => tone(1200, 0, 0.04, 0.08, 'triangle'),
+  ghost: () => { tone(880, 220, 0.7, 0.2, 'sawtooth'); noise(0.6, 3000, 600, 0.25, 'bandpass'); },
+  boom: () => { noise(0.5, 300, 60, 0.35); noise(0.9, 5000, 2000, 0.06, 'highpass', 0.15); },
+  cheer: () => { for (let i = 0; i < 5; i++) tone(700 + Math.random() * 500, 0, 0.12, 0.05, 'triangle', i * 0.08); },
   softSplash: () => { noise(0.22, 1800, 400, 0.07); tone(700, 250, 0.1, 0.05); },
   coin: () => { tone(1568, 0, 0.08, 0.12, 'square'); tone(2093, 0, 0.18, 0.12, 'square', 0.07); },
   junk: () => { tone(300, 200, 0.15, 0.12, 'triangle'); tone(220, 150, 0.2, 0.1, 'triangle', 0.12); },
@@ -115,3 +118,21 @@ function bird() {
   }
   setTimeout(bird, 4000 + Math.random() * 8000);
 }
+
+// ---------- เพลงงานวัด (บันไดเสียงห้าเสียงแบบไทย + กลองตะโพน) ----------
+let festTimer = null;
+export function startFestival() {
+  if (!ctx || festTimer) return;
+  const scale = [392, 440, 523, 587, 659, 784, 880];
+  const tune = [0, 2, 3, 4, 3, 2, 4, 5, 4, 3, 2, 0, 1, 2, 3, 2];
+  let step = 0;
+  festTimer = setInterval(() => {
+    if (muted || document.visibilityState !== 'visible') { step++; return; }
+    const n = tune[step % tune.length];
+    tone(scale[n], 0, 0.22, 0.07, 'triangle');                  // ระนาด
+    if (step % 4 === 0) noise(0.12, 400, 90, 0.18);             // กลอง
+    if (step % 4 === 2) noise(0.06, 3000, 1500, 0.05, 'highpass'); // ฉิ่ง
+    step++;
+  }, 260);
+}
+export function stopFestival() { clearInterval(festTimer); festTimer = null; }

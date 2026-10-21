@@ -39,7 +39,7 @@ export const DAY_START = 6, DAY_END = 18, NIGHT_END = 22, HOURS_PER_SEC = 12 / 4
 export const NEED_KG = 1.2;                                              // ครอบครัวต้องการปลาเท่านี้ถึงจะอิ่ม
 
 const KEY = 'cozyfish.story.v1';
-const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { paddy: true, falls: true }, up: {}, goal: 0, market: {}, hot: null, dexReward: {}, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0 } });
+const fresh = () => ({ v: 1, day: 1, money: 0, happy: 70, unlocked: { paddy: true, falls: true }, up: {}, goal: 0, market: {}, hot: null, dexReward: {}, basket: [], luck: 'normal', time: DAY_START, phase: 'new', stage: null, stats: { caught: 0, junk: 0, sold: 0, grilled: 0, empty: 0, earned: 0 }, endingSeen: false });
 export let S = load();
 function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.v === 1) return Object.assign(fresh(), d); } catch (e) { /* ไม่มีหรือเสีย */ }
@@ -104,6 +104,7 @@ export function settleEvening(choices) {
   else { dh = -5; mood = 'sold'; }
   S.happy = Math.max(0, Math.min(100, S.happy + dh));
   S.money += earned;
+  S.stats.earned = (S.stats.earned || 0) + earned;
   S.stats.sold += nSell; S.stats.grilled += nGrill;
   const grilled = S.basket.filter((_, i) => choices[i] === 'grill');
   S.basket = [];
@@ -169,7 +170,8 @@ export function fade(text, during) {
 }
 
 // ---------- แผนที่ (เลือกที่ตกปลา + ร้านค้า + เป้าหมาย) ----------
-export function showMap({ onGo, dexCount, sfx, dexKnown = () => true }) {
+export const allUnlocked = () => STAGES.every(s => S.unlocked[s.id]);
+export function showMap({ onGo, dexCount, sfx, dexKnown = () => true, onEnding = null }) {
   const m = $('map');
   const render = () => {
     const L = luck();
@@ -180,7 +182,8 @@ export function showMap({ onGo, dexCount, sfx, dexKnown = () => true }) {
     $('mapHappy').innerHTML = `${S.happy >= 75 ? '😊' : S.happy >= 40 ? '🙂' : '😟'} ครอบครัว <b>${S.happy}%</b>`;
     $('mapGoal').innerHTML = g
       ? `<div class="gtxt">${g.icon} เป้าหมาย: <b>${g.text}</b></div><div class="gbar"><i style="width:${Math.min(100, S.money / g.cost * 100)}%"></i></div>
-         <div class="grow"><span>${baht(S.money)} / ${baht(g.cost)}</span><button class="mini" id="payGoal" ${S.money >= g.cost ? '' : 'disabled'}>จ่ายเลย</button></div>`
+         <div class="grow"><span>${baht(S.money)} / ${baht(g.cost)}</span><button class="mini" id="payGoal" ${S.money >= g.cost && (S.goal < GOALS.length - 1 || allUnlocked()) ? '' : 'disabled'}>จ่ายเลย</button></div>
+         ${S.goal === GOALS.length - 1 && !allUnlocked() ? '<div class="glock">🔒 ต้องปลดล็อกที่ตกปลาครบทุกด่านก่อน ถึงจะพาครอบครัวไปงานวัดได้</div>' : ''}`
       : '<div class="gtxt">🌟 ทำครบทุกเป้าหมายแล้ว! ตกปลาสบาย ๆ ได้ตลอดไป</div>';
     const hot = S.hot && byId[S.hot];
     const seen = SPECIES.filter(sp => S.unlocked[sp.stage]);
@@ -202,8 +205,10 @@ export function showMap({ onGo, dexCount, sfx, dexKnown = () => true }) {
     const pay = $('payGoal');
     if (pay) pay.onclick = async () => {
       if (S.money < g.cost) return;
+      if (S.goal === GOALS.length - 1 && !allUnlocked()) return;
       S.money -= g.cost; S.goal++; save(); sfx.catch(true);
       m.classList.add('hidden');
+      if (S.goal >= GOALS.length && onEnding) { onEnding(); return; }
       await dialog([['แม่', g.done], ['ลูก', 'เย้! ขอบคุณนะพ่อ ❤️']]);
       m.classList.remove('hidden');
       render();

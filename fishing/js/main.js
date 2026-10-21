@@ -7,7 +7,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { toon, mossy, swaying, shared } from './toon.js';
 import { makeRain, makeLiveFish, makeMotes, rng, sstep } from './kit.js';
 import { SPECIES, byId, rollFish, loadDex, record, makeFish, RARITY, TIME_TEXT } from './fish.js';
-import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick, setNight } from './audio.js';
+import { initAudio, sfx, setMuted, isMuted, setAmbience, ambienceTick, setNight, startFestival, stopFestival } from './audio.js';
 import * as story from './story.js';
 import { S, STAGES, stageById } from './story.js';
 import * as paddy from './stages/paddy.js';
@@ -16,8 +16,9 @@ import * as forest from './stages/forest.js';
 import * as beach from './stages/beach.js';
 import * as sea from './stages/sea.js';
 import * as home from './stages/home.js';
+import * as fair from './stages/fair.js';
 
-const BUILDERS = { paddy, falls, forest, beach, sea, home };
+const BUILDERS = { paddy, falls, forest, beach, sea, home, fair };
 const VER = new URL(import.meta.url).search;          // ?v=… ของไฟล์นี้ ใช้ต่อท้ายไฟล์โมเดลด้วย
 const $ = id => document.getElementById(id);
 let touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -254,9 +255,9 @@ function loadWorld(id) {
   world = BUILDERS[id].build(scene, assets, { mobile, pixelRatio });
   scene.add(player.root, bobber, line, aimRing);
   disposeScene(old);
-  camp = id === 'home' ? null : buildCamp();
+  camp = id === 'home' || id === 'fair' ? null : buildCamp();
   refreshCamp();
-  if (id !== 'home' && story.luck().rain) makeRain(scene, world, {});
+  if (id !== 'home' && id !== 'fair' && story.luck().rain) makeRain(scene, world, {});
   if (world.liveFish) makeLiveFish(scene, world, { makeFish: sp => makeFish(assets, sp, { under: true }), species: SPECIES.filter(s => s.stage === id && !s.rare), r: rng(31), ...world.liveFish });
   if (id !== 'home' && id !== 'sea') { const [fx, fz] = world.camFocus(world.spawn.x, world.spawn.z); world.fireflies = makeMotes(scene, world, { count: mobile ? 50 : 100, area: [fx - 14, fx + 14, fz - 12, fz + 10], r: rng(77), color: 0xd9ff8a, size: 0.13, glow: true, y: [0.3, 2.5] }); world.fireflies.visible = false; }
   world.onSplash = (x, z) => { if (mode === 'fishing' && Math.hypot(x - player.pos.x, z - player.pos.z) < 16) sfx.softSplash(); };
@@ -265,13 +266,13 @@ function loadWorld(id) {
   player.pos.y = world.standY(sp.x, sp.z);
   player.yaw = sp.yaw;
   player.vel = 0;
-  player.rod.visible = id !== 'home';
+  player.rod.visible = id !== 'home' && id !== 'fair';
   game.reset();
   game.fullAsked = false; game.pending = null;
   const a = world.ambience || {};
   setAmbience(a.falls ? 'falls' : a.stream ? 'stream' : a.surf ? 'surf' : a.sea ? 'sea' : 'night');
   world.camTarget = camTarget;
-  if (id !== 'home') applyTime(S.time);
+  if (id !== 'home' && id !== 'fair') applyTime(S.time);
   camOrbit = 0;
   updatePlayer(0);
   updateCamera(0, true);
@@ -328,7 +329,7 @@ function applyTime(h) {
 const keys = {};
 const joy = { x: 0, y: 0, id: null };
 let actionHeld = false;
-const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog', 'nightAsk', 'bag', 'fullAsk'].some(id => !$(id).classList.contains('hidden'));
+const modalOpen = () => ['catch', 'dex', 'map', 'evening', 'dialog', 'nightAsk', 'bag', 'fullAsk', 'credits'].some(id => !$(id).classList.contains('hidden'));
 
 function actionDown() {
   if (modalOpen() || mode !== 'fishing') return;
@@ -822,7 +823,7 @@ const game = {
       this.bob.copy(this.caughtMesh ? this.caughtMesh.position : top);
     }
 
-    const hideLine = (s === 'snapped' && this.t < 1) || mode === 'home' || world.id === 'home';
+    const hideLine = (s === 'snapped' && this.t < 1) || mode === 'home' || world.id === 'home' || world.id === 'fair';
     const aura = bobber.getObjectByName('aura');
     const legend = (s === 'waiting' || s === 'bite' || s === 'strike') && this.fish && !this.fish.junk && this.fish.sp.stars >= 4 && (s !== 'waiting' || this.t > this.biteAt - 4);
     aura.material.opacity = legend ? 0.55 + 0.35 * Math.sin(time * 6) : 0;
@@ -889,6 +890,7 @@ const game = {
 const camTarget = new THREE.Vector3(), camPos = new THREE.Vector3(), tmpV = new THREE.Vector3();
 let camOrbit = 0;
 function updatePlayer(dt) {
+  if (world.id === 'fair') return;            // ตอนจบ: ผู้กำกับฉากคุมตัวละครเอง
   const s = game.state;
   const mv = mode === 'fishing' && !modalOpen() ? moveInput() : { x: 0, z: 0, l: 0 };
   const canWalk = s === 'free';
@@ -937,6 +939,14 @@ function updatePlayer(dt) {
 let zoom = 1;
 addEventListener('wheel', e => { if (!modalOpen()) zoom = Math.max(0.65, Math.min(1.6, zoom * (e.deltaY > 0 ? 1.08 : 0.93))); }, { passive: true });
 function updateCamera(dt, snap = false) {
+  if (world.id === 'fair') {
+    const c = world.cam, k = snap ? 1 : Math.min(1, dt * (c.speed || 1.6));
+    camera.position.lerp(c.pos, k);
+    if (!c.lookNow) c.lookNow = c.look.clone();
+    c.lookNow.lerp(c.look, k);
+    camera.lookAt(c.lookNow);
+    return;
+  }
   if (world.id === 'home') {
     camOrbit += dt * 0.05;
     const r = camera.aspect < 0.9 ? 15 : 11.5;
@@ -991,7 +1001,7 @@ function openMap() {
   if (world.setMorning) world.setMorning(true);
   S.phase = 'map'; story.save();
   showFishingUi(false);
-  story.showMap({ dexCount, sfx, onGo: goFishing, dexKnown: id => !!dex.dex[id] });
+  story.showMap({ dexCount, sfx, onGo: goFishing, dexKnown: id => !!dex.dex[id], onEnding: playEnding });
 }
 function goFishing(id) {
   S.stage = id; S.phase = 'fishing'; S.time = story.DAY_START;
@@ -1106,6 +1116,7 @@ function init() {
   const cont = S.phase !== 'new';
   $('startBtn').textContent = cont ? `เล่นต่อ (วันที่ ${S.day})` : 'เริ่มเล่น';
   $('newBtn').classList.toggle('hidden', !cont);
+  $('endBtn').classList.toggle('hidden', !S.endingSeen);
   setTimeout(() => { $('loadBar').classList.add('hidden'); $('titleBtns').classList.remove('hidden'); }, 150);
 }
 async function start() {
@@ -1125,6 +1136,148 @@ async function start() {
   openMap();
 }
 $('startBtn').addEventListener('click', start);
+$('endBtn').addEventListener('click', () => { initAudio(); $('title').classList.add('hidden'); playEnding(); });
+
+// ---------- ตอนจบ: ครอบครัวเที่ยวงานวัด ----------
+let director = null;
+const waiters = [];
+const waitT = sec => new Promise(res => waiters.push({ t: shared.uTime.value + sec, res }));
+function familyList() { const f = world.family; return [{ g: player.root, legL: player.legL, legR: player.legR, ph: 0, off: [0, 0] }, { ...f.mom, off: [0.9, 0.25] }, { ...f.kid, off: [-0.7, 0.45] }, { ...f.kid2, off: [-1.35, 0.1] }]; }
+function placeFamily(x, z, yaw) {
+  for (const m of familyList()) {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    m.g.position.set(x + m.off[0] * c + m.off[1] * s, 0, z - m.off[0] * s + m.off[1] * c);
+    m.g.rotation.set(0, yaw, 0);
+  }
+}
+function walkFamily(from, to, dur) {
+  return new Promise(res => {
+    let t = 0;
+    const yaw = Math.atan2(to[0] - from[0], to[1] - from[1]);
+    director = dt => {
+      t += dt;
+      const k = Math.min(1, t / dur);
+      placeFamily(from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k, yaw);
+      for (const m of familyList()) world.walkAnim(m, k < 1, shared.uTime.value);
+      if (k >= 1) { director = null; res(); }
+    };
+  });
+}
+function setCam(px, py, pz, lx, ly, lz, speed = 1.6, fit = true) {
+  world.cam.look.set(lx, ly, lz);
+  world.cam.pos.set(px, py, pz);
+  if (fit && camera.aspect < 0.9) world.cam.pos.sub(world.cam.look).multiplyScalar(1.7).add(world.cam.look);   // จอแนวตั้ง: ถอยกล้องให้เห็นทั้งครอบครัว
+  world.cam.speed = speed;
+}
+let ending = false;
+async function playEnding() {
+  if (ending) return;
+  ending = true;
+  mode = 'ending';
+  showFishingUi(false);
+  for (const id of ['map', 'evening', 'dex', 'bag']) $(id).classList.add('hidden');
+  $('sleepBtn').classList.add('hidden');
+  await story.fade('🎡 คืนวันงานวัดประจำปี…  ทั้งบ้านแต่งตัวสวย ไปเที่ยวงานด้วยกัน', () => loadWorld('fair'));
+  setNight(true);
+  startFestival();
+  world.onBoom = () => sfx.boom();
+  const F = world.family;
+  try {
+    // 1) เดินเข้างาน
+    placeFamily(0, 16, Math.PI);
+    setCam(0, 16, 34, 0, 3, 0, 0.8);
+    world.cam.lookNow = null; updateCamera(0, true);
+    setCam(2.5, 3.2, 14, 0, 1.6, 4, 0.9);
+    await walkFamily([0, 16], [0, 6.5], 5);
+    sfx.cheer();
+    await story.dialog([['ลูก', 'ว้าววว! ไฟสวยจังเลยพ่อ ชิงช้าสวรรค์ใหญ่มาก!'], ['แม่', 'ขอบคุณนะพ่อ ที่ตั้งใจตกปลาเก็บเงินทุกวัน วันนี้เที่ยวให้เต็มที่เลย']]);
+    // 2) ซุ้มสายไหม
+    setCam(-8.8, 3.4, 11.5, -10.8, 1.5, 4, 1.4);
+    await walkFamily([0, 6.5], [-10.6, 5.2], 4);
+    F.kid.candy.visible = true; F.kid2.candy.visible = true;
+    F.kid.armR.rotation.x = -1.3; F.kid2.armR.rotation.x = -1.3;
+    await story.dialog([['ลูก', 'สายไหมฟูฟ่องเหมือนก้อนเมฆเลย หวานมากกก 🍭'], ['พ่อ', 'กินช้า ๆ นะลูก เดี๋ยวไปขึ้นชิงช้าสวรรค์กัน']]);
+    // 3) ชิงช้าสวรรค์
+    await story.fade('ขึ้นชิงช้าสวรรค์…', () => {
+      const W = world.wheel, cab = W.cabins[0];
+      W.rot = -Math.PI / 2 - cab.a;            // กระเช้าของเราอยู่ล่างสุด
+      const seat = [[0, -0.15], [0.32, 0.15], [-0.3, 0.15], [0.05, 0.3]];
+      familyList().forEach((m, i) => { cab.g.add(m.g); m.g.position.set(seat[i][0], -1.32, seat[i][1]); m.g.scale.multiplyScalar(0.5); m.g.rotation.set(0, 0, 0); });
+      world.wheelSpeed = 0.42;
+    });
+    const cab = world.wheel.cabins[0];
+    director = () => { const p = cab.g.position; setCam(p.x + 4.5, p.y + 1.5, p.z + 7.5, p.x, p.y - 0.6, p.z, 2.5); };
+    while (Math.sin(cab.a + world.wheel.rot) < 0.97) await waitT(0.1);
+    world.wheelSpeed = 0;
+    director = null;
+    const top = cab.g.position.clone();
+    setCam(top.x - 3, top.y + 2.5, top.z + 6, top.x - 1, top.y - 2.2, top.z - 2, 4);   // กระเช้าเราด้านบนจอ งานวัดอยู่ด้านล่าง
+    await waitT(1.5);
+    await story.dialog([['แม่', 'มองเห็นไฟทั้งงานเลย… ไกล ๆ นั่นทุ่งนาบ้านเราด้วย'], ['พ่อ', 'ปีหน้าเรามากันอีกนะ พ่อจะตกปลาตัวใหญ่ ๆ เลย'], ['ลูก', 'สัญญานะพ่อ! 🤙']]);
+    world.wheelSpeed = 0.18;
+    // 4) บ้านผีสิง
+    await story.fade('ไปบ้านผีสิงกัน… 👻', () => {
+      const s0 = 1 / 0.5;
+      familyList().forEach(m => { scene.add(m.g); m.g.scale.multiplyScalar(s0); });
+      const h = world.haunted;
+      h.updateMatrixWorld(true);
+      const door = new THREE.Vector3(0, 0, 4.2).applyMatrix4(h.matrixWorld);
+      placeFamily(door.x, door.z, h.rotation.y + Math.PI);
+      const cam = new THREE.Vector3(1.2, 6.2, 6.0).applyMatrix4(h.matrixWorld);   // มุมสูง ข้ามหลังคาซุ้มขายของ
+      const look = new THREE.Vector3(0, 1.4, 2.6).applyMatrix4(h.matrixWorld);
+      setCam(cam.x, cam.y, cam.z, look.x, look.y, look.z, 3);
+      world.cam.lookNow = null; updateCamera(0, true);
+    });
+    await story.dialog([['ลูก', 'หนูไม่กลัวหรอก… มั้ง'], ['พ่อ', 'จับมือพ่อไว้ เข้าไปพร้อมกันนะ']]);
+    // ผีโผล่!
+    const gh = world.ghost;
+    sfx.ghost();
+    let t0 = 0;
+    director = dt => {
+      t0 += dt;
+      const k = Math.min(1, t0 / 0.35);
+      gh.scale.setScalar(0.001 + k * 1.3 + Math.sin(t0 * 20) * 0.05 * k);
+      gh.position.y = 0.3 + Math.sin(t0 * 6) * 0.15;
+      for (const m of [F.kid, F.kid2]) { m.g.position.y = Math.abs(Math.sin(t0 * 14)) * 0.35 * Math.max(0, 1 - t0 / 1.5); m.armL.rotation.x = -2.8; m.armR.rotation.x = -2.8; }
+    };
+    toast('👻 แฮ่!!!', 1500);
+    await waitT(1.2);
+    await story.dialog([['ลูก', 'กรี๊ดดดดด!!! 😱'], ['ลูก', '…ไม่ได้กลัวนะ แค่ตกใจเฉย ๆ'], ['แม่', 'ฮ่า ๆ ๆ พ่อก็สะดุ้งเหมือนกันแหละ เห็นนะ']]);
+    director = null;
+    gh.scale.setScalar(0.001);
+    for (const m of [F.kid, F.kid2]) { m.g.position.y = 0; m.armL.rotation.x = 0; m.armR.rotation.x = -1.3; }
+    // 5) ดอกไม้ไฟ
+    await story.fade('ใกล้เที่ยงคืน… ทุกคนมานั่งรอดูดอกไม้ไฟหน้าวัด 🎆', () => {
+      placeFamily(3, -4, Math.PI);
+      setCam(4.2, 1.25, 2.4, 0.5, 5.2, -24, 1, false);   // หลังครอบครัว เงยดูฟ้าเหนือวัด
+      world.cam.lookNow = null; updateCamera(0, true);
+      world.fireworksOn = true;
+      world.hideCrowd();
+      world.firework(-4, 16, -20); world.firework(5, 18, -22, 0.6);
+    });
+    await waitT(3);
+    sfx.cheer();
+    await story.dialog([['แม่', 'นี่แหละความสุขของบ้านเรา… ได้อยู่พร้อมหน้ากันแบบนี้'], ['ลูก', 'รักพ่อ รักแม่ ที่สุดในโลกเลย ❤️'], ['พ่อ', '(ยิ้ม) …พรุ่งนี้ไปตกปลากันอีกนะ']]);
+    setCam(4.6, 1.4, 3.4, 0, 6.5, -24, 0.4, false);
+    await waitT(4);
+  } finally {
+    director = null;
+  }
+  S.endingSeen = true; story.save();
+  const got = SPECIES.filter(s => dex.dex[s.id]).length;
+  $('credStats').innerHTML = `<div><small>ตกปลามาทั้งหมด</small><b>${S.day} วัน</b></div><div><small>ปลาที่ได้</small><b>${S.stats.caught} ตัว</b></div>
+    <div><small>ขายตลาดได้รวม</small><b>${story.baht(S.stats.earned || 0)}</b></div><div><small>สมุดสะสม</small><b>${got}/${SPECIES.length} ชนิด</b></div>`;
+  $('credits').classList.remove('hidden');
+}
+$('credGo').addEventListener('click', () => {
+  $('credits').classList.add('hidden');
+  stopFestival(); setNight(false);
+  ending = false;
+  sfx.click();
+  mode = 'travel';
+  story.fade(`เช้าวันใหม่… วันที่ ${S.day + 1}`, () => { S.day++; S.time = story.DAY_START; S.night = false; story.rollLuck(); S.phase = 'map'; story.save(); loadWorld('home'); }).then(() => { mode = 'home'; world.setMorning(true); openMap(); });
+});
+$('credAgain').addEventListener('click', () => { $('credits').classList.add('hidden'); stopFestival(); ending = false; playEnding(); });
 $('newBtn').addEventListener('click', () => {
   if (!confirm('เริ่มเรื่องใหม่ตั้งแต่วันที่ 1? (สมุดสะสมปลายังอยู่)')) return;
   story.resetStory();
@@ -1139,6 +1292,8 @@ function tick(dt, draw = true) {
   game.update(dt);
   updateCamera(dt);
   for (const u of world.update) u(dt, camera);
+  if (director) director(dt);
+  for (let i = waiters.length - 1; i >= 0; i--) if (shared.uTime.value >= waiters[i].t) { waiters[i].res(); waiters.splice(i, 1); }
   if (mode === 'fishing') { dayTick(dt); updateHints(); updateHud(); updateAlert(); }
   ambienceTick(world.ambience?.falls && world.special ? player.pos.distanceTo(world.special) : 10, shared.uTime.value);
   if (draw) renderer.render(scene, camera);
@@ -1154,5 +1309,5 @@ requestAnimationFrame(loop);
 // สำหรับทดสอบ: เรียก tick เองได้ตอนแท็บถูกซ่อน (timer ช้า)
 window.__fish = {
   game, story, get S() { return story.S; }, tick: (dt = 1 / 60, draw = true) => ready && tick(dt, draw), get player() { return player; }, get world() { return world; },
-  actionDown, actionUp, keys, get ready() { return ready; }, get lantern() { return lantern; }, get camera() { return camera; }, get mode() { return mode; }, loadWorld, goFishing, goHome, start,
+  actionDown, actionUp, keys, get ready() { return ready; }, get lantern() { return lantern; }, get camera() { return camera; }, get mode() { return mode; }, loadWorld, goFishing, goHome, start, playEnding,
 };
